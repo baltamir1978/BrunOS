@@ -47,6 +47,12 @@ final class MouseRouter: MouseSourceDelegate {
     /// Cuál está mandando ahora mismo, para poder rotularlo en los ajustes.
     private(set) var activeSourceName = "ninguna"
 
+    /// Cuántos eventos ha entregado cada fuente. Sirve para distinguir, desde
+    /// los ajustes del iPhone, entre "el ratón no llega a la app" y "llega pero
+    /// el cursor no se mueve", que se parecen mucho y se arreglan distinto.
+    private(set) var gcEventCount = 0
+    private(set) var indirectEventCount = 0
+
     func start() {
         gcSource.delegate = self
         indirectSource.delegate = self
@@ -71,11 +77,23 @@ final class MouseRouter: MouseSourceDelegate {
     }
 
     func mouseSource(_ source: any MouseSource, didMove delta: MouseDelta) {
+        count(source)
         guard isActive(source) else { return }
         delegate?.mouseSource(source, didMove: delta)
     }
 
+    /// Se cuenta **antes** de filtrar por fuente activa: interesa saber si los
+    /// eventos llegan, aunque acaben descartándose.
+    private func count(_ source: any MouseSource) {
+        if source === gcSource {
+            gcEventCount += 1
+        } else if source === indirectSource {
+            indirectEventCount += 1
+        }
+    }
+
     func mouseSource(_ source: any MouseSource, didPress button: PointerEvent.Button) {
+        count(source)
         guard isActive(source) else { return }
         delegate?.mouseSource(source, didPress: button)
     }

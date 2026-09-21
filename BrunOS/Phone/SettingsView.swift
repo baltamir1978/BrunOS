@@ -94,6 +94,27 @@ struct SettingsView: View {
             LabeledContent("Fuente activa", value: services.mouse.activeSourceName)
                 .font(.brunosMono(14))
 
+            // Distingue "el ratón no llega a la app" de "llega pero el cursor
+            // no se mueve". Se parecen mucho vistos desde el sofá y se
+            // arreglan de forma muy distinta.
+            LabeledContent(
+                "AssistiveTouch",
+                value: services.assistiveTouch.isRunning ? "activo" : "INACTIVO"
+            )
+            .font(.brunosMono(14))
+
+            LabeledContent(
+                "GCMouse ve un ratón",
+                value: services.assistiveTouch.hasMouse ? "sí" : "no"
+            )
+            .font(.brunosMono(14))
+
+            LabeledContent(
+                "Eventos recibidos",
+                value: "GCMouse \(services.mouse.gcEventCount) · indirecto \(services.mouse.indirectEventCount)"
+            )
+            .font(.brunosMono(13))
+
             VStack(alignment: .leading) {
                 Text("Sensibilidad: \(pointer.sensitivity, format: .number.precision(.fractionLength(1)))×")
                     .font(.brunosSans(14))

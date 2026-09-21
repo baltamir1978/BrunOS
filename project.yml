@@ -97,12 +97,18 @@ targets:
           BrunOS transcribe lo que dictas para escribirlo en el panel con foco.
           El reconocimiento ocurre en el propio iPhone.
 
+        # Sin esta clave iOS **no entrega los eventos de puntero indirecto** a
+        # la app, y el ratón deja de existir para BrunOS. Va aquí y no como
+        # INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: ese prefijo
+        # sólo lo aplica Xcode cuando genera el Info.plist él, y aquí hay uno
+        # explícito, así que se ignoraba sin avisar de nada.
+        UIApplicationSupportsIndirectInputEvents: true
+
         ITSAppUsesNonExemptEncryption: false
 
     settings:
       base:
         PRODUCT_NAME: BrunOS
-        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_EMIT_LOC_STRINGS: YES
