@@ -244,6 +244,22 @@ final class DesktopViewController: UIViewController {
         return true
     }
 
+    /// Pone en cada espacio de trabajo el panel que le da nombre.
+    ///
+    /// Antes sólo se creaba uno en el espacio activo, y al pulsar Cmd+2 o Cmd+3
+    /// aparecía un escritorio vacío: indistinguible de que el cambio de espacio
+    /// no funcionara.
+    func populateEmptyWorkspaces() {
+        let previous = services.desktop.activeIndex + 1
+        for kind in PaneKind.allCases {
+            services.desktop.activate(number: kind.preferredWorkspace)
+            if services.desktop.active.isEmpty {
+                addPane(kind: kind)
+            }
+        }
+        services.desktop.activate(number: previous)
+    }
+
     /// Crea un panel en el espacio activo.
     func addPane(kind: PaneKind) {
         let workspace = services.desktop.active
@@ -266,12 +282,9 @@ final class DesktopViewController: UIViewController {
 
     // MARK: - Puntero
 
-    /// Instala el cursor sobre esta ventana y lo centra.
+    /// Instala el cursor dentro del lienzo y lo centra.
     func attachPointer() {
-        guard let window = view.window else { return }
-        services.pointer.attach(to: window)
-        // El cursor se dibuja en la ventana, que está en puntos físicos, así que
-        // su capa tiene que llevar la misma escala que el lienzo.
+        services.pointer.attach(to: canvas, scene: view.window?.windowScene)
         services.pointer.center()
     }
 

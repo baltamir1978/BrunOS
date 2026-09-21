@@ -38,6 +38,10 @@ final class PlaceholderPane: UIView, Pane {
     private let titleLabel = UILabel()
     private let bodyLabel = UILabel()
     private var lastEvent = "sin eventos"
+    /// Posición del ratón dentro del panel. Se rotula siempre, aunque no haya
+    /// pasado nada más: es la única forma de ver de un vistazo, y desde el otro
+    /// lado de la habitación, si el puntero llega hasta aquí.
+    private var pointerText = "ratón: no ha entrado"
 
     var title: String { kind.title }
     var view: UIView { self }
@@ -89,10 +93,13 @@ final class PlaceholderPane: UIView, Pane {
     }
 
     func handlePointer(_ event: PointerEvent) {
+        pointerText = "ratón: \(Int(event.location.x)),\(Int(event.location.y))"
+
         switch event.kind {
         case .moved:
-            // El movimiento llega a cada fotograma: rotularlo llenaría el panel
-            // de ruido y taparía lo que de verdad interesa ver.
+            // El movimiento no se apunta como "último evento", que se llenaría
+            // de ruido, pero sí refresca la posición de arriba.
+            refreshBody()
             return
         case .down(let button):
             lastEvent = "ratón abajo (\(button)) en \(Int(event.location.x)),\(Int(event.location.y))"
@@ -126,6 +133,7 @@ final class PlaceholderPane: UIView, Pane {
     private func refreshBody() {
         bodyLabel.text = """
             \(Int(bounds.width))×\(Int(bounds.height)) lógicos
+            \(pointerText)
             \(lastEvent)
             """
     }

@@ -31,10 +31,10 @@ final class ExternalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.layoutIfNeeded()
         desktop.attachPointer()
 
-        // Un escritorio vacío no dice nada de si el mosaico funciona, así que
-        // arranca con un panel del tipo que le toca al espacio activo.
+        // Un espacio vacío no se distingue de uno roto, así que cada uno
+        // arranca con el panel que le da nombre: 1 web, 2 ssh, 3 files.
         if services.desktop.workspaces.allSatisfy(\.isEmpty) {
-            desktop.addPane(kind: .browser)
+            desktop.populateEmptyWorkspaces()
         }
     }
 

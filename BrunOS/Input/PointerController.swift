@@ -90,6 +90,9 @@ final class MouseRouter: MouseSourceDelegate {
         } else if source === indirectSource {
             indirectEventCount += 1
         }
+        // Que el ratón entregue eventos manda sobre lo que diga el sistema de
+        // AssistiveTouch: si funciona, sobra el aviso.
+        AppServices.shared.assistiveTouch.isPointerWorking = true
     }
 
     func mouseSource(_ source: any MouseSource, didPress button: PointerEvent.Button) {
@@ -147,15 +150,24 @@ final class PointerController {
 
     // MARK: - Instalación
 
-    /// Coloca el cursor sobre la ventana externa y engancha el display link de
-    /// su escena.
-    func attach(to window: UIWindow) {
-        hostLayer = window.layer
-        window.layer.addSublayer(layer)
+    /// Coloca el cursor **dentro del lienzo lógico**, no sobre la ventana.
+    ///
+    /// Es importante y costó verlo: la posición del cursor se lleva en puntos
+    /// lógicos del escritorio, pero la ventana está en puntos físicos. Colgando
+    /// la capa de la ventana, un cursor en el centro del escritorio aparecía
+    /// arriba a la izquierda y más pequeño de la cuenta, porque le faltaba el
+    /// factor de escala que sí tiene el lienzo.
+    ///
+    /// Dentro del lienzo las coordenadas coinciden sin conversiones y el cursor
+    /// se escala igual que todo lo demás.
+    func attach(to canvas: UIView, scene: UIWindowScene?) {
+        hostLayer = canvas.layer
+        canvas.layer.addSublayer(layer)
+        // Por encima de cualquier panel.
         layer.zPosition = 10_000
 
         displayLink?.invalidate()
-        displayLink = window.windowScene?.displayLink(target: self, selector: #selector(step))
+        displayLink = scene?.displayLink(target: self, selector: #selector(step))
         displayLink?.add(to: .main, forMode: .common)
     }
 

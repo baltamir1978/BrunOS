@@ -77,12 +77,20 @@ final class AssistiveTouchMonitor {
         }
     }
 
+    /// Si el ratón está entregando eventos a la app, se sepa por qué o no.
+    ///
+    /// Lo pone `MouseRouter` en cuanto llega el primero.
+    var isPointerWorking = false
+
     /// Cuándo merece la pena dar la lata con el aviso.
     ///
-    /// Sólo si hace falta de verdad: hay monitor o ratón, y AssistiveTouch está
-    /// apagado. Sin nada conectado, el aviso sería ruido.
+    /// **La regla manda sobre el estado declarado de AssistiveTouch**: si el
+    /// ratón mueve cosas, da igual lo que diga `isAssistiveTouchRunning`. La
+    /// primera versión avisaba en cuanto veía un ratón y AssistiveTouch
+    /// apagado, y acababa dando la lata justo cuando el ratón ya funcionaba.
     var shouldWarn: Bool {
-        !isRunning && (hasExternalDisplay || hasMouse)
+        guard hasExternalDisplay else { return false }
+        return !isPointerWorking && !isRunning
     }
 
     func start() {
