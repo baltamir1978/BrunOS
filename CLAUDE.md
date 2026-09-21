@@ -97,6 +97,23 @@ Trampas de esta fase:
   queda dentro, que es lo que hace que compile sin trampas.
 - `TerminalViewDelegate` de SwiftTerm no está declarado `@MainActor` aunque siempre se llame desde
   la interfaz: la conformidad se marca `@preconcurrency`.
+### SSH sin Tailscale, y el agujero de keyboard-interactive
+
+**SSH funciona sin Tailscale**: con el método «Contraseña» se conecta a cualquier máquina
+alcanzable desde la red del iPhone. Tailscale sólo aporta llegar a máquinas no expuestas y entrar
+sin contraseña. El aviso de «Tailscale no parece activo» **sólo sale si hay algún host configurado
+con ese método**, para no dar la lata a quien no lo use.
+
+Pero hay una limitación seria, comprobada en la librería y **no arreglable desde BrunOS**:
+
+**NIOSSH no implementa `keyboard-interactive`.** `NIOSSHAvailableUserAuthenticationMethods` sólo
+contempla `publicKey`, `password` y `hostBased`, y la cadena "keyboard-interactive" no aparece en
+ningún fichero de la librería. Importa porque hay servidores OpenSSH configurados con
+`KbdInteractiveAuthentication yes` y `PasswordAuthentication no`, y **contra ésos la contraseña no
+entra**. Las salidas son dos: usar clave pública, que Citadel sí admite (`ed25519`, `p256`, `rsa`;
+quedaron fuera de esta versión por decisión del prompt, pero el diseño está preparado), o parchear
+NIOSSH.
+
 ### Claves de host (known_hosts)
 
 **Ya está hecho**, en `KnownHosts.swift`. El cifrado de SSH impide que nadie escuche por el camino,

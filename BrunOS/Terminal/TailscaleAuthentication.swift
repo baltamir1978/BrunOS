@@ -56,6 +56,16 @@ final class TailscaleAuthenticationDelegate: NIOSSHClientUserAuthenticationDeleg
     }
 }
 
+/// **`keyboard-interactive` no existe en esta pila y no se puede añadir.**
+///
+/// Comprobado en la librería: `NIOSSHAvailableUserAuthenticationMethods` sólo
+/// contempla `publicKey`, `password` y `hostBased`, y la cadena
+/// "keyboard-interactive" no aparece en ningún fichero de NIOSSH. No es que
+/// falte por implementar en BrunOS: **la librería no habla ese método**.
+///
+/// Importa porque hay servidores OpenSSH con `KbdInteractiveAuthentication yes`
+/// y `PasswordAuthentication no`, y contra ésos la contraseña no entra. La
+/// salida sería una clave pública, que Citadel sí admite, o parchear NIOSSH.
 enum TailscaleAuthenticationError: Error, LocalizedError {
     case noneRejected
 

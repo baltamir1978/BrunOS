@@ -99,6 +99,20 @@ final class TerminalPane: UIView, Pane {
         AppServices.shared.desktop.notifyChange()
     }
 
+    /// Escribe un aviso en el panel cuando todavía no hay ninguna sesión.
+    ///
+    /// Se pinta en un terminal de verdad y no en una etiqueta suelta para que
+    /// el panel se vea siempre igual: un escritorio donde cada estado tiene su
+    /// propia pinta acaba pareciendo roto.
+    func showMessage(_ message: String) {
+        let tab = TerminalTab(host: SSHHost(name: "BrunOS", host: "local", username: "-"))
+        tabs.append(tab)
+        content.addSubview(tab.terminalView)
+        activate(tabs.count - 1)
+        setNeedsLayout()
+        tab.showNotice(message)
+    }
+
     /// Cierra la pestaña activa. Lo llama Cmd+W.
     func closeActiveTab() {
         closeTab(at: activeIndex)
@@ -134,18 +148,20 @@ final class TerminalPane: UIView, Pane {
 
     func handlePointer(_ event: PointerEvent) {
         guard let tab = activeTab else { return }
-        switch event.kind {
-        case .scroll(let delta):
-            tab.scroll(by: delta)
-        case .down(let button) where button == .left:
-            tab.beginSelection(at: pointInTerminal(event.location))
-        case .moved:
-            tab.extendSelection(to: pointInTerminal(event.location))
-        case .up:
-            tab.endSelection()
-        default:
-            break
+
+        // Un clic en la barra de pestañas cambia de sesión.
+        if !tabBar.isHidden, tabBar.frame.contains(event.location) {
+            if case .down = event.kind, let index = tabBar.indexOfTab(at: event.location) {
+                activate(index)
+            }
+            return
         }
+
+        tab.handlePointer(
+            event.kind,
+            at: pointInTerminal(event.location),
+            modifiers: event.modifiers
+        )
     }
 
     private func pointInTerminal(_ point: CGPoint) -> CGPoint {
@@ -170,6 +186,10 @@ final class TerminalPane: UIView, Pane {
     /// Copia la selección al portapapeles. Cmd+C.
     func copySelection() {
         activeTab?.copySelection()
+    }
+
+    func clearSelection() {
+        activeTab?.clearSelection()
     }
 
     /// Pega el portapapeles en la sesión. Cmd+V.

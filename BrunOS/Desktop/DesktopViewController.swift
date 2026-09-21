@@ -262,6 +262,17 @@ final class DesktopViewController: UIViewController {
             guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
             terminal.closeActiveTab()
 
+        case .copy:
+            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
+            terminal.copySelection()
+
+        case .paste:
+            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
+            terminal.paste()
+
+        case .launcher:
+            presentLauncher()
+
         case .zoomIn, .zoomOut, .zoomReset:
             guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
             switch command {
@@ -270,8 +281,8 @@ final class DesktopViewController: UIViewController {
             default: terminal.resetFontSize()
             }
 
-        // Éstas llegarán a su sitio cuando existan el navegador y los ficheros.
-        case .launcher, .addressBar, .reload, .find:
+        // Éstas llegarán a su sitio cuando exista el navegador.
+        case .addressBar, .reload, .find:
             Log.desktop.debug("Orden aún sin destino: \(String(describing: command))")
             return false
         }
@@ -320,15 +331,69 @@ final class DesktopViewController: UIViewController {
 
     /// Abre una sesión en un panel de terminal.
     ///
-    /// Con un solo host configurado se conecta directamente, que es el caso
-    /// normal. Con varios, o con ninguno, hace falta elegir: de eso se encarga
-    /// el lanzador, que llega con la interfaz de hosts del iPhone.
+    /// Con un solo host se conecta directamente, que es el caso normal. Con
+    /// varios abre el lanzador para elegir, en vez de decidir por su cuenta.
     func openTerminalSession(in pane: TerminalPane) {
-        guard let host = services.hosts.hosts.first else {
-            Log.desktop.info("No hay hosts configurados todavía")
+        let hosts = services.hosts.hosts
+        guard !hosts.isEmpty else {
+            pane.showMessage("No hay ninguna máquina configurada.\n"
+                             + "Añádela en el iPhone: Ajustes › SSH › Hosts.")
             return
         }
-        pane.openSession(to: host)
+        if hosts.count == 1 {
+            pane.openSession(to: hosts[0])
+        } else {
+            presentLauncher()
+        }
+    }
+
+    // MARK: - Lanzador
+
+    private var launcher: Launcher?
+
+    /// Cmd+P: elegir a qué máquina conectarse.
+    ///
+    /// En la Fase 3 y la 4 se le añadirán URLs y ubicaciones; de momento son
+    /// los hosts, que es lo que hay.
+    func presentLauncher() {
+        launcher?.removeFromSuperview()
+
+        let entries = services.hosts.hosts.map { host in
+            Launcher.Entry(
+                title: host.displayName,
+                subtitle: "\(host.username)@\(host.host) · \(host.authentication.label)"
+            ) { [weak self] in
+                self?.connectFocusedTerminal(to: host)
+            }
+        }
+        guard !entries.isEmpty else { return }
+
+        let launcher = Launcher(entries: entries)
+        launcher.onDismiss = { [weak self] in
+            self?.launcher?.removeFromSuperview()
+            self?.launcher = nil
+        }
+        canvas.addSubview(launcher)
+        launcher.frame = CGRect(origin: .zero, size: logicalSize)
+        self.launcher = launcher
+    }
+
+    private func connectFocusedTerminal(to host: SSHHost) {
+        let workspace = services.desktop.active
+        if let terminal = workspace.focusedPane as? TerminalPane {
+            terminal.openSession(to: host)
+        } else {
+            addPane(kind: .terminal)
+            if let terminal = services.desktop.active.focusedPane as? TerminalPane {
+                terminal.openSession(to: host)
+            }
+        }
+    }
+
+    /// El lanzador se lleva el teclado mientras está abierto.
+    func launcherHandlesKey(_ event: KeyEvent) -> Bool {
+        guard let launcher else { return false }
+        return launcher.handleKey(event)
     }
 
     private func currentFrames() -> [PaneID: CGRect] {
@@ -487,6 +552,7 @@ final class DesktopViewController: UIViewController {
 
     /// Entrega una tecla al panel con foco.
     func deliverKey(_ event: KeyEvent) {
+        if launcherHandlesKey(event) { return }
         services.desktop.active.focusedPane?.handleKey(event)
     }
 

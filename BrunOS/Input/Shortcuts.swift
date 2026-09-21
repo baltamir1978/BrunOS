@@ -16,6 +16,8 @@ enum DesktopCommand: Equatable {
     case closeTab
     case newPane
     case launcher
+    case copy
+    case paste
     case addressBar
     case reload
     case find
@@ -34,6 +36,8 @@ enum DesktopCommand: Equatable {
         case .closeTab: "Cerrar pestaña o sesión"
         case .newPane: "Nuevo panel"
         case .launcher: "Lanzador"
+        case .copy: "Copiar"
+        case .paste: "Pegar"
         case .addressBar: "Barra de direcciones"
         case .reload: "Recargar"
         case .find: "Buscar"
@@ -95,6 +99,11 @@ enum Shortcuts {
             Entry(input: "w", modifiers: .command, command: .closeTab, title: "Cerrar pestaña"),
             Entry(input: "n", modifiers: .command, command: .newPane, title: "Nuevo panel"),
             Entry(input: "p", modifiers: .command, command: .launcher, title: "Lanzador"),
+            // Cmd+C y Cmd+V **tienen que estar aquí**. Sin declararlos, el
+            // router los dejaba pasar al panel y el terminal acababa mandando
+            // una "c" al servidor en vez de copiar.
+            Entry(input: "c", modifiers: .command, command: .copy, title: "Copiar"),
+            Entry(input: "v", modifiers: .command, command: .paste, title: "Pegar"),
             Entry(input: "l", modifiers: .command, command: .addressBar, title: "Dirección"),
             Entry(input: "r", modifiers: .command, command: .reload, title: "Recargar"),
             Entry(input: "f", modifiers: .command, command: .find, title: "Buscar"),

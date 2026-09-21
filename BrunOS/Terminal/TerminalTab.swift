@@ -16,6 +16,8 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     let host: SSHHost
     let session: SSHSession
     let terminalView: TerminalView
+    /// Capa donde se pinta el resaltado de la selección.
+    private let selectionLayer = CALayer()
 
     var onTitleChange: (@MainActor () -> Void)?
 
@@ -49,6 +51,7 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         self.terminalView = TerminalView(frame: .zero, font: Tokens.mono(13), options: options)
         super.init()
 
+        terminalView.layer.addSublayer(selectionLayer)
         terminalView.terminalDelegate = self
         terminalView.nativeBackgroundColor = Tokens.Color.terminalBackground
         terminalView.nativeForegroundColor = Tokens.Color.text
@@ -93,6 +96,13 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
             break
         }
         onTitleChange?()
+    }
+
+    /// Escribe un aviso en el terminal sin que haya sesión detrás.
+    func showNotice(_ text: String) {
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            write(banner: String(line))
+        }
     }
 
     private func write(banner: String) {
@@ -171,6 +181,177 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
 
     // MARK: - Ratón
 
+    /// Texto seleccionado con el ratón, si lo hay.
+    private(set) var selection: (start: Position, end: Position)?
+    private var isSelecting = false
+
+    /// Tamaño de una celda, deducido del tamaño de la vista.
+    ///
+    /// SwiftTerm lo sabe, pero `cellDimension` es interno. Dividir el ancho
+    /// entre las columnas da lo mismo y no obliga a tocar la librería.
+    private var cellSize: CGSize {
+        let terminal = terminalView.getTerminal()
+        let bounds = terminalView.bounds
+        guard terminal.cols > 0, terminal.rows > 0, bounds.width > 0 else {
+            return CGSize(width: 8, height: 16)
+        }
+        return CGSize(
+            width: bounds.width / CGFloat(terminal.cols),
+            height: bounds.height / CGFloat(terminal.rows)
+        )
+    }
+
+    /// Convierte un punto del panel a fila y columna.
+    private func position(at point: CGPoint) -> Position {
+        let terminal = terminalView.getTerminal()
+        let cell = cellSize
+        let col = min(max(Int(point.x / cell.width), 0), max(terminal.cols - 1, 0))
+        let row = min(max(Int(point.y / cell.height), 0), max(terminal.rows - 1, 0))
+        return Position(col: col, row: row)
+    }
+
+    /// Si la aplicación remota ha pedido el ratón.
+    ///
+    /// tmux y vim lo activan, y entonces **los clics son suyos**: se les mandan
+    /// como secuencias de escape en vez de usarlos para seleccionar. Es lo que
+    /// permite pinchar una ventana de tmux o colocar el cursor en vim.
+    private var remoteWantsMouse: Bool {
+        terminalView.getTerminal().mouseMode != .off
+    }
+
+    func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint, modifiers: UIKeyModifierFlags) {
+        let position = position(at: point)
+
+        // Shift deja pasar por encima del modo ratón, como en cualquier
+        // terminal: sirve para seleccionar aunque tmux esté capturando.
+        if remoteWantsMouse, !modifiers.contains(.shift) {
+            sendMouseEvent(kind, at: position)
+            return
+        }
+
+        switch kind {
+        case .down(let button) where button == .left:
+            // Cmd+clic sobre un enlace lo abre, como en cualquier terminal
+            // moderno. Es lo que hace falta para la URL de reautenticación que
+            // enseña el modo `check` de Tailscale.
+            if modifiers.contains(.command), let link = link(at: position) {
+                open(link)
+                return
+            }
+            isSelecting = true
+            selection = (position, position)
+            highlightSelection()
+
+        case .moved where isSelecting:
+            selection?.end = position
+            highlightSelection()
+
+        case .up:
+            isSelecting = false
+
+        case .scroll(let delta):
+            scroll(by: delta)
+
+        default:
+            break
+        }
+    }
+
+    /// Manda el clic a la aplicación remota en formato xterm.
+    private func sendMouseEvent(_ kind: PointerEvent.Kind, at position: Position) {
+        let terminal = terminalView.getTerminal()
+        switch kind {
+        case .down(let button):
+            terminal.sendEvent(buttonFlags: flags(for: button), x: position.col, y: position.row)
+        case .up:
+            // 3 es "botón soltado" en el protocolo de xterm.
+            terminal.sendEvent(buttonFlags: 3, x: position.col, y: position.row)
+        case .moved where terminal.mouseMode.sendMotionEvent():
+            terminal.sendMotion(
+                buttonFlags: 32, x: position.col, y: position.row,
+                pixelX: 0, pixelY: 0
+            )
+        case .scroll(let delta):
+            // 64 arriba, 65 abajo, que es como xterm codifica la rueda.
+            let flags = delta.dy > 0 ? 65 : 64
+            terminal.sendEvent(buttonFlags: flags, x: position.col, y: position.row)
+        default:
+            break
+        }
+    }
+
+    private func flags(for button: PointerEvent.Button) -> Int {
+        switch button {
+        case .left: 0
+        case .middle: 1
+        case .right: 2
+        }
+    }
+
+    /// Enlace bajo una posición, si lo hay.
+    private func link(at position: Position) -> String? {
+        // `.screen` y no `.buffer`: la posición viene de un clic en lo que se
+        // está viendo, no de una fila absoluta del historial.
+        //
+        // `.explicitAndImplicit` para que detecte también las URLs escritas a
+        // pelo, sin secuencia de hiperenlace. Es el caso de la URL de
+        // reautenticación que suelta el modo `check` de Tailscale.
+        terminalView.getTerminal().link(
+            at: .screen(position),
+            mode: .explicitAndImplicit
+        )
+    }
+
+    private func open(_ link: String) {
+        guard let url = URL(string: link) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    /// Dibuja el resaltado de la selección.
+    ///
+    /// Se pinta con capas propias y no con la selección de SwiftTerm porque su
+    /// `selection` es interna y no hay forma pública de moverla desde fuera.
+    private func highlightSelection() {
+        selectionLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
+        guard let selection else { return }
+
+        let (start, end) = ordered(selection)
+        let cell = cellSize
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for row in start.row...end.row {
+            let fromCol = row == start.row ? start.col : 0
+            let toCol = row == end.row ? end.col : terminalView.getTerminal().cols - 1
+            guard toCol >= fromCol else { continue }
+
+            let band = CALayer()
+            band.frame = CGRect(
+                x: CGFloat(fromCol) * cell.width,
+                y: CGFloat(row) * cell.height,
+                width: CGFloat(toCol - fromCol + 1) * cell.width,
+                height: cell.height
+            )
+            band.backgroundColor = Tokens.Color.accent.withAlphaComponent(0.30).cgColor
+            selectionLayer.addSublayer(band)
+        }
+        CATransaction.commit()
+    }
+
+    /// De arriba abajo y de izquierda a derecha, aunque se arrastrara al revés.
+    private func ordered(_ selection: (start: Position, end: Position)) -> (Position, Position) {
+        let (a, b) = selection
+        if a.row < b.row || (a.row == b.row && a.col <= b.col) {
+            return (a, b)
+        }
+        return (b, a)
+    }
+
+    func clearSelection() {
+        selection = nil
+        selectionLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
+    }
+
     func scroll(by delta: CGVector) {
         // Tres líneas por muesca, como cualquier terminal.
         let lines = Int((delta.dy / 10).rounded())
@@ -178,13 +359,17 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         terminalView.scrollDown(lines: lines)
     }
 
-    func beginSelection(at point: CGPoint) {}
-    func extendSelection(to point: CGPoint) {}
-    func endSelection() {}
-
+    /// Copia lo seleccionado. Cmd+C.
+    ///
+    /// Si no hay nada seleccionado **no se copia nada**, en vez de copiar la
+    /// pantalla entera: en un terminal, un Cmd+C que se lleve todo por error es
+    /// peor que uno que no haga nada.
     func copySelection() {
-        guard let selection = terminalView.getSelection(), !selection.isEmpty else { return }
-        UIPasteboard.general.string = selection
+        guard let selection else { return }
+        let (start, end) = ordered(selection)
+        let text = terminalView.getTerminal().getText(start: start, end: end)
+        guard !text.isEmpty else { return }
+        UIPasteboard.general.string = text
     }
 
     // MARK: - Tamaño de la fuente
@@ -209,6 +394,9 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     /// recoloquen en vez de pintar sobre una cuadrícula que ya no existe.
     func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
         session.resize(cols: newCols, rows: newRows)
+        selectionLayer.frame = source.bounds
+        // Una selección hecha con otro tamaño ya no señala lo mismo.
+        clearSelection()
     }
 
     func setTerminalTitle(source: TerminalView, title: String) {

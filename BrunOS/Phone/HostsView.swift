@@ -58,6 +58,13 @@ struct HostsView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Sólo se avisa si de verdad hace falta: con algún host configurado para
+    /// entrar por Tailscale. Quien use SSH con contraseña contra una máquina de
+    /// su red no tiene por qué ver nada de esto.
+    private var usesTailscale: Bool {
+        services.hosts.hosts.contains { $0.authentication == .tailscale }
+    }
+
     /// Aviso, nunca impedimento.
     ///
     /// No hay forma de preguntarle a Tailscale por su estado, así que esto se
@@ -65,7 +72,7 @@ struct HostsView: View {
     /// rotula como sospecha y no impide conectarse a nada.
     @ViewBuilder
     private var tailscaleSection: some View {
-        if !services.tailscale.isLikelyUp {
+        if usesTailscale, !services.tailscale.isLikelyUp {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Tailscale no parece estar activo")
