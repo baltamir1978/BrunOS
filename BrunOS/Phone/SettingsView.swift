@@ -104,6 +104,20 @@ struct SettingsView: View {
                 .font(.brunosMono(14))
             }
 
+            NavigationLink {
+                KnownHostsView()
+            } label: {
+                LabeledContent("Claves conocidas") {
+                    if services.knownHosts.pendingChanges.isEmpty {
+                        Text("\(services.knownHosts.entries.count)")
+                    } else {
+                        Label("una ha cambiado", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.brunosAccent)
+                    }
+                }
+                .font(.brunosMono(14))
+            }
+
             LabeledContent(
                 "Tailscale",
                 value: services.tailscale.isLikelyUp ? "parece activo" : "no detectado"

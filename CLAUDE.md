@@ -97,9 +97,23 @@ Trampas de esta fase:
   queda dentro, que es lo que hace que compile sin trampas.
 - `TerminalViewDelegate` de SwiftTerm no está declarado `@MainActor` aunque siempre se llame desde
   la interfaz: la conformidad se marca `@preconcurrency`.
-- La validación de la clave del host es `.acceptAnything()`. Para Tailscale da igual, porque la
-  identidad la garantiza el tailnet antes, pero **para una conexión con contraseña fuera del
-  tailnet no es aceptable**. Pendiente: guardar las claves conocidas al estilo `known_hosts`.
+### Claves de host (known_hosts)
+
+**Ya está hecho**, en `KnownHosts.swift`. El cifrado de SSH impide que nadie escuche por el camino,
+pero no dice **con quién** se está hablando: eso lo dice la clave del servidor. Sin comprobarla,
+cualquiera que se meta en medio se presenta como tu máquina y le entregas la contraseña.
+
+Se sigue el modelo de OpenSSH, **confianza en el primer uso**: la primera vez se guarda la huella
+y a partir de ahí tiene que coincidir. Si cambia, **la conexión se corta** y se avisa en
+Ajustes › SSH › Claves conocidas, donde Bruno decide. No es infalible —si el primer encuentro ya
+estuviera interceptado, se guardaría la clave del atacante— pero es lo que hace `ssh` de siempre.
+
+La huella es **SHA-256 en base64 sin el `=` final**, que es el formato que enseña OpenSSH, para
+poder cotejarla a ojo contra `ssh-keyscan`.
+
+`SSHHostKeyValidator.custom(_:)` de Citadel es público, así que no hizo falta rodearlo. El
+validador es `Sendable` y sin estado mutable a propósito: NIO lo llama desde su event loop, no
+desde el actor principal.
 
 ## Cómo se compila
 

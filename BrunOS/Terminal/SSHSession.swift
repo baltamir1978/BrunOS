@@ -12,12 +12,9 @@ import Foundation
 /// Es la capa que separa a SwiftTerm de Citadel: el terminal habla en bytes y
 /// en filas por columnas, y aquí se traduce a lo que entiende SSH.
 ///
-/// **Sobre la validación de la clave del host.** De momento se acepta cualquiera
-/// (`.acceptAnything`). No es un descuido, pero tampoco es aceptable a la larga:
-/// para Tailscale SSH tiene poca importancia, porque la identidad la garantiza
-/// el tailnet antes de llegar aquí, pero para una conexión con contraseña a una
-/// máquina fuera del tailnet sí importa. Pendiente de guardar las claves
-/// conocidas, al estilo de `known_hosts`.
+/// **La clave del servidor se comprueba** contra las conocidas, al estilo de
+/// `known_hosts`: la primera vez se guarda y a partir de ahí tiene que
+/// coincidir. Si cambia, no se conecta. Ver `KnownHosts.swift`.
 @MainActor
 final class SSHSession {
 
@@ -92,6 +89,9 @@ final class SSHSession {
             ? SSHKeychain.password(for: host) ?? ""
             : ""
 
+        let knownHosts = AppServices.shared.knownHosts
+        let known = knownHosts.entry(host: host.host, port: host.port)?.fingerprint
+
         let (input, inputContinuation) = AsyncStream<Input>.makeStream()
         self.inputContinuation = inputContinuation
 
@@ -115,9 +115,20 @@ final class SSHSession {
         try await Self.runSession(
             host: host,
             password: password,
+            knownFingerprint: known,
             size: size,
             input: input,
-            output: outputContinuation
+            output: outputContinuation,
+            onHostKey: { matched, fingerprint in
+                Task { @MainActor in
+                    let store = AppServices.shared.knownHosts
+                    if matched {
+                        store.trust(fingerprint: fingerprint, host: host.host, port: host.port)
+                    } else {
+                        store.noteChange(fingerprint: fingerprint, host: host.host, port: host.port)
+                    }
+                }
+            }
         )
     }
 
@@ -129,9 +140,11 @@ final class SSHSession {
     private nonisolated static func runSession(
         host: SSHHost,
         password: String,
+        knownFingerprint: String?,
         size: (cols: Int, rows: Int),
         input: AsyncStream<Input>,
-        output: AsyncStream<[UInt8]>.Continuation
+        output: AsyncStream<[UInt8]>.Continuation,
+        onHostKey: @escaping @Sendable (Bool, String) -> Void
     ) async throws {
         let authentication: SSHAuthenticationMethod = switch host.authentication {
         case .tailscale: .tailscale(username: host.username)
@@ -142,7 +155,12 @@ final class SSHSession {
             host: host.host,
             port: host.port,
             authenticationMethod: authentication,
-            hostKeyValidator: .acceptAnything(),
+            hostKeyValidator: .custom(KnownHostsValidator(
+                host: host.host,
+                port: host.port,
+                known: knownFingerprint,
+                onResult: onHostKey
+            )),
             reconnect: .never
         )
         defer { Task { try? await client.close() } }

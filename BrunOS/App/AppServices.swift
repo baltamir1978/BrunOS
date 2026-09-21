@@ -22,6 +22,7 @@ final class AppServices {
     let keyboard = KeyboardRouter()
     let assistiveTouch = AssistiveTouchMonitor()
     let hosts = HostStore()
+    let knownHosts = KnownHostsStore()
     let tailscale = TailscaleMonitor()
 
     /// El escritorio de la pantalla externa, si está conectada.
