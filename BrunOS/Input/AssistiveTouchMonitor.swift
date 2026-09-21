@@ -144,9 +144,43 @@ final class AssistiveTouchMonitor {
         }
     }
 
+    /// Enciende AssistiveTouch por la mejor vía disponible.
+    ///
+    /// Primero se intenta la **API oficial**, `UIGuidedAccessConfigureAccessibilityFeatures`.
+    /// Es pública desde iOS 12.2 y sabe encender AssistiveTouch de verdad, pero
+    /// la cabecera es tajante sobre cuándo: sólo funciona en apps **bloqueadas
+    /// en modo de app única mediante un perfil de gestión de dispositivos**,
+    /// pensada para montajes de tipo quiosco. En un iPhone normal falla, y por
+    /// eso queda el atajo como plan B.
+    ///
+    /// Se intenta igual porque no cuesta nada y, si algún día el iPhone está
+    /// supervisado, deja de hacer falta el atajo y todo el asistente sobra.
+    func enable() {
+        lastAttempt = nil
+
+        UIAccessibility.configureForGuidedAccess(
+            features: .assistiveTouch,
+            enabled: true
+        ) { [weak self] succeeded, _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if succeeded {
+                    self.refresh()
+                    self.lastAttempt = self.isRunning ? .worked : .ranButNothingChanged
+                    self.usedOfficialAPI = true
+                } else {
+                    // Lo esperable en un iPhone sin supervisar.
+                    self.runShortcut()
+                }
+            }
+        }
+    }
+
+    /// Si la vía oficial llegó a funcionar. Si es que sí, el asistente sobra.
+    private(set) var usedOfficialAPI = false
+
     /// Lanza el atajo y deja anotado el resultado.
     func runShortcut() {
-        lastAttempt = nil
         open(runShortcutURL) { [weak self] in
             self?.lastAttempt = .couldNotOpen
         }
@@ -190,9 +224,13 @@ final class AssistiveTouchMonitor {
 /// Pasos del asistente de configuración, con la casilla que marca Bruno.
 ///
 /// El estado de las casillas es suyo, no deducido: BrunOS **no puede** saber si
-/// una automatización de Atajos existe. Lo único que sí sabe es si
-/// AssistiveTouch está activo, y con eso se rotula "Configurado" cuando lo
-/// observado coincide con lo que debería pasar.
+/// una automatización de Atajos existe. Lo único observable es si AssistiveTouch
+/// está activo, y con eso se rotula "Configurado" cuando lo observado coincide
+/// con lo esperado.
+///
+/// Las instrucciones viven aquí y no en la vista porque **la app tiene que
+/// explicarse sola**. Que haya que salir a buscar a alguien que te cuente por
+/// qué un botón no hace nada es un fallo de la app, no del que la usa.
 enum AssistiveTouchStep: String, CaseIterable, Identifiable {
     case createShortcut
     case automationOnOpen
@@ -203,22 +241,51 @@ enum AssistiveTouchStep: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .createShortcut: "Crear el atajo"
-        case .automationOnOpen: "Automatizar al abrir"
-        case .automationOnClose: "Automatizar al cerrar"
+        case .automationOnOpen: "Encenderlo al abrir BrunOS"
+        case .automationOnClose: "Apagarlo al salir"
         }
     }
 
-    var detail: String {
+    /// Para qué sirve este paso, en una línea.
+    var purpose: String {
         switch self {
         case .createShortcut:
-            "En Atajos, crea uno llamado «BrunOS AssistiveTouch» con la acción "
-                + "«Establecer AssistiveTouch» puesta en activar."
+            "Es lo que hace que el botón «Activar» de BrunOS tenga algo que ejecutar."
         case .automationOnOpen:
-            "En Automatización, añade una de App: BrunOS, «Se abre», con "
-                + "«Establecer AssistiveTouch: activado» y «Ejecutar inmediatamente»."
+            "Con esto no tendrás que volver a pulsar nada: el ratón funcionará "
+                + "en cuanto abras BrunOS."
         case .automationOnClose:
-            "Repite la automatización con «Se cierra» y «Establecer "
-                + "AssistiveTouch: desactivado»."
+            "Deja el iPhone como estaba. Con AssistiveTouch encendido queda un "
+                + "círculo gris flotando en la pantalla, y molesta en el resto de apps."
+        }
+    }
+
+    /// Los pasos concretos, tal cual hay que darlos en la app Atajos.
+    var instructions: [String] {
+        switch self {
+        case .createShortcut:
+            [
+                "Abre la app Atajos y ve a la pestaña «Atajos».",
+                "Toca el + de arriba a la derecha.",
+                "Busca la acción «Establecer AssistiveTouch» y añádela.",
+                "Comprueba que ponga «activar», no «desactivar» ni «alternar».",
+                "Ponle de nombre exactamente el que aparece abajo, sin espacios de más.",
+            ]
+        case .automationOnOpen:
+            [
+                "En Atajos, ve a la pestaña «Automatización».",
+                "Toca el + y elige «App».",
+                "En «App» elige BrunOS, y marca «Se abre».",
+                "Marca también «Ejecutar inmediatamente», o iOS pedirá confirmación cada vez.",
+                "Añade la acción «Establecer AssistiveTouch» puesta en «activado».",
+            ]
+        case .automationOnClose:
+            [
+                "Repite lo mismo: Automatización, +, «App», BrunOS.",
+                "Esta vez marca «Se cierra» en lugar de «Se abre».",
+                "Marca «Ejecutar inmediatamente».",
+                "Añade «Establecer AssistiveTouch» puesta en «desactivado».",
+            ]
         }
     }
 

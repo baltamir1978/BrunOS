@@ -175,7 +175,7 @@ struct AssistiveTouchBanner: View {
 
             HStack {
                 Button("Activar") {
-                    services.assistiveTouch.runShortcut()
+                    services.assistiveTouch.enable()
                 }
                 .buttonStyle(.glassProminent)
                 .tint(Color.brunosAccent)
