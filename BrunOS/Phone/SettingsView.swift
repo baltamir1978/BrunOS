@@ -129,13 +129,19 @@ struct SettingsView: View {
                     .accessibilityLabel("Velocidad del scroll")
             }
 
+            Toggle("Aceleración", isOn: $pointer.acceleration)
+
             Toggle("Scroll natural", isOn: $pointer.naturalScrolling)
         } header: {
             Text("Ratón")
         } footer: {
-            Text("Conviene subir la velocidad de seguimiento en Ajustes de iOS › "
-                 + "Accesibilidad › Control del puntero, porque **se multiplica con "
-                 + "la de aquí**. Si el cursor da saltos, baja ésta antes que aquélla.")
+            Text("Con la aceleración puesta, un movimiento lento va casi 1:1 para poder "
+                 + "apuntar fino, y uno rápido se multiplica para cruzar la pantalla de un "
+                 + "manotazo. **Conviene dejarla puesta**: el recorrido disponible es la "
+                 + "pantalla del iPhone, y cuando el puntero llega a su borde el cursor se "
+                 + "planta.\n\nConviene también subir la velocidad de seguimiento en Ajustes "
+                 + "de iOS › Accesibilidad › Control del puntero, porque **se multiplica con la "
+                 + "de aquí**. Si el cursor da saltos, baja ésta antes que aquélla.")
         }
         .onChange(of: pointer) { _, newValue in
             newValue.save()

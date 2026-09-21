@@ -255,10 +255,38 @@ final class IndirectPointerSource: NSObject, MouseSource, UIGestureRecognizerDel
     private func emitTranslation(to location: CGPoint) {
         defer { lastLocation = location }
         guard let previous = lastLocation else { return }
-        let delta = CGVector(dx: location.x - previous.x, dy: location.y - previous.y)
+
+        var delta = CGVector(dx: location.x - previous.x, dy: location.y - previous.y)
         guard delta != .zero else { return }
+
+        // El recorrido disponible es la pantalla del iPhone, que es **más
+        // pequeña que el escritorio**: 852 pt de alto contra 960 lógicos en un
+        // monitor 2K a escala 1,5. Trasladando el movimiento 1:1, recorrer el
+        // teléfono entero no llegaba a cruzar la pantalla y el cursor se
+        // plantaba al tocar el borde, sobre todo hacia arriba.
+        //
+        // Se compensa con la razón entre los dos tamaños, de modo que un
+        // barrido completo del iPhone cubra el escritorio completo.
+        let ratio = desktopToHostRatio()
+        delta.dx *= ratio.width
+        delta.dy *= ratio.height
+
         markDelivering()
         delegate?.mouseSource(self, didMove: MouseDelta(translation: delta, scroll: .zero))
+    }
+
+    private func desktopToHostRatio() -> CGSize {
+        guard let host, host.bounds.width > 0, host.bounds.height > 0 else {
+            return CGSize(width: 1, height: 1)
+        }
+        let desktop = AppServices.shared.pointer.bounds
+        guard desktop.width > 0, desktop.height > 0 else {
+            return CGSize(width: 1, height: 1)
+        }
+        return CGSize(
+            width: desktop.width / host.bounds.width,
+            height: desktop.height / host.bounds.height
+        )
     }
 
     private func markDelivering() {

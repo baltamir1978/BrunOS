@@ -12,6 +12,10 @@ struct PointerSettings: Codable, Equatable, Sendable {
     /// sube sólo ésta, el cursor da saltos.
     var sensitivity: Double = 1.0
     var scrollSpeed: Double = 1.0
+    /// Aceleración del puntero. Con el puntero indirecto conviene dejarla
+    /// puesta: sin ella hace falta recorrer más pantalla de iPhone de la que
+    /// hay para cruzar el escritorio.
+    var acceleration: Bool = true
     /// Scroll natural: el contenido sigue al dedo, como en macOS por defecto.
     var naturalScrolling: Bool = true
 
@@ -182,13 +186,36 @@ final class PointerController {
 
     /// Aplica un desplazamiento relativo. No repinta: eso lo hace el display
     /// link, para no dibujar más veces de las que la pantalla puede mostrar.
+    ///
+    /// Lleva **aceleración**, como cualquier sistema operativo de escritorio: un
+    /// movimiento lento va casi 1:1, para poder apuntar a un divisor de 8 pt; uno
+    /// rápido se multiplica, para cruzar la pantalla de un manotazo.
+    ///
+    /// Aquí no es un lujo, es necesario. Con el puntero indirecto, el recorrido
+    /// físico disponible **es la pantalla del iPhone**: cuando el puntero del
+    /// sistema llega a su borde deja de haber desplazamiento y el cursor se
+    /// planta. Cuanto menos recorrido haga falta, menos se nota ese tope.
     func move(by delta: CGVector) {
+        let speed = hypot(delta.dx, delta.dy)
+        let gain = settings.sensitivity * acceleration(for: speed)
+
         let next = CGPoint(
-            x: position.x + delta.dx * settings.sensitivity,
-            y: position.y + delta.dy * settings.sensitivity
+            x: position.x + delta.dx * gain,
+            y: position.y + delta.dy * gain
         )
         position = clamp(next)
         pendingPosition = position
+    }
+
+    /// Curva de aceleración: 1× parado y hasta 3,5× a toda velocidad.
+    ///
+    /// El umbral está en puntos por evento, no por segundo, porque los eventos
+    /// llegan al ritmo del refresco y el reparto sale parecido.
+    private func acceleration(for speed: CGFloat) -> CGFloat {
+        guard settings.acceleration else { return 1 }
+        let threshold: CGFloat = 2
+        guard speed > threshold else { return 1 }
+        return min(1 + (speed - threshold) / 6, 3.5)
     }
 
     /// Recoloca el cursor dentro de la pantalla. Se llama al conectar un
