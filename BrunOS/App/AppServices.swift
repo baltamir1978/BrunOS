@@ -37,6 +37,6 @@ final class AppServices {
         guard url.scheme == "brunos" else { return }
         // El estado de AssistiveTouch puede haber cambiado mientras estábamos
         // fuera, y la notificación no siempre llega estando en segundo plano.
-        assistiveTouch.refresh()
+        assistiveTouch.handleCallback(host: url.host)
     }
 }

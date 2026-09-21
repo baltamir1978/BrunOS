@@ -162,7 +162,6 @@ extension Notification.Name {
 struct AssistiveTouchBanner: View {
 
     private let services = AppServices.shared
-    @State private var failed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -176,9 +175,7 @@ struct AssistiveTouchBanner: View {
 
             HStack {
                 Button("Activar") {
-                    services.assistiveTouch.open(services.assistiveTouch.runShortcutURL) {
-                        failed = true
-                    }
+                    services.assistiveTouch.runShortcut()
                 }
                 .buttonStyle(.glassProminent)
                 .tint(Color.brunosAccent)
@@ -189,11 +186,13 @@ struct AssistiveTouchBanner: View {
                 .font(.brunosSans(14))
             }
 
-            if failed {
-                Text("No se pudo ejecutar el atajo «\(services.assistiveTouch.shortcutName)». "
-                     + "Puede que todavía no exista: entra en Configurar.")
+            // Sin esto, «Activar» abría Atajos, volvía y no pasaba nada
+            // visible: imposible saber si el atajo no existía o si existía y
+            // no hacía su trabajo.
+            if let attempt = services.assistiveTouch.lastAttempt {
+                Text(attempt.message)
                     .font(.brunosSans(12))
-                    .foregroundStyle(Color.brunosAccent)
+                    .foregroundStyle(attempt.isGood ? Color.brunosAccentAlt : Color.brunosAccent)
             }
         }
         .padding(14)

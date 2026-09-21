@@ -85,7 +85,12 @@ struct AssistiveTouchGuideView: View {
             if step == .createShortcut {
                 TextField("Nombre del atajo", text: $shortcutName)
                     .font(.brunosMono(14))
-                    .onSubmit { services.assistiveTouch.shortcutName = shortcutName }
+                    .autocorrectionDisabled()
+                    // Guardar al escribir, no al pulsar intro: si no, se cambia
+                    // el nombre, se toca «Probar» y sigue buscando el anterior.
+                    .onChange(of: shortcutName) { _, newValue in
+                        services.assistiveTouch.shortcutName = newValue
+                    }
 
                 TextField("Enlace de iCloud a un atajo compartido (opcional)", text: $sharedLink)
                     .font(.brunosMono(12))
@@ -126,9 +131,13 @@ struct AssistiveTouchGuideView: View {
 
             Button("Probar") {
                 testResult = nil
-                services.assistiveTouch.open(services.assistiveTouch.runShortcutURL) {
-                    testResult = "No se pudo ejecutar «\(shortcutName)». Comprueba el nombre."
-                }
+                services.assistiveTouch.runShortcut()
+            }
+
+            if let attempt = services.assistiveTouch.lastAttempt {
+                Text(attempt.message)
+                    .font(.brunosSans(13))
+                    .foregroundStyle(attempt.isGood ? Color.brunosAccentAlt : Color.brunosAccent)
             }
 
             if let testResult {
@@ -136,6 +145,11 @@ struct AssistiveTouchGuideView: View {
                     .font(.brunosSans(13))
                     .foregroundStyle(Color.brunosAccent)
             }
+
+            // El nombre tiene que coincidir carácter por carácter con el del
+            // atajo. Enseñarlo entero evita perseguir un espacio de más.
+            LabeledContent("Buscando el atajo", value: "«\(services.assistiveTouch.shortcutName)»")
+                .font(.brunosMono(12))
         } footer: {
             Text("«Probar» ejecuta el atajo y vuelve aquí. Si al volver el estado de "
                  + "arriba cambia a Activo, está bien configurado.")

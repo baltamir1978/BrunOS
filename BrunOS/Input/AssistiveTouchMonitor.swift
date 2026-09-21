@@ -28,6 +28,43 @@ final class AssistiveTouchMonitor {
     /// Si hay una pantalla externa conectada.
     var hasExternalDisplay = false
 
+    /// Qué pasó la última vez que se intentó ejecutar el atajo.
+    ///
+    /// Sin esto, el botón «Activar» abre Atajos, vuelve y **no dice nada**, que
+    /// es indistinguible de que el atajo no exista. Los tres casos se arreglan
+    /// de forma distinta y hay que poder separarlos.
+    enum Attempt: Equatable {
+        /// Volvió bien y AssistiveTouch quedó encendido.
+        case worked
+        /// Atajos dijo que sí, pero AssistiveTouch sigue apagado: el atajo
+        /// existe y no hace lo que debería.
+        case ranButNothingChanged
+        /// Atajos devolvió error, casi siempre porque no hay ningún atajo con
+        /// ese nombre.
+        case failed
+        /// No se pudo ni abrir Atajos.
+        case couldNotOpen
+
+        var message: String {
+            switch self {
+            case .worked:
+                "AssistiveTouch activado."
+            case .ranButNothingChanged:
+                "El atajo se ejecutó, pero AssistiveTouch sigue apagado. "
+                    + "Comprueba que su acción sea «Establecer AssistiveTouch» puesta en activar."
+            case .failed:
+                "Atajos no pudo ejecutarlo. Lo más probable es que no exista "
+                    + "ningún atajo con ese nombre exacto."
+            case .couldNotOpen:
+                "No se pudo abrir Atajos."
+            }
+        }
+
+        var isGood: Bool { self == .worked }
+    }
+
+    private(set) var lastAttempt: Attempt?
+
     private var observers: [NSObjectProtocol] = []
 
     var shortcutName: String {
@@ -80,6 +117,39 @@ final class AssistiveTouchMonitor {
     func refresh() {
         isRunning = UIAccessibility.isAssistiveTouchRunning
         hasMouse = GCMouse.current != nil
+    }
+
+    /// Gestiona la vuelta desde Atajos por `brunos://`.
+    ///
+    /// Al volver de otra app, `isAssistiveTouchRunning` puede tardar un
+    /// instante en reflejar el cambio, así que se vuelve a mirar un poco
+    /// después antes de dar nada por fallido.
+    func handleCallback(host: String?) {
+        guard host == "assistivetouch-ok" else {
+            if host == "assistivetouch-error" { lastAttempt = .failed }
+            return
+        }
+
+        refresh()
+        if isRunning {
+            lastAttempt = .worked
+            return
+        }
+
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard let self else { return }
+            self.refresh()
+            self.lastAttempt = self.isRunning ? .worked : .ranButNothingChanged
+        }
+    }
+
+    /// Lanza el atajo y deja anotado el resultado.
+    func runShortcut() {
+        lastAttempt = nil
+        open(runShortcutURL) { [weak self] in
+            self?.lastAttempt = .couldNotOpen
+        }
     }
 
     // MARK: - Atajos
