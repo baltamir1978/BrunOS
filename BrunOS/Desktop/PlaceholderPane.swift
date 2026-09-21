@@ -1,0 +1,127 @@
+import UIKit
+
+/// Los tres tipos de panel que tendrá BrunOS.
+enum PaneKind: String, CaseIterable, Sendable {
+    case terminal
+    case browser
+    case files
+
+    var title: String {
+        switch self {
+        case .terminal: "Terminal"
+        case .browser: "Navegador"
+        case .files: "Ficheros"
+        }
+    }
+
+    /// Espacio de trabajo al que va por defecto: `1 web`, `2 ssh`, `3 files`.
+    var preferredWorkspace: Int {
+        switch self {
+        case .browser: 1
+        case .terminal: 2
+        case .files: 3
+        }
+    }
+}
+
+/// Panel de relleno con el que se construye y se prueba el gestor de ventanas
+/// antes de que existan el terminal, el navegador y los ficheros.
+///
+/// **Es andamio de la Fase 1**: lo sustituyen `TerminalPane` (Fase 2),
+/// `BrowserPane` (Fase 3) y `FilesPane` (Fase 4). No hace nada útil, pero sí
+/// todo lo que el mosaico necesita: se pinta, se entera del foco y acusa recibo
+/// del puntero y del teclado, que es justo lo que hay que poder comprobar.
+@MainActor
+final class PlaceholderPane: UIView, Pane {
+
+    let kind: PaneKind
+    private let titleLabel = UILabel()
+    private let bodyLabel = UILabel()
+    private var lastEvent = "sin eventos"
+
+    var title: String { kind.title }
+    var view: UIView { self }
+
+    init(kind: PaneKind) {
+        self.kind = kind
+        super.init(frame: .zero)
+
+        backgroundColor = kind == .terminal
+            ? Tokens.Color.terminalBackground
+            : Tokens.Color.panel
+        layer.cornerRadius = Tokens.Metric.paneCornerRadius
+        layer.borderWidth = Tokens.Metric.focusBorderWidth
+        layer.borderColor = Tokens.Color.border.cgColor
+        clipsToBounds = true
+
+        titleLabel.font = Tokens.mono(15, bold: true)
+        titleLabel.textColor = Tokens.Color.textSecondary
+        titleLabel.text = kind.title
+
+        bodyLabel.font = Tokens.mono(12)
+        bodyLabel.textColor = Tokens.Color.textSecondary
+        bodyLabel.numberOfLines = 0
+
+        let stack = UIStackView(arrangedSubviews: [titleLabel, bodyLabel])
+        stack.axis = .vertical
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -14),
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+        ])
+
+        refreshBody()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("BrunOS no usa storyboards")
+    }
+
+    func setFocused(_ focused: Bool) {
+        layer.borderColor = focused
+            ? Tokens.Color.accent.cgColor
+            : Tokens.Color.border.cgColor
+        titleLabel.textColor = focused ? Tokens.Color.accent : Tokens.Color.textSecondary
+    }
+
+    func handlePointer(_ event: PointerEvent) {
+        switch event.kind {
+        case .moved:
+            // El movimiento llega a cada fotograma: rotularlo llenaría el panel
+            // de ruido y taparía lo que de verdad interesa ver.
+            return
+        case .down(let button):
+            lastEvent = "ratón abajo (\(button)) en \(Int(event.location.x)),\(Int(event.location.y))"
+        case .up(let button):
+            lastEvent = "ratón arriba (\(button))"
+        case .scroll(let delta):
+            lastEvent = "scroll \(Int(delta.dx)),\(Int(delta.dy))"
+        }
+        refreshBody()
+    }
+
+    func handleKey(_ event: KeyEvent) {
+        guard event.phase == .down else { return }
+        let characters = event.key.charactersIgnoringModifiers
+        lastEvent = characters.isEmpty
+            ? "tecla \(event.key.keyCode.rawValue)"
+            : "tecla “\(characters)”"
+        refreshBody()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        refreshBody()
+    }
+
+    private func refreshBody() {
+        bodyLabel.text = """
+            \(Int(bounds.width))×\(Int(bounds.height)) lógicos
+            \(lastEvent)
+            """
+    }
+}

@@ -66,6 +66,7 @@ final class ExternalDisplayManager {
         store.save(profile)
 
         logCharacteristics(of: screen, profile: profile)
+        AppServices.shared.assistiveTouch.hasExternalDisplay = true
         NotificationCenter.default.post(name: Self.didChangeNotification, object: nil)
     }
 
@@ -77,6 +78,7 @@ final class ExternalDisplayManager {
         Self.logger.info("Pantalla externa desconectada; se conserva el estado de los paneles")
         externalWindow = nil
         currentProfile = nil
+        AppServices.shared.assistiveTouch.hasExternalDisplay = false
         NotificationCenter.default.post(name: Self.didChangeNotification, object: nil)
     }
 

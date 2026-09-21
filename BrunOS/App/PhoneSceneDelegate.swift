@@ -7,10 +7,6 @@ final class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
 
-    /// Gestor de la pantalla externa. Vive en la escena del teléfono porque el
-    /// accesorio se registra desde su view controller raíz.
-    let externalDisplay = ExternalDisplayManager()
-
     func scene(
         _ scene: UIScene,
         willConnectTo session: UISceneSession,
@@ -19,12 +15,20 @@ final class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         let window = UIWindow(windowScene: windowScene)
-        window.rootViewController = PhoneRootViewController(externalDisplay: externalDisplay)
+        window.rootViewController = PhoneRootViewController()
         window.makeKeyAndVisible()
         self.window = window
     }
 
+    /// Vuelta desde Atajos por `brunos://`, tras encender AssistiveTouch.
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts {
+            AppServices.shared.handle(url: context.url)
+        }
+    }
+
     func sceneDidBecomeActive(_ scene: UIScene) {
+        AppServices.shared.assistiveTouch.refresh()
         // Con monitor conectado la pantalla del iPhone no se puede apagar: si la
         // app pasa a segundo plano, iOS vuelve a duplicar la pantalla.
         UIApplication.shared.isIdleTimerDisabled = true

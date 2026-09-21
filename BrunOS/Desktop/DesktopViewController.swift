@@ -1,72 +1,258 @@
+import OSLog
 import UIKit
 
-/// Raíz de la pantalla externa.
+/// Raíz de la pantalla externa: barra superior, mosaico y cursor.
 ///
-/// **Fase 0: esqueleto.** De momento sólo pinta el fondo y una tarjeta con lo que
-/// el sistema dice de la pantalla, que es justo lo que hace falta para comprobar
-/// que el accesorio de escena de iOS 27 funciona. El mosaico, la barra superior
-/// y los paneles llegan en la Fase 1.
+/// **Todo lo de aquí se maqueta en puntos lógicos**, no en los puntos de UIKit
+/// de la pantalla. La vista de contenido se escala con un `transform` para que
+/// un espacio lógico de, por ejemplo, 1920×1080 ocupe los 3840×2160 píxeles
+/// reales del monitor: el texto se dibuja entonces a resolución nativa, nítido,
+/// en vez de rasterizarse pequeño y estirarse.
+@MainActor
 final class DesktopViewController: UIViewController {
 
-    private let brandLabel = UILabel()
-    private let detailLabel = UILabel()
+    private let logger = Logger(subsystem: "com.bruno.brunos", category: "desktop")
+
+    private let services = AppServices.shared
+    private let topBar = TopBar()
+    /// Lienzo en coordenadas lógicas. Todo lo demás cuelga de aquí.
+    private let canvas = UIView()
+    private let emptyLabel = UILabel()
+
+    /// Tamaño del escritorio en puntos lógicos, incluida la barra.
+    private var logicalSize: CGSize = .zero
+
+    // MARK: - Ciclo de vida
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
         view.backgroundColor = Tokens.Color.background
+        canvas.backgroundColor = Tokens.Color.background
+        view.addSubview(canvas)
 
-        // `brunOS_` con el guion bajo en ámbar.
-        let brand = NSMutableAttributedString(
-            string: "brunOS",
-            attributes: [
-                .font: Tokens.mono(48, bold: true),
-                .foregroundColor: Tokens.Color.text,
-            ]
+        canvas.addSubview(topBar)
+
+        emptyLabel.attributedText = TopBar.brandText(size: 44)
+        emptyLabel.textAlignment = .center
+        canvas.addSubview(emptyLabel)
+
+        services.desktopViewController = self
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshLayout),
+            name: ExternalDisplayManager.didChangeNotification,
+            object: nil
         )
-        brand.append(NSAttributedString(
-            string: "_",
-            attributes: [
-                .font: Tokens.mono(48, bold: true),
-                .foregroundColor: Tokens.Color.accent,
-            ]
-        ))
-        brandLabel.attributedText = brand
-        brandLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        detailLabel.font = Tokens.sans(18)
-        detailLabel.textColor = Tokens.Color.textSecondary
-        detailLabel.numberOfLines = 0
-        detailLabel.textAlignment = .center
-        detailLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        view.addSubview(brandLabel)
-        view.addSubview(detailLabel)
-
-        NSLayoutConstraint.activate([
-            brandLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            brandLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -30),
-            detailLabel.topAnchor.constraint(equalTo: brandLabel.bottomAnchor, constant: 16),
-            detailLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            detailLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 40),
-        ])
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshLayout),
+            name: DesktopModel.didChangeNotification,
+            object: nil
+        )
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        refreshDetail()
+        applyDisplayProfile()
     }
 
-    private func refreshDetail() {
-        guard let screen = view.window?.windowScene?.screen else {
-            detailLabel.text = "Sin pantalla"
-            return
-        }
+    // MARK: - Espacio lógico
+
+    /// Recoloca el lienzo según la escala y el overscan del perfil actual.
+    ///
+    /// Se llama cada vez que cambia algo de la pantalla: al conectar, al cambiar
+    /// de resolución en caliente, al tocar la escala y al pasar por AirPlay.
+    private func applyDisplayProfile() {
+        guard let screen = view.window?.windowScene?.screen else { return }
+
+        let profile = services.externalDisplay.currentProfile
+            ?? DisplayProfileStore().profile(forNativePixels: screen.nativeBounds.size)
+
+        // Puntos de UIKit que ocupa de verdad la ventana en el monitor.
+        let physical = view.bounds.size
+        guard physical.width > 0, physical.height > 0 else { return }
+
         let native = screen.nativeBounds.size
-        let profile = DisplayProfileStore().profile(forNativePixels: native)
-        detailLabel.text = """
-            \(Int(native.width))×\(Int(native.height)) px nativos
-            \(profile.summary)
-            """
+        // Cuántos puntos lógicos caben: los píxeles nativos partidos por la
+        // escala elegida. De ahí sale el factor con el que se estira el lienzo.
+        let logicalWidth = native.width / profile.scale.rawValue
+        let factor = physical.width / logicalWidth
+
+        let inset = profile.overscan.rawValue
+        let full = CGSize(width: logicalWidth, height: native.height / profile.scale.rawValue)
+        logicalSize = CGSize(
+            width: full.width * (1 - 2 * inset),
+            height: full.height * (1 - 2 * inset)
+        )
+
+        canvas.transform = .identity
+        canvas.bounds = CGRect(origin: .zero, size: logicalSize)
+        canvas.transform = CGAffineTransform(scaleX: factor, y: factor)
+        canvas.center = CGPoint(x: physical.width / 2, y: physical.height / 2)
+
+        layoutCanvas()
+    }
+
+    private func layoutCanvas() {
+        topBar.frame = CGRect(
+            x: 0, y: 0,
+            width: logicalSize.width,
+            height: Tokens.Metric.topBarHeight
+        )
+        emptyLabel.frame = CGRect(
+            x: 0, y: 0,
+            width: logicalSize.width,
+            height: logicalSize.height
+        )
+
+        let workspace = services.desktop.active
+        let gap = Tokens.Metric.tileGap
+        let area = CGRect(
+            x: gap,
+            y: Tokens.Metric.topBarHeight + gap,
+            width: max(0, logicalSize.width - 2 * gap),
+            height: max(0, logicalSize.height - Tokens.Metric.topBarHeight - 2 * gap)
+        )
+
+        // El cursor se mueve por todo el escritorio, barra incluida.
+        services.pointer.bounds = CGRect(origin: .zero, size: logicalSize)
+
+        let frames = workspace.layout.frames(in: area, gap: gap)
+        emptyLabel.isHidden = !frames.isEmpty
+
+        // Los paneles de otros espacios se quedan fuera de la jerarquía: así no
+        // consumen nada mientras no se vean, pero conservan su estado.
+        for (id, pane) in workspace.panes {
+            guard let frame = frames[id] else {
+                pane.view.removeFromSuperview()
+                continue
+            }
+            if pane.view.superview !== canvas {
+                canvas.addSubview(pane.view)
+            }
+            pane.view.frame = frame
+        }
+        for other in services.desktop.workspaces where other !== workspace {
+            for (_, pane) in other.panes where pane.view.superview === canvas {
+                pane.view.removeFromSuperview()
+            }
+        }
+
+        topBar.update(
+            desktop: services.desktop,
+            profile: services.externalDisplay.currentProfile,
+            blockedCount: nil
+        )
+    }
+
+    @objc private func refreshLayout() {
+        applyDisplayProfile()
+    }
+
+    // MARK: - Órdenes del gestor de ventanas
+
+    /// Ejecuta una orden ya resuelta por el `KeyboardRouter`.
+    /// Devuelve `false` si no le corresponde y debería ir al panel.
+    @discardableResult
+    func perform(_ command: DesktopCommand) -> Bool {
+        let workspace = services.desktop.active
+
+        switch command {
+        case .switchWorkspace(let number):
+            services.desktop.activate(number: number)
+
+        case .moveFocus(let direction):
+            guard let focused = workspace.focused else { return true }
+            let frames = currentFrames()
+            if let next = workspace.layout.pane(from: focused, direction: direction, frames: frames) {
+                workspace.setFocus(next)
+            }
+
+        case .movePane(let direction):
+            guard let focused = workspace.focused else { return true }
+            let frames = currentFrames()
+            if let target = workspace.layout.pane(from: focused, direction: direction, frames: frames) {
+                workspace.layout.swap(focused, target)
+            }
+
+        case .toggleMaximize:
+            workspace.toggleMaximize()
+
+        case .newPane:
+            let kind = (workspace.focusedPane as? PlaceholderPane)?.kind
+                ?? PaneKind.allCases.first { $0.preferredWorkspace == workspace.index }
+                ?? .terminal
+            addPane(kind: kind)
+
+        // Éstas son del panel con foco, no del escritorio. Llegarán a su sitio
+        // cuando existan el terminal, el navegador y los ficheros.
+        case .newTab, .closeTab, .launcher, .addressBar, .reload, .find,
+             .zoomIn, .zoomOut, .zoomReset:
+            logger.debug("Orden aún sin destino: \(String(describing: command))")
+            return false
+        }
+
+        services.desktop.notifyChange()
+        return true
+    }
+
+    /// Crea un panel en el espacio activo.
+    func addPane(kind: PaneKind) {
+        let workspace = services.desktop.active
+        let id = PaneID()
+        let focusedFrame = workspace.focused.flatMap { currentFrames()[$0] }
+        workspace.add(PlaceholderPane(kind: kind), id: id, focusedFrame: focusedFrame)
+        services.desktop.notifyChange()
+    }
+
+    private func currentFrames() -> [PaneID: CGRect] {
+        let gap = Tokens.Metric.tileGap
+        let area = CGRect(
+            x: gap,
+            y: Tokens.Metric.topBarHeight + gap,
+            width: max(0, logicalSize.width - 2 * gap),
+            height: max(0, logicalSize.height - Tokens.Metric.topBarHeight - 2 * gap)
+        )
+        return services.desktop.active.layout.frames(in: area, gap: gap)
+    }
+
+    // MARK: - Puntero
+
+    /// Instala el cursor sobre esta ventana y lo centra.
+    func attachPointer() {
+        guard let window = view.window else { return }
+        services.pointer.attach(to: window)
+        // El cursor se dibuja en la ventana, que está en puntos físicos, así que
+        // su capa tiene que llevar la misma escala que el lienzo.
+        services.pointer.center()
+    }
+
+    /// Entrega un clic o un scroll al panel que esté bajo el cursor.
+    func deliverPointer(_ kind: PointerEvent.Kind, modifiers: UIKeyModifierFlags) {
+        let position = services.pointer.position
+        let frames = currentFrames()
+        guard let hit = frames.first(where: { $0.value.contains(position) }) else { return }
+
+        let workspace = services.desktop.active
+        if case .down = kind, workspace.focused != hit.key {
+            workspace.setFocus(hit.key)
+            services.desktop.notifyChange()
+        }
+
+        workspace.pane(hit.key)?.handlePointer(PointerEvent(
+            kind: kind,
+            location: CGPoint(
+                x: position.x - hit.value.minX,
+                y: position.y - hit.value.minY
+            ),
+            modifiers: modifiers
+        ))
+    }
+
+    /// Entrega una tecla al panel con foco.
+    func deliverKey(_ event: KeyEvent) {
+        services.desktop.active.focusedPane?.handleKey(event)
     }
 }

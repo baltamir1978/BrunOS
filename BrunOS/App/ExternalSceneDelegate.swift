@@ -17,29 +17,32 @@ final class ExternalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     ) {
         guard let windowScene = scene as? UIWindowScene else { return }
 
+        let services = AppServices.shared
         let window = UIWindow(windowScene: windowScene)
         let desktop = DesktopViewController()
         window.rootViewController = desktop
         window.isHidden = false
         self.window = window
 
-        // El gestor vive en la escena del iPhone, que es quien conoce el perfil
-        // de la pantalla y quien tiene que recalcular el mosaico.
-        phoneSceneDelegate()?.externalDisplay.attach(window: window, screen: windowScene.screen)
+        services.externalDisplay.attach(window: window, screen: windowScene.screen)
+
+        // El cursor va después del layout: necesita saber el tamaño lógico del
+        // escritorio para centrarse donde toca.
+        window.layoutIfNeeded()
+        desktop.attachPointer()
+
+        // Un escritorio vacío no dice nada de si el mosaico funciona, así que
+        // arranca con un panel del tipo que le toca al espacio activo.
+        if services.desktop.workspaces.allSatisfy(\.isEmpty) {
+            desktop.addPane(kind: .browser)
+        }
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {
-        phoneSceneDelegate()?.externalDisplay.detach()
+        // El estado de los paneles vive en AppServices y **no se toca aquí**:
+        // al volver a enchufar el monitor todo tiene que reaparecer igual.
+        AppServices.shared.pointer.detach()
+        AppServices.shared.externalDisplay.detach()
         window = nil
-    }
-
-    /// Busca la escena del iPhone entre las conectadas.
-    ///
-    /// Las dos escenas comparten proceso pero no delegado, y el accesorio no da
-    /// una referencia directa a quien lo registró.
-    private func phoneSceneDelegate() -> PhoneSceneDelegate? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0.delegate as? PhoneSceneDelegate }
-            .first
     }
 }
