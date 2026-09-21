@@ -51,6 +51,11 @@ targets:
       - path: BrunOS
         excludes:
           - "Resources/Blocklists/*.json"
+      # Los fondos van como carpeta, no aplanados, para poder pedirlos con
+      # `subdirectory: "Wallpapers"` y no mezclarlos con el resto de recursos.
+      - path: BrunOS/Resources/Wallpapers
+        type: folder
+        optional: true
     dependencies:
       - package: SwiftTerm
       - package: Citadel

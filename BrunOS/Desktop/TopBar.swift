@@ -64,8 +64,10 @@ final class TopBar: UIView {
 
         let spacerLeft = UIView()
         let spacerRight = UIView()
+        // Los espacios de trabajo ya no van aquí: están en el dock, que es
+        // donde se espera encontrarlos y donde cuesta menos llegar con el ratón.
         let stack = UIStackView(arrangedSubviews: [
-            brandLabel, workspacesStack, spacerLeft, titleLabel, spacerRight,
+            brandLabel, spacerLeft, titleLabel, spacerRight,
             resolutionLabel, blockedLabel, batteryLabel, clockLabel,
         ])
         stack.axis = .horizontal

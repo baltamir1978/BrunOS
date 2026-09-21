@@ -45,3 +45,6 @@ BrunOS-prompt.md
 
 # Firma local: el Team ID no entra en un repositorio público
 Local.xcconfig
+
+# Fondos copiados de macOS: son de Apple, no se redistribuyen
+BrunOS/Resources/Wallpapers/

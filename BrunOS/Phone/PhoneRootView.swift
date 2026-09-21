@@ -12,22 +12,50 @@ struct PhoneRootView: View {
 
     private let services = AppServices.shared
 
+    /// El iPhone hace de mando: hay monitor delante y se mira allí, no aquí.
+    private var isRemoteMode: Bool {
+        services.externalDisplay.currentProfile != nil
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.brunosBackground.ignoresSafeArea()
+
+                // Con monitor conectado, **toda la pantalla del iPhone es
+                // trackpad**, y lo demás va encima.
+                //
+                // No es un capricho de diseño, resuelve un problema concreto:
+                // con AssistiveTouch, el botón izquierdo del ratón no llega a
+                // la app como evento de ratón, sino que el sistema lo convierte
+                // en un toque donde esté el puntero. Sólo el derecho llega como
+                // botón. Si el trackpad no ocupa todo, hacer clic izquierdo
+                // fuera de él no hace nada, que es justo lo que pasaba.
+                if isRemoteMode {
+                    TrackpadView(isFullScreen: true)
+                        .ignoresSafeArea()
+                        .accessibilityLabel("Trackpad")
+                }
 
                 VStack(spacing: 16) {
                     header
                     if services.assistiveTouch.shouldWarn {
                         AssistiveTouchBanner()
                     }
-                    TrackpadView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .accessibilityLabel("Trackpad")
+                    if isRemoteMode {
+                        Spacer(minLength: 0)
+                    } else {
+                        TrackpadView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .accessibilityLabel("Trackpad")
+                    }
                     buttons
                 }
                 .padding(16)
+                // En modo mando la cabecera y los botones flotan sobre el
+                // trackpad, así que no pueden tragarse los toques que no caigan
+                // justo encima de ellos.
+                .allowsHitTesting(true)
 
                 if isDimmed {
                     dimOverlay

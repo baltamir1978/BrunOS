@@ -12,11 +12,17 @@ import UIKit
 /// puede mirar.
 struct TrackpadView: UIViewRepresentable {
 
+    var isFullScreen = false
+
     func makeUIView(context: Context) -> TrackpadUIView {
-        TrackpadUIView()
+        let view = TrackpadUIView()
+        view.isFullScreen = isFullScreen
+        return view
     }
 
-    func updateUIView(_ uiView: TrackpadUIView, context: Context) {}
+    func updateUIView(_ uiView: TrackpadUIView, context: Context) {
+        uiView.isFullScreen = isFullScreen
+    }
 }
 
 @MainActor
@@ -30,12 +36,23 @@ final class TrackpadUIView: UIView {
     /// en un monitor grande; por encima de 2 se vuelve imposible apuntar.
     private let gain: CGFloat = 1.6
 
+    /// A pantalla completa pierde el marco: ya no es un recuadro, es el fondo.
+    var isFullScreen = false {
+        didSet {
+            layer.cornerRadius = isFullScreen ? 0 : Tokens.Metric.paneCornerRadius
+            layer.borderWidth = isFullScreen ? 0 : 1
+            backgroundColor = isFullScreen ? Tokens.Color.background : Tokens.Color.panel
+        }
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = Tokens.Color.panel
         layer.cornerRadius = Tokens.Metric.paneCornerRadius
         layer.borderWidth = 1
         layer.borderColor = Tokens.Color.border.cgColor
+        // Con el trackpad a pantalla completa, las esquinas redondeadas y el
+        // borde sobran: se quitan desde fuera con `fullScreen`.
         isMultipleTouchEnabled = true
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
@@ -74,6 +91,14 @@ final class TrackpadUIView: UIView {
             dx: (point.x - previous.x) * gain,
             dy: (point.y - previous.y) * gain
         )
+
+        // Con ratón conectado y el trackpad a pantalla completa, el dedo no
+        // mueve el cursor: lo que llega no es un dedo de verdad, es el toque
+        // que AssistiveTouch genera bajo el puntero. Moverlo aquí además lo
+        // desplazaría el doble.
+        if isFullScreen, services.assistiveTouch.isPointerWorking, all.count < 2 {
+            return
+        }
 
         if all.count >= 2 {
             // Dos dedos: desplazar el contenido del panel bajo el cursor.

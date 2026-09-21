@@ -115,6 +115,39 @@ poder cotejarla a ojo contra `ssh-keyscan`.
 validador es `Sendable` y sin estado mutable a propósito: NIO lo llama desde su event loop, no
 desde el actor principal.
 
+## Fondo del escritorio y dock
+
+**El fondo del iPhone no se puede leer.** No hay API pública, comprobado en el SDK de iOS 27: iOS
+no se lo enseña a las apps y es una decisión de privacidad, no un descuido. Así que BrunOS trae
+los suyos.
+
+- **Degradados propios**, dibujados por código en `Wallpaper.swift`. No pesan, no se pixelan a
+  ninguna resolución y **van siempre**, también en un clon recién hecho. No son degradados planos:
+  llevan un resplandor radial encima, que es lo que da el aire de los fondos de Apple. El de serie
+  es `goldenGate`, un atardecer cálido que hace juego con el ámbar de la marca.
+- **Fondos de macOS**: los copia `Tools/fetch-wallpapers.sh` desde `/System/Library/Desktop
+  Pictures` del propio Mac, reescalados. **No se versionan**: son de Apple. En macOS 27 sólo quedan
+  13 estáticos en disco; el resto son `.madesktop`, descargas bajo demanda que puede que ni estén.
+- Sobre las imágenes va **un velo oscuro al 35 %**: los fondos de macOS son luminosos y encima de
+  un cielo claro se pierden el texto de la barra y los bordes de los paneles.
+- Pendiente (Fase 4): elegir una imagen cualquiera desde el gestor de ficheros. El caso
+  `Wallpaper.file(bookmark:)` ya está previsto, con marcador de seguridad porque en iOS una carpeta
+  externa deja de ser accesible entre sesiones sin él.
+
+**El dock** sustituye a las tres etiquetas de espacios de la barra superior. El motivo es de uso:
+`1 web · 2 ssh · 3 files` en una esquina se lee como un rótulo de estado, no como algo pulsable, y
+obligaba a subir el ratón hasta arriba del todo, que con el tope del puntero indirecto es el
+movimiento más incómodo que hay.
+
+## Fase 4 — notas antes de empezar
+
+- **Interfaz por decidir**: Finder o Total Commander de dos paneles. Sin decidir.
+- **Vista previa con la barra espaciadora**, como en macOS. **Es viable**: `QLPreviewController`
+  existe en iOS y cubre PDF, imágenes, GIF animado, vídeo y Office. Lo que hay que comprobar es que
+  se deje incrustar **dentro de un panel del escritorio** en vez de presentarse como modal, porque
+  en la pantalla externa no hay presentaciones modales que valgan. Si no se dejara, la alternativa
+  es un visor propio con `AVPlayerLayer` y `PDFKit`, que cubre casi todo salvo Office.
+
 ## Cómo se compila
 
 ```bash

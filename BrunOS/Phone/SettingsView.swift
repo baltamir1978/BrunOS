@@ -68,6 +68,13 @@ struct SettingsView: View {
                 .onChange(of: overscan) { _, newValue in
                     services.externalDisplay.setOverscan(newValue)
                 }
+
+                NavigationLink {
+                    WallpaperPicker()
+                } label: {
+                    LabeledContent("Fondo", value: services.wallpaper.current.label)
+                        .font(.brunosMono(14))
+                }
             } else {
                 Text("Sin pantalla externa conectada")
                     .foregroundStyle(Color.brunosTextSecondary)

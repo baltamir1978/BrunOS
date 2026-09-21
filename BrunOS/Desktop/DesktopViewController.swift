@@ -12,6 +12,9 @@ final class DesktopViewController: UIViewController {
 
     private let services = AppServices.shared
     private let topBar = TopBar()
+    private let dock = Dock()
+    /// Capa del fondo, detrás de todo.
+    private let wallpaperLayer = CALayer()
     /// Lienzo en coordenadas lógicas. Todo lo demás cuelga de aquí.
     private let canvas = UIView()
     private let emptyLabel = UILabel()
@@ -31,10 +34,12 @@ final class DesktopViewController: UIViewController {
         overrideUserInterfaceStyle = .dark
 
         view.backgroundColor = Tokens.Color.background
-        canvas.backgroundColor = Tokens.Color.background
+        canvas.backgroundColor = .clear
+        canvas.layer.addSublayer(wallpaperLayer)
         view.addSubview(canvas)
 
         canvas.addSubview(topBar)
+        canvas.addSubview(dock)
 
         emptyLabel.attributedText = TopBar.brandText(size: 44)
         emptyLabel.textAlignment = .center
@@ -52,6 +57,12 @@ final class DesktopViewController: UIViewController {
             self,
             selector: #selector(refreshLayout),
             name: DesktopModel.didChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshLayout),
+            name: WallpaperStore.didChangeNotification,
             object: nil
         )
     }
@@ -149,14 +160,25 @@ final class DesktopViewController: UIViewController {
             height: logicalSize.height
         )
 
+        dock.frame = CGRect(
+            x: 0,
+            y: logicalSize.height - Dock.height - Dock.bottomMargin,
+            width: logicalSize.width,
+            height: Dock.height
+        )
+        dock.update(desktop: services.desktop)
+
+        // El fondo va sin animación: si no, al cambiar de escala se ve la
+        // imagen deslizándose hasta su sitio.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        wallpaperLayer.frame = CGRect(origin: .zero, size: logicalSize)
+        services.wallpaper.apply(to: wallpaperLayer, size: logicalSize)
+        CATransaction.commit()
+
         let workspace = services.desktop.active
         let gap = Tokens.Metric.tileGap
-        let area = CGRect(
-            x: gap,
-            y: Tokens.Metric.topBarHeight + gap,
-            width: max(0, logicalSize.width - 2 * gap),
-            height: max(0, logicalSize.height - Tokens.Metric.topBarHeight - 2 * gap)
-        )
+        let area = tileArea
 
         // El cursor se mueve por todo el escritorio, barra incluida.
         services.pointer.bounds = CGRect(origin: .zero, size: logicalSize)
@@ -310,14 +332,20 @@ final class DesktopViewController: UIViewController {
     }
 
     private func currentFrames() -> [PaneID: CGRect] {
+        services.desktop.active.layout.frames(in: tileArea, gap: Tokens.Metric.tileGap)
+    }
+
+    /// Dónde se reparten los paneles: entre la barra y el dock.
+    private var tileArea: CGRect {
         let gap = Tokens.Metric.tileGap
-        let area = CGRect(
+        let top = Tokens.Metric.topBarHeight + gap
+        let bottom = Dock.height + Dock.bottomMargin + gap
+        return CGRect(
             x: gap,
-            y: Tokens.Metric.topBarHeight + gap,
+            y: top,
             width: max(0, logicalSize.width - 2 * gap),
-            height: max(0, logicalSize.height - Tokens.Metric.topBarHeight - 2 * gap)
+            height: max(0, logicalSize.height - top - bottom)
         )
-        return services.desktop.active.layout.frames(in: area, gap: gap)
     }
 
     // MARK: - Puntero
@@ -337,6 +365,7 @@ final class DesktopViewController: UIViewController {
         let position = services.pointer.position
         let frames = currentFrames()
 
+        if handleDock(kind, at: position) { return }
         if handleTopBar(kind, at: position) { return }
         if handleDivider(kind, at: position, frames: frames) { return }
 
@@ -356,6 +385,18 @@ final class DesktopViewController: UIViewController {
             ),
             modifiers: modifiers
         ))
+    }
+
+    /// Clics en el dock. Devuelve `true` si consumió el evento.
+    private func handleDock(_ kind: PointerEvent.Kind, at position: CGPoint) -> Bool {
+        let pointInDock = CGPoint(x: position.x - dock.frame.minX, y: position.y - dock.frame.minY)
+        guard dock.frame.contains(position), dock.contains(point: pointInDock) else { return false }
+        guard case .down = kind else { return true }
+
+        if let number = dock.workspaceNumber(at: pointInDock) {
+            services.desktop.activate(number: number)
+        }
+        return true
     }
 
     /// Clics en la barra superior. Devuelve `true` si consumió el evento.

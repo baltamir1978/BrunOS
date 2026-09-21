@@ -24,6 +24,7 @@ final class AppServices {
     let hosts = HostStore()
     let knownHosts = KnownHostsStore()
     let tailscale = TailscaleMonitor()
+    let wallpaper = WallpaperStore()
 
     /// El escritorio de la pantalla externa, si está conectada.
     weak var desktopViewController: DesktopViewController?
