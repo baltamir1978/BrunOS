@@ -70,8 +70,16 @@ MetalToolchain`. Sin él, SwiftTerm falla con `cannot execute tool 'metal'`.
 - UIKit para la escena externa y el gestor de ventanas; SwiftUI para la interfaz del iPhone.
 - **iOS 27 mínimo**, sólo iPhone, sólo vertical en el teléfono.
 - Dependencias: **SwiftTerm** y **Citadel**, y ninguna más sin preguntar.
-- Bundle id `com.bruno.brunos`. `DEVELOPMENT_TEAM` se deja vacío a propósito: el equipo de firma
-  lo pone Bruno en Xcode y no entra en un repo público.
+- Bundle id **`com.baltamir.brunos`**. El primero que se intentó, `com.bruno.brunos`, **ya estaba
+  registrado por otra cuenta**: los App ID son únicos en todo Apple. Una vez subida una build a
+  App Store Connect ya no se puede cambiar.
+- **La firma y el bundle id viven en `Local.xcconfig`**, que no se versiona, con
+  `Local.xcconfig.example` de plantilla. Así el Team ID no entra en un repositorio público y, sobre
+  todo, **sobrevive a `xcodegen generate`**, que rehace el `.xcodeproj` desde cero y se lleva por
+  delante lo que se haya configurado en Xcode. `Tools/build.sh` lo crea desde el ejemplo si falta.
+- **El subsistema de los logs se deriva de `Bundle.main.bundleIdentifier`** (ver `App/Log.swift`),
+  no se escribe a mano: si no, al cambiar el bundle id los logs se irían a un nombre y el código
+  los buscaría en otro.
 - Mosaico estilo i3 con 3 espacios de trabajo, sin ventanas flotantes en esta versión.
 - Licencia **MIT** (decidida el 21-sep-2026).
 - Repositorio **público**: nada de claves, tokens, hosts reales del tailnet ni IPs, tampoco en

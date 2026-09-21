@@ -1,4 +1,3 @@
-import OSLog
 import UIKit
 
 /// Raíz de la pantalla externa: barra superior, mosaico y cursor.
@@ -10,8 +9,6 @@ import UIKit
 /// en vez de rasterizarse pequeño y estirarse.
 @MainActor
 final class DesktopViewController: UIViewController {
-
-    private let logger = Logger(subsystem: "com.bruno.brunos", category: "desktop")
 
     private let services = AppServices.shared
     private let topBar = TopBar()
@@ -193,7 +190,7 @@ final class DesktopViewController: UIViewController {
         // cuando existan el terminal, el navegador y los ficheros.
         case .newTab, .closeTab, .launcher, .addressBar, .reload, .find,
              .zoomIn, .zoomOut, .zoomReset:
-            logger.debug("Orden aún sin destino: \(String(describing: command))")
+            Log.desktop.debug("Orden aún sin destino: \(String(describing: command))")
             return false
         }
 

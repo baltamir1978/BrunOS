@@ -12,6 +12,14 @@ cd "$(dirname "$0")/.."
 
 DESTINATION="${1:-generic/platform=iOS Simulator}"
 
+# La firma vive fuera del repositorio. En un clon recién hecho no existe, y sin
+# él xcodegen no encuentra el xcconfig que referencia project.yml.
+if [ ! -f Local.xcconfig ]; then
+  echo "==> Local.xcconfig no existe; creándolo desde el ejemplo"
+  cp Local.xcconfig.example Local.xcconfig
+  echo "    Rellena DEVELOPMENT_TEAM para poder firmar en un dispositivo."
+fi
+
 echo "==> xcodegen"
 xcodegen generate
 

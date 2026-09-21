@@ -1,0 +1,13 @@
+// Ajustes locales de firma. NO se versiona: cópialo a Local.xcconfig y rellénalo.
+//
+//   cp Local.xcconfig.example Local.xcconfig
+//
+// Existe para que el equipo de firma sobreviva a `xcodegen generate`, que
+// rehace el .xcodeproj desde cero y se lleva por delante lo que hayas tocado
+// en Xcode. Y para que el Team ID no acabe en un repositorio público.
+
+// Tu equipo de desarrollo, el de Xcode › Settings › Accounts.
+DEVELOPMENT_TEAM =
+
+// Cámbialo si el identificador de App Store Connect es otro.
+PRODUCT_BUNDLE_IDENTIFIER = com.baltamir.brunos

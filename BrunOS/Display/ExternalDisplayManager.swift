@@ -1,4 +1,3 @@
-import OSLog
 import UIKit
 
 /// Encapsula todo lo que iOS 27 cambió en la pantalla externa.
@@ -20,8 +19,6 @@ import UIKit
 ///    `updateProperties()` y `layoutSubviews()`.
 @MainActor
 final class ExternalDisplayManager {
-
-    static let logger = Logger(subsystem: "com.bruno.brunos", category: "display")
 
     /// Se avisa cuando el sistema conecta o desconecta la pantalla externa, para
     /// que el escritorio recalcule el mosaico y recoloque el cursor.
@@ -48,7 +45,7 @@ final class ExternalDisplayManager {
         let accessory = UISceneAccessory.externalNonInteractive(sceneConfiguration: configuration)
         registration = viewController.registerSceneAccessory(accessory)
 
-        Self.logger.info("Accesorio de escena externa registrado")
+        Log.display.info("Accesorio de escena externa registrado")
     }
 
     // MARK: - Ciclo de vida de la pantalla
@@ -75,7 +72,7 @@ final class ExternalDisplayManager {
     /// No se tira el estado de los paneles: al volver a enchufar el monitor todo
     /// tiene que reaparecer como estaba.
     func detach() {
-        Self.logger.info("Pantalla externa desconectada; se conserva el estado de los paneles")
+        Log.display.info("Pantalla externa desconectada; se conserva el estado de los paneles")
         externalWindow = nil
         currentProfile = nil
         AppServices.shared.assistiveTouch.hasExternalDisplay = false
@@ -109,7 +106,7 @@ final class ExternalDisplayManager {
     /// comprobarlo cuando algo se ve raro en una tele concreta.
     private func logCharacteristics(of screen: UIScreen, profile: DisplayProfile) {
         let native = screen.nativeBounds.size
-        Self.logger.info("""
+        Log.display.info("""
             Pantalla externa conectada
               nativeBounds: \(Int(native.width))×\(Int(native.height)) px
               nativeScale: \(screen.nativeScale, format: .fixed(precision: 2))
@@ -120,7 +117,7 @@ final class ExternalDisplayManager {
             """)
 
         for mode in screen.availableModes {
-            Self.logger.debug("  modo \(Int(mode.size.width))×\(Int(mode.size.height))")
+            Log.display.debug("  modo \(Int(mode.size.width))×\(Int(mode.size.height))")
         }
     }
 }

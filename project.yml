@@ -8,6 +8,13 @@ options:
   generateEmptyDirectories: true
   xcodeVersion: "27.0"
 
+# La firma va en Local.xcconfig, que no se versiona: así el equipo sobrevive a
+# `xcodegen generate` y el Team ID no acaba en un repositorio público. Si no
+# existe, Tools/build.sh lo crea desde Local.xcconfig.example.
+configFiles:
+  Debug: Local.xcconfig
+  Release: Local.xcconfig
+
 settings:
   base:
     MARKETING_VERSION: "0.1.0"
@@ -16,9 +23,6 @@ settings:
     # Modo de lenguaje Swift 6: concurrencia estricta desde el primer día.
     SWIFT_STRICT_CONCURRENCY: complete
     IPHONEOS_DEPLOYMENT_TARGET: "27.0"
-    # El equipo de firma lo pone Bruno en Xcode; aquí se deja vacío a propósito
-    # para no meter datos de la cuenta de desarrollador en un repo público.
-    DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 
@@ -81,7 +85,7 @@ targets:
         # brunos:// lo usa el x-callback-url de Atajos al volver del atajo
         # que activa AssistiveTouch (Fase 1).
         CFBundleURLTypes:
-          - CFBundleURLName: com.bruno.brunos
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
             CFBundleURLSchemes:
               - brunos
 
@@ -98,7 +102,6 @@ targets:
 
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.bruno.brunos
         PRODUCT_NAME: BrunOS
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

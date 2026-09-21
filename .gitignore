@@ -42,3 +42,6 @@ BrunOS/App/Info.plist
 
 # Documento de trabajo personal, no va al repositorio público
 BrunOS-prompt.md
+
+# Firma local: el Team ID no entra en un repositorio público
+Local.xcconfig
