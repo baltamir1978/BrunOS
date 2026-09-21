@@ -110,9 +110,19 @@ final class DictationController {
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
+        // Se pasa por `BrunOSAudioTap` porque la versión de `installTap` que
+        // Swift sabe llamar quedó obsoleta en iOS 27 y su sustituta no es
+        // alcanzable desde Swift. El puente, además, devuelve el error: con la
+        // API vieja, un tap que no se instalaba se perdía en silencio.
+        //
         // El búfer tiene que caer en [100, 400] ms según la cabecera: 8192
         // muestras son unos 170 ms a 48 kHz.
-        input.installBrunOSTap(bufferSize: 8_192, format: format) { buffer in
+        try BrunOSAudioTap.install(
+            on: input,
+            bus: 0,
+            bufferSize: 8_192,
+            format: format
+        ) { buffer, _ in
             continuation.yield(AnalyzerInput(buffer: buffer))
         }
 
@@ -173,34 +183,5 @@ final class DictationController {
 
     private static func describe(_ error: any Error) -> String {
         (error as NSError).localizedDescription
-    }
-}
-
-
-private extension AVAudioNode {
-
-    /// Único punto donde se instala el tap de audio.
-    ///
-    /// iOS 27 marcó `installTap(onBus:bufferSize:format:block:)` como obsoleta
-    /// en favor de `installTapOnBus:bufferSize:format:error:block:`. **Esa
-    /// sustituta no se puede llamar desde Swift en el SDK 27**: comprobado
-    /// compilando contra `iphoneos27.0`, pasarle `error:` da "extra arguments
-    /// at positions #4, #5", así que Swift sólo importa la vieja. Desambiguar
-    /// por tipo tampoco sirve, porque `throws` no cuenta para la resolución de
-    /// sobrecargas.
-    ///
-    /// Así que se usa la obsoleta, que sigue funcionando. Este envoltorio existe
-    /// para que el aviso del compilador salga **en un solo sitio** en lugar de
-    /// en cada llamada, y para que, cuando Apple lo arregle, no haya que buscar
-    /// dónde se tocaba. No se marca `@available(deprecated:)`: eso propagaría el
-    /// aviso a quien llame, que es justo lo contrario de lo que se quiere.
-    func installBrunOSTap(
-        bufferSize: AVAudioFrameCount,
-        format: AVAudioFormat?,
-        handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void
-    ) {
-        installTap(onBus: 0, bufferSize: bufferSize, format: format) { buffer, _ in
-            handler(buffer)
-        }
     }
 }

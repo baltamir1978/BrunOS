@@ -16,8 +16,7 @@ emergencia, teclado, dictado y ajustes.
 
 Verificado ejecutando, no leyendo:
 
-- `xcodebuild ... build` termina en **BUILD SUCCEEDED**, con **un solo warning**, que está
-  documentado y acorralado a propósito (ver `installBrunOSTap`).
+- `xcodebuild ... build` termina en **BUILD SUCCEEDED**, **sin un solo warning** en código propio.
 - La app **arranca en el simulador de iPhone 17 con iOS 27.0** y se queda viva. La interfaz del
   teléfono sale entera: marca, estado de periféricos, trackpad y los cuatro botones con Liquid
   Glass, con "Traer ventana" deshabilitado porque es de la Fase 3.
@@ -169,18 +168,25 @@ Todo esto se verificó leyendo las cabeceras de `iPhoneOS27.0.sdk`, no de memori
 - **`Equatable` sintetizado sólo funciona en el fichero que declara el tipo.** Conformar desde
   otro fichero obliga a escribir el `==` a mano; es más limpio declararlo en su sitio.
 
-## Una obsolescencia de iOS 27 que no tiene salida
+## El único puente a Objective-C del proyecto
 
 `AVAudioNode.installTap(onBus:bufferSize:format:block:)` quedó obsoleta en iOS 27 en favor de
 `installTapOnBus:bufferSize:format:error:block:`. **Esa sustituta no se puede llamar desde Swift**
-en el SDK 27: comprobado compilando contra `iphoneos27.0`, pasarle `error:` da *"extra arguments at
-positions #4, #5"*. Y desambiguar por tipo tampoco vale, porque `throws` no cuenta para la
-resolución de sobrecargas: las dos se importan con el mismo nombre y el mismo tipo.
+en el SDK 27: el `error:` va en medio de la firma, Swift lo convierte en `throws`, y `throws` no
+cuenta para distinguir sobrecargas. Las dos acaban con el mismo nombre y el mismo tipo, y la
+resolución se queda con la obsoleta. Comprobado compilando contra `iphoneos27.0`: pasarle `error:`
+da *"extra arguments at positions #4, #5"*.
 
-Por eso `DictationController` usa la obsoleta a través de `installBrunOSTap`, un envoltorio cuyo
-único propósito es que **el aviso salga en un sitio y no en cada llamada**. Es el único warning del
-proyecto. No se marca `@available(deprecated:)` en el envoltorio: eso propagaría el aviso a quien
-llame, justo lo contrario de lo que se busca.
+**Desde Objective-C no hay ambigüedad**, y eso sí está comprobado compilando un `.m` de prueba. De
+ahí `BrunOS/Phone/BrunOSAudioTap.{h,m}` y el bridging header en `BrunOS/App/`, que es **lo único
+de Objective-C que hay en BrunOS**. Reexpone el método con el `NSError **` al final, que es donde
+Swift sí lo convierte en `throws`.
+
+Se gana algo más que quitar un aviso: **el error deja de perderse**. Con la API vieja, un tap que
+no se instalaba fallaba en silencio.
+
+Si algún día Apple arregla la importación, se borran los dos ficheros y la línea
+`SWIFT_OBJC_BRIDGING_HEADER` de `project.yml`, y se llama a la API directamente.
 
 ## Cadena de suministro: mirar antes de la Fase 2
 

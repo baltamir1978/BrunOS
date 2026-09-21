@@ -107,3 +107,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_EMIT_LOC_STRINGS: YES
+        # Un solo puente a Objective-C, para una API de iOS 27 que Swift no
+        # puede llamar. Ver BrunOS/Phone/BrunOSAudioTap.h.
+        SWIFT_OBJC_BRIDGING_HEADER: BrunOS/App/BrunOS-Bridging-Header.h
+        SWIFT_PRECOMPILE_BRIDGING_HEADER: YES
