@@ -99,14 +99,19 @@ final class MouseRouter: MouseSourceDelegate {
         AppServices.shared.assistiveTouch.isPointerWorking = true
     }
 
+    /// Los botones **pasan siempre, venga la fuente que venga**.
+    ///
+    /// El movimiento sí se filtra, para que dos fuentes no muevan el cursor a la
+    /// vez y vaya al doble de velocidad. Pero con los botones el filtro hacía
+    /// daño: si `GCMouse` entrega el movimiento y los clics llegan por el
+    /// puntero indirecto, el filtro los tiraba y **hacer clic no hacía nada**.
+    /// Un clic duplicado es un incordio; un clic perdido deja la app inservible.
     func mouseSource(_ source: any MouseSource, didPress button: PointerEvent.Button) {
         count(source)
-        guard isActive(source) else { return }
         delegate?.mouseSource(source, didPress: button)
     }
 
     func mouseSource(_ source: any MouseSource, didRelease button: PointerEvent.Button) {
-        guard isActive(source) else { return }
         delegate?.mouseSource(source, didRelease: button)
     }
 

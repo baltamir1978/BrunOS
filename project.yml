@@ -1,6 +1,10 @@
 name: BrunOS
 
 options:
+  # Sin esto la app se declara inglesa y iOS rotula en inglés todo lo que pone
+  # él: los botones «Atrás» y «Aceptar», los selectores, los menús de edición.
+  # El resultado era la mitad de los ajustes en español y la mitad en inglés.
+  developmentLanguage: es
   bundleIdPrefix: com.bruno
   deploymentTarget:
     iOS: "27.0"
@@ -32,7 +36,12 @@ packages:
     from: 1.2.0
   Citadel:
     url: https://github.com/orlandos-nl/Citadel
-    from: 0.8.0
+    # Fijada a la serie 0.11 a propósito. A partir de la 0.12.1, Citadel dejó
+    # de usar el fork de swift-nio-ssh de su propio autor y pasó a uno
+    # personal de un tercero, con cero estrellas y por detrás del de Apple.
+    # Por esa capa van las contraseñas de los servidores, así que se prefiere
+    # la cadena más corta y con un responsable identificable.
+    minorVersion: 0.11.0
 
 targets:
   BrunOS:
@@ -49,6 +58,7 @@ targets:
       path: BrunOS/App/Info.plist
       properties:
         CFBundleDisplayName: BrunOS
+        CFBundleDevelopmentRegion: es
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
 
