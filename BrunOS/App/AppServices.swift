@@ -21,6 +21,8 @@ final class AppServices {
     let mouse = MouseRouter()
     let keyboard = KeyboardRouter()
     let assistiveTouch = AssistiveTouchMonitor()
+    let hosts = HostStore()
+    let tailscale = TailscaleMonitor()
 
     /// El escritorio de la pantalla externa, si está conectada.
     weak var desktopViewController: DesktopViewController?
@@ -30,6 +32,7 @@ final class AppServices {
     func start() {
         mouse.start()
         assistiveTouch.start()
+        tailscale.start()
     }
 
     /// Gestiona la vuelta desde Atajos por `brunos://`.

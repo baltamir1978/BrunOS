@@ -66,6 +66,41 @@ Lo que costó llegar ahí, por si se repite:
 build, sigue **sin escribirse**: está previsto para el final de la Fase 4. Hasta entonces, las
 subidas van a mano desde Xcode.
 
+## Fase 2 — Terminal SSH
+
+**Escrita y compilando. Ninguna conexión SSH se ha llegado a hacer.** No hay forma de probarla sin
+un servidor, así que todo `SSHSession` y `TerminalTab` es código sin ejecutar.
+
+Lo que hay:
+
+- `SSHHost` + `HostStore`: perfiles en JSON en Application Support. **Los secretos no entran ahí**,
+  van al Keychain con `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`: no se sincronizan con iCloud
+  y no se leen con el teléfono bloqueado.
+- `TailscaleAuthentication`: el método SSH `none`. **Citadel no lo expone** —sus constructores
+  llegan hasta `passwordBased` y las claves— pero sí expone `SSHAuthenticationMethod.custom(_:)`,
+  que acepta un delegado propio. Con eso basta y **no hizo falta bajar a SwiftNIO a pelo**, que era
+  el plan B del prompt.
+- `SSHSession`: conexión, PTY, `window-change` al redimensionar, keepalive de 30 s y comando
+  inicial. La reconexión es a mano, con Intro, desde el propio terminal.
+- `TerminalPane` + `TerminalTab` + `TerminalTabBar`: SwiftTerm con 10.000 líneas de scrollback
+  (las de serie son 500), traducción de teclas a secuencias de terminal, y pestañas por sesión.
+- `TailscaleMonitor`: busca una interfaz `utun` con dirección de `100.64.0.0/10` o
+  `fd7a:115c:a1e0::/48`. **Es un aviso y nunca bloquea**: no hay forma de preguntarle a Tailscale
+  por su estado y la deducción puede fallar.
+- `HostsView`: alta, edición y borrado de máquinas desde el iPhone.
+
+Trampas de esta fase:
+
+- **Ni Citadel ni NIO están migrados a la concurrencia estricta de Swift 6.** Hacen falta
+  importaciones `@preconcurrency`. Y `TTYStdinWriter` no es `Sendable`, así que **no puede salir de
+  la closure de `withPTY`**: `SSHSession` le manda órdenes por un `AsyncStream` y el writer se
+  queda dentro, que es lo que hace que compile sin trampas.
+- `TerminalViewDelegate` de SwiftTerm no está declarado `@MainActor` aunque siempre se llame desde
+  la interfaz: la conformidad se marca `@preconcurrency`.
+- La validación de la clave del host es `.acceptAnything()`. Para Tailscale da igual, porque la
+  identidad la garantiza el tailnet antes, pero **para una conexión con contraseña fuera del
+  tailnet no es aceptable**. Pendiente: guardar las claves conocidas al estilo `known_hosts`.
+
 ## Cómo se compila
 
 ```bash

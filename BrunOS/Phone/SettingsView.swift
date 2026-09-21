@@ -19,6 +19,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 displaySection
+                hostsSection
                 mouseSection
                 assistiveTouchSection
                 aboutSection
@@ -84,6 +85,30 @@ struct SettingsView: View {
                         .font(.brunosMono(13))
                 }
             }
+        }
+    }
+
+    // MARK: - Hosts
+
+    private var hostsSection: some View {
+        Section("SSH") {
+            NavigationLink {
+                HostsView()
+            } label: {
+                LabeledContent(
+                    "Hosts",
+                    value: services.hosts.hosts.isEmpty
+                        ? "ninguno"
+                        : "\(services.hosts.hosts.count)"
+                )
+                .font(.brunosMono(14))
+            }
+
+            LabeledContent(
+                "Tailscale",
+                value: services.tailscale.isLikelyUp ? "parece activo" : "no detectado"
+            )
+            .font(.brunosMono(14))
         }
     }
 

@@ -232,10 +232,24 @@ final class DesktopViewController: UIViewController {
                 ?? .terminal
             addPane(kind: kind)
 
-        // Éstas son del panel con foco, no del escritorio. Llegarán a su sitio
-        // cuando existan el terminal, el navegador y los ficheros.
-        case .newTab, .closeTab, .launcher, .addressBar, .reload, .find,
-             .zoomIn, .zoomOut, .zoomReset:
+        case .newTab:
+            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
+            openTerminalSession(in: terminal)
+
+        case .closeTab:
+            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
+            terminal.closeActiveTab()
+
+        case .zoomIn, .zoomOut, .zoomReset:
+            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
+            switch command {
+            case .zoomIn: terminal.changeFontSize(by: 1)
+            case .zoomOut: terminal.changeFontSize(by: -1)
+            default: terminal.resetFontSize()
+            }
+
+        // Éstas llegarán a su sitio cuando existan el navegador y los ficheros.
+        case .launcher, .addressBar, .reload, .find:
             Log.desktop.debug("Orden aún sin destino: \(String(describing: command))")
             return false
         }
@@ -261,12 +275,38 @@ final class DesktopViewController: UIViewController {
     }
 
     /// Crea un panel en el espacio activo.
+    ///
+    /// El terminal ya es real; el navegador y los ficheros siguen siendo el
+    /// andamio de la Fase 1 hasta que les toque su fase.
     func addPane(kind: PaneKind) {
         let workspace = services.desktop.active
         let id = PaneID()
         let focusedFrame = workspace.focused.flatMap { currentFrames()[$0] }
-        workspace.add(PlaceholderPane(kind: kind), id: id, focusedFrame: focusedFrame)
+
+        let pane: any Pane = switch kind {
+        case .terminal: TerminalPane(frame: .zero)
+        case .browser, .files: PlaceholderPane(kind: kind)
+        }
+
+        workspace.add(pane, id: id, focusedFrame: focusedFrame)
         services.desktop.notifyChange()
+
+        if let terminal = pane as? TerminalPane {
+            openTerminalSession(in: terminal)
+        }
+    }
+
+    /// Abre una sesión en un panel de terminal.
+    ///
+    /// Con un solo host configurado se conecta directamente, que es el caso
+    /// normal. Con varios, o con ninguno, hace falta elegir: de eso se encarga
+    /// el lanzador, que llega con la interfaz de hosts del iPhone.
+    func openTerminalSession(in pane: TerminalPane) {
+        guard let host = services.hosts.hosts.first else {
+            Log.desktop.info("No hay hosts configurados todavía")
+            return
+        }
+        pane.openSession(to: host)
     }
 
     private func currentFrames() -> [PaneID: CGRect] {
