@@ -13,6 +13,7 @@ final class PhoneRootViewController: UIViewController {
 
     private let services = AppServices.shared
     private var host: UIHostingController<PhoneRootView>?
+    private let onScreenKeyboard = OnScreenKeyboardField()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -20,6 +21,7 @@ final class PhoneRootViewController: UIViewController {
         view.backgroundColor = Tokens.Color.background
         embedPhoneInterface()
         installPointerCapture()
+        installOnScreenKeyboard()
 
         services.keyboard.delegate = self
         services.mouse.delegate = self
@@ -62,6 +64,30 @@ final class PhoneRootViewController: UIViewController {
         ])
         host.didMove(toParent: self)
         self.host = host
+    }
+
+    /// El campo invisible que levanta el teclado del iPhone. Va detrás de todo
+    /// para no robarle toques a nada.
+    private func installOnScreenKeyboard() {
+        onScreenKeyboard.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+        view.insertSubview(onScreenKeyboard, at: 0)
+
+        NotificationCenter.default.addObserver(
+            forName: .brunosShowKeyboard,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.onScreenKeyboard.isFirstResponder {
+                    self.onScreenKeyboard.resignFirstResponder()
+                    // Al soltarlo, el teclado físico vuelve a encaminarse.
+                    self.becomeFirstResponder()
+                } else {
+                    self.onScreenKeyboard.becomeFirstResponder()
+                }
+            }
+        }
     }
 
     /// La vista que capta el puntero indirecto va **encima de todo** y sin

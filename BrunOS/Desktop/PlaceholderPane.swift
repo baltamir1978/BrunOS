@@ -113,6 +113,11 @@ final class PlaceholderPane: UIView, Pane {
         refreshBody()
     }
 
+    func insertText(_ text: String) {
+        lastEvent = "texto “\(text.prefix(40))”"
+        refreshBody()
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         refreshBody()

@@ -22,15 +22,18 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 
 | | Estado |
 | --- | --- |
-| **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | 🚧 Fase 1 |
-| **Ratón y teclado** Bluetooth, cursor propio y atajos de ventanas | 🚧 Fase 1 |
-| **Escritorio** en mosaico estilo i3, con 3 espacios de trabajo | 🚧 Fase 1 |
+| **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | 🚧 escrito, sin probar |
+| **Ratón y teclado** Bluetooth, cursor propio y atajos de ventanas | 🚧 escrito, sin probar |
+| **Escritorio** en mosaico estilo i3, con 3 espacios de trabajo | 🚧 escrito, sin probar |
+| **Mando en el iPhone**: trackpad, teclado, dictado y ajustes | ✅ funciona |
 | **Terminal SSH** a través de Tailscale, con tmux y ratón | 🚧 Fase 2 |
 | **Navegador** con pestañas y bloqueo de anuncios | 🚧 Fase 3 |
 | **Gestor de ficheros**: iPhone, iCloud Drive, USB y SFTP | 🚧 Fase 4 |
 
-Ahora mismo va por la **Fase 0**: el esqueleto compila, arranca y registra el accesorio de escena
-externa de iOS 27.
+Va por la **Fase 1**. La interfaz del iPhone está probada en el simulador; **todo lo que dibuja en
+la pantalla externa está escrito pero no se ha ejecutado nunca**, porque el simulador de iOS no
+permite simular un monitor desde la línea de órdenes. La primera prueba de verdad será con un
+monitor delante.
 
 ## Requisitos
 

@@ -12,28 +12,36 @@ emergencia, teclado, dictado y ajustes.
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO
 
-**Fase 0 terminada: el esqueleto compila y arranca.**
+**Fase 1 escrita entera. Compila y arranca, pero con un agujero grande de verificación.**
 
 Verificado ejecutando, no leyendo:
 
-- `xcodebuild ... build` termina en **BUILD SUCCEEDED**, sin un solo warning en código propio.
-- La app **arranca en el simulador de iPhone 17 con iOS 27.0** y pinta la interfaz del teléfono.
-- **Las fuentes cargan de verdad** (comprobado en captura: la marca sale en JetBrains Mono y las
-  etiquetas en IBM Plex Sans; si el nombre PostScript estuviera mal se vería San Francisco).
-- **`registerSceneAccessory(_:)` no falla en iOS 27**: el log `com.bruno.brunos:display` emite
-  "Accesorio de escena externa registrado" al arrancar.
-- El `Info.plist` del bundle lleva el scene manifest, `UILaunchScreen`, las 7 fuentes, el esquema
-  `brunos://` y `ITSAppUsesNonExemptEncryption = false`.
+- `xcodebuild ... build` termina en **BUILD SUCCEEDED**, con **un solo warning**, que está
+  documentado y acorralado a propósito (ver `installBrunOSTap`).
+- La app **arranca en el simulador de iPhone 17 con iOS 27.0** y se queda viva. La interfaz del
+  teléfono sale entera: marca, estado de periféricos, trackpad y los cuatro botones con Liquid
+  Glass, con "Traer ventana" deshabilitado porque es de la Fase 3.
+- **Las fuentes cargan de verdad** (comprobado en captura: si el nombre PostScript estuviera mal
+  se vería San Francisco).
+- **`registerSceneAccessory(_:)` no falla en iOS 27**: el log emite "Accesorio de escena externa
+  registrado" al arrancar.
 
-Lo que **sigue sin verificar**, y conviene no dar por bueno:
+**Lo que NO está verificado, que es casi todo lo importante de la Fase 1.** Bruno decidió
+expresamente seguir a ciegas hasta el final y probarlo todo junto en el iPhone; conviene no
+confundir "está escrito" con "funciona":
 
-- **Que la pantalla externa aparezca de verdad.** Sólo está probado que el registro del accesorio
-  no lanza. `xcrun simctl` **no tiene** forma de simular una pantalla externa: el Device Hub de
-  Xcode 27 es interfaz gráfica. Hasta que se pruebe ahí o en el iPhone real, `ExternalSceneDelegate`
-  y todo `ExternalDisplayManager.attach(window:screen:)` son **código nunca ejecutado**.
-- La escala, el overscan y los perfiles por pantalla: la lógica está escrita, sin ejecutar.
-
----
+- **Nada de la pantalla externa se ha ejecutado nunca.** `xcrun simctl` **no sabe** simular una
+  pantalla externa y el Device Hub de Xcode 27 es interfaz gráfica. Así que `ExternalSceneDelegate`,
+  `ExternalDisplayManager.attach`, todo `DesktopViewController` y el mosaico entero son **código
+  que no ha corrido ni una vez**.
+- **El espacio lógico es la apuesta más arriesgada.** El lienzo se escala con un `CGAffineTransform`
+  para que los puntos lógicos acaben en píxeles nativos. Si el factor está mal, se verá todo
+  borroso o cortado. Es lo primero que hay que mirar con un monitor delante.
+- **El ratón no se ha probado con hardware.** Ni `GCMouse` ni el puntero indirecto. En particular,
+  no se sabe **cuál de las dos fuentes acaba entregando eventos de verdad en un iPhone**, que era
+  justo la duda que motivó tener dos.
+- **El dictado no se ha ejecutado.** La primera vez descarga el modelo de idioma y puede tardar.
+- Los atajos, los divisores arrastrables y el teclado en pantalla: escritos, sin pulsar.
 
 ## Cómo se compila
 
@@ -90,7 +98,7 @@ Todo esto se verificó leyendo las cabeceras de `iPhoneOS27.0.sdk`, no de memori
 - **`canOpenURL` obsoleto exactamente en iOS 27.0**: abrir la URL y gestionar el fallo.
 - **`UIScreen.displayLink(withTarget:selector:)` obsoleto en iOS 27.** Esto **corrige el prompt
   inicial**, que pedía un `CADisplayLink` de la pantalla externa: hay que pedírselo a
-  `UIWindowScene`, no a `UIScreen`. Pendiente para la Fase 1 (cursor y animaciones).
+  `UIWindowScene`, no a `UIScreen`. Ya aplicado en `PointerController.attach(to:)`.
 - `UIScreen.main` ya estaba obsoleto desde iOS 26; se usa `view.window.windowScene.screen`.
 - **`overscanCompensation` sigue vivo** y se pone a `.none`, como pedía el prompt.
 - **WebKit (Safari 27), todo confirmado presente**:
@@ -116,6 +124,31 @@ Todo esto se verificó leyendo las cabeceras de `iPhoneOS27.0.sdk`, no de memori
 - **`OSLog` a nivel `.info` no aparece en `log stream` por defecto.** Hay que pasar
   `--level debug` o parece que el código no se ha ejecutado. Costó un susto con el registro del
   accesorio de escena.
+- **Las notificaciones de `GCMouse` se llaman distinto en Swift.** La cabecera declara
+  `GCMouseDidConnectNotification` como `NSString *const`, pero Swift lo reexpone renombrado como
+  `Notification.Name.GCMouseDidConnect`, **sin el sufijo "Notification"**. Escribirlo como en el
+  header no compila, y envolverlo en `Notification.Name(...)` tampoco.
+- **`Notification` no es `Sendable`.** En un observador de `NotificationCenter` no se puede sacar
+  el `note` hacia `MainActor.assumeIsolated`: Swift 6 lo rechaza por riesgo de carrera. Se coge el
+  dato de otro sitio (`GCMouse.current`) y listo.
+- **`deinit` no puede tocar un `Timer`.** Un `deinit` corriente no está aislado a ningún actor y
+  Swift 6 no deja ni leer una propiedad no `Sendable`. La salida es `isolated deinit`, de
+  Swift 6.2. Está en `TopBar`.
+- **`Equatable` sintetizado sólo funciona en el fichero que declara el tipo.** Conformar desde
+  otro fichero obliga a escribir el `==` a mano; es más limpio declararlo en su sitio.
+
+## Una obsolescencia de iOS 27 que no tiene salida
+
+`AVAudioNode.installTap(onBus:bufferSize:format:block:)` quedó obsoleta en iOS 27 en favor de
+`installTapOnBus:bufferSize:format:error:block:`. **Esa sustituta no se puede llamar desde Swift**
+en el SDK 27: comprobado compilando contra `iphoneos27.0`, pasarle `error:` da *"extra arguments at
+positions #4, #5"*. Y desambiguar por tipo tampoco vale, porque `throws` no cuenta para la
+resolución de sobrecargas: las dos se importan con el mismo nombre y el mismo tipo.
+
+Por eso `DictationController` usa la obsoleta a través de `installBrunOSTap`, un envoltorio cuyo
+único propósito es que **el aviso salga en un sitio y no en cada llamada**. Es el único warning del
+proyecto. No se marca `@available(deprecated:)` en el envoltorio: eso propagaría el aviso a quien
+llame, justo lo contrario de lo que se busca.
 
 ## Cadena de suministro: mirar antes de la Fase 2
 
@@ -160,6 +193,17 @@ BrunOS/
 
 ## Siguiente paso
 
-**Fase 1: pantalla externa, entrada y escritorio.** Antes de escribir código hay que darle a Bruno
-el plan, que es lo que pedía el prompt inicial. Lo primero de todo, y lo más arriesgado, es
-conseguir ver algo en una pantalla externa de verdad.
+**Fase 2: terminal SSH.** Antes de empezar hay **dos cosas que decidir con Bruno**:
+
+1. Lo de Citadel y el fork de `swift-nio-ssh` de la sección anterior.
+2. Si merece la pena seguir acumulando fases sin haber visto nunca la pantalla externa. La Fase 1
+   entera descansa sobre código que no ha corrido; meterle encima un terminal multiplica lo que
+   habría que desenredar si el espacio lógico resulta estar mal planteado.
+
+Queda pendiente de la Fase 1, y está anotado en el código:
+
+- **El lanzador (Cmd+P)** está en la tabla de atajos pero todavía no abre nada: necesita hosts,
+  URLs y ubicaciones, que llegan con las fases 2 a 4.
+- Cmd+T, Cmd+W, Cmd+L, Cmd+R, Cmd+F y los de zoom se reconocen y se encaminan, pero el panel de
+  relleno no hace nada con ellos. `perform(_:)` devuelve `false` en esos casos a propósito.
+- El contador de anuncios bloqueados de la barra superior se pasa como `nil` hasta la Fase 3.

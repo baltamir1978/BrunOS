@@ -2,7 +2,7 @@ import QuartzCore
 import UIKit
 
 /// Ajustes de ratón que Bruno toca desde la interfaz del iPhone.
-struct PointerSettings: Codable, Sendable {
+struct PointerSettings: Codable, Equatable, Sendable {
 
     /// Multiplica el desplazamiento que entrega la fuente.
     ///

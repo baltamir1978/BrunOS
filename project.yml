@@ -86,6 +86,15 @@ targets:
             CFBundleURLSchemes:
               - brunos
 
+        # El dictado es en el dispositivo (SpeechAnalyzer), pero iOS pide las
+        # dos descripciones igual: micrófono y reconocimiento de voz.
+        NSMicrophoneUsageDescription: >-
+          BrunOS usa el micrófono para el dictado, que se procesa en el propio
+          iPhone y no sale del dispositivo.
+        NSSpeechRecognitionUsageDescription: >-
+          BrunOS transcribe lo que dictas para escribirlo en el panel con foco.
+          El reconocimiento ocurre en el propio iPhone.
+
         ITSAppUsesNonExemptEncryption: false
 
     settings:

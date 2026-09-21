@@ -22,6 +22,9 @@ final class DesktopViewController: UIViewController {
     /// Tamaño del escritorio en puntos lógicos, incluida la barra.
     private var logicalSize: CGSize = .zero
 
+    /// Divisor que se está arrastrando ahora mismo, si lo hay.
+    private var activeDivider: (pane: PaneID, axis: LayoutContainer.Axis)?
+
     // MARK: - Ciclo de vida
 
     override func viewDidLoad() {
@@ -230,9 +233,16 @@ final class DesktopViewController: UIViewController {
     }
 
     /// Entrega un clic o un scroll al panel que esté bajo el cursor.
+    ///
+    /// Antes de mirar los paneles se mira si el cursor está sobre un divisor:
+    /// los huecos entre paneles no pertenecen a nadie y son la zona de arrastre
+    /// para redimensionar.
     func deliverPointer(_ kind: PointerEvent.Kind, modifiers: UIKeyModifierFlags) {
         let position = services.pointer.position
         let frames = currentFrames()
+
+        if handleDivider(kind, at: position, frames: frames) { return }
+
         guard let hit = frames.first(where: { $0.value.contains(position) }) else { return }
 
         let workspace = services.desktop.active
@@ -251,8 +261,83 @@ final class DesktopViewController: UIViewController {
         ))
     }
 
+    // MARK: - Divisores
+
+    /// Gestiona el arrastre de un divisor. Devuelve `true` si consumió el evento.
+    ///
+    /// El reparto se guarda en fracciones, así que el desplazamiento en puntos
+    /// se convierte a fracción del contenedor antes de aplicarlo. De ahí que
+    /// arrastrar un divisor en un 4K a escala 2× mueva lo mismo, en proporción,
+    /// que en un 1080p.
+    private func handleDivider(
+        _ kind: PointerEvent.Kind,
+        at position: CGPoint,
+        frames: [PaneID: CGRect]
+    ) -> Bool {
+        switch kind {
+        case .down:
+            guard let divider = divider(at: position, frames: frames) else { return false }
+            activeDivider = divider
+            return true
+
+        case .moved:
+            guard let divider = activeDivider, let frame = frames[divider.pane] else { return false }
+            // Cuánto se ha alejado el cursor del borde del panel que se arrastra.
+            let delta: CGFloat = divider.axis == .horizontal
+                ? (position.x - frame.maxX) / max(1, logicalSize.width)
+                : (position.y - frame.maxY) / max(1, logicalSize.height)
+            guard abs(delta) > 0.0005 else { return true }
+            services.desktop.active.layout.resize(
+                pane: divider.pane,
+                axis: divider.axis,
+                delta: Double(delta)
+            )
+            layoutCanvas()
+            return true
+
+        case .up:
+            guard activeDivider != nil else { return false }
+            activeDivider = nil
+            return true
+
+        case .scroll:
+            return false
+        }
+    }
+
+    /// Busca si el cursor está en el hueco justo a la derecha o debajo de un
+    /// panel, que es donde vive su divisor.
+    private func divider(
+        at position: CGPoint,
+        frames: [PaneID: CGRect]
+    ) -> (pane: PaneID, axis: LayoutContainer.Axis)? {
+        // Un poco más ancho que el hueco: acertar con un hueco de 8 pt a pulso
+        // con el ratón es incómodo.
+        let reach = Tokens.Metric.tileGap
+
+        for (id, frame) in frames {
+            let vertical = position.x > frame.maxX
+                && position.x < frame.maxX + reach
+                && position.y >= frame.minY
+                && position.y <= frame.maxY
+            if vertical { return (id, .horizontal) }
+
+            let horizontal = position.y > frame.maxY
+                && position.y < frame.maxY + reach
+                && position.x >= frame.minX
+                && position.x <= frame.maxX
+            if horizontal { return (id, .vertical) }
+        }
+        return nil
+    }
+
     /// Entrega una tecla al panel con foco.
     func deliverKey(_ event: KeyEvent) {
         services.desktop.active.focusedPane?.handleKey(event)
+    }
+
+    /// Entrega texto de golpe al panel con foco: dictado o pegar.
+    func insertText(_ text: String) {
+        services.desktop.active.focusedPane?.insertText(text)
     }
 }

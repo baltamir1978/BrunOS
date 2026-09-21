@@ -23,6 +23,14 @@ protocol Pane: AnyObject {
 
     /// Tecla recibida por la escena del iPhone y encaminada a este panel.
     func handleKey(_ event: KeyEvent)
+
+    /// Texto que llega de una vez, sin pasar por el teclado: del dictado o de
+    /// pegar. Los paneles que no acepten texto pueden ignorarlo.
+    func insertText(_ text: String)
+}
+
+extension Pane {
+    func insertText(_ text: String) {}
 }
 
 /// Evento de puntero en coordenadas locales del panel.
