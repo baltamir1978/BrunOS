@@ -71,7 +71,6 @@ targets:
 
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        UIUserInterfaceStyle: Dark
 
         UIAppFonts:
           - JetBrainsMono-Regular.ttf

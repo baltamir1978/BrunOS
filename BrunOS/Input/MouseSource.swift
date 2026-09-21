@@ -140,31 +140,51 @@ final class GCMouseSource: NSObject, MouseSource {
 ///
 /// En el iPhone el ratón Bluetooth funciona a través de AssistiveTouch, y lo que
 /// llega a la app es un **puntero indirecto** de UIKit, el mismo que el trackpad
-/// del iPad. Esta vista ocupa la ventana del iPhone, recoge ese puntero y lo
-/// convierte en desplazamientos relativos.
+/// del iPad. Esta clase recoge ese puntero y lo convierte en desplazamientos
+/// relativos.
+///
+/// **No es una vista, y eso importa.** La primera versión sí lo era: una UIView
+/// transparente a pantalla completa por encima de la interfaz. Aunque sus gestos
+/// filtraban por tipo de toque, la vista seguía ganando el hit test y **se comía
+/// todos los toques del dedo**: los botones de debajo dejaron de responder.
+///
+/// Ahora los reconocedores se instalan sobre la vista raíz que ya existe, con
+/// `cancelsTouchesInView = false`, de modo que el dedo sigue llegando a SwiftUI
+/// y el puntero se capta igual.
 ///
 /// El puntero indirecto da posiciones absolutas dentro de la vista, así que hay
-/// que derivar el movimiento restando la posición anterior. Efecto secundario
-/// conocido: al llegar al borde de la pantalla del iPhone el puntero se queda
-/// clavado y deja de haber desplazamiento. Se compensa recentrando la referencia
-/// cuando se acerca al borde.
+/// que derivar el movimiento restando la posición anterior.
 @MainActor
-final class IndirectPointerSource: UIView, MouseSource, UIGestureRecognizerDelegate {
+final class IndirectPointerSource: NSObject, MouseSource, UIGestureRecognizerDelegate {
 
     weak var delegate: (any MouseSourceDelegate)?
     private(set) var isDelivering = false
+
+    /// Vista sobre la que se escucha. Es la raíz de la escena del iPhone, no
+    /// una vista propia.
+    private weak var host: UIView?
 
     private var lastLocation: CGPoint?
     private lazy var hover = UIHoverGestureRecognizer(target: self, action: #selector(handleHover))
     private lazy var pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
     private lazy var click = UITapGestureRecognizer(target: self, action: #selector(handleClick))
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        backgroundColor = .clear
+    /// Hay que llamarlo antes que `start()`.
+    func attach(to view: UIView) {
+        host = view
+    }
 
-        hover.delegate = self
-        pan.delegate = self
+    func start() {
+        guard let host else { return }
+
+        for recognizer in [hover, pan, click] as [UIGestureRecognizer] {
+            recognizer.delegate = self
+            // Sin esto, reconocer el gesto cancelaría el toque a la vista de
+            // debajo y volveríamos al problema de los botones muertos.
+            recognizer.cancelsTouchesInView = false
+            host.addGestureRecognizer(recognizer)
+        }
+
         pan.allowedScrollTypesMask = .all
         // Sólo el puntero indirecto: los dedos son para el trackpad de la
         // interfaz del iPhone, que es otra cosa.
@@ -172,25 +192,16 @@ final class IndirectPointerSource: UIView, MouseSource, UIGestureRecognizerDeleg
         click.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("BrunOS no usa storyboards")
-    }
-
-    func start() {
-        addGestureRecognizer(hover)
-        addGestureRecognizer(pan)
-        addGestureRecognizer(click)
-    }
-
     func stop() {
-        [hover, pan, click].forEach(removeGestureRecognizer)
+        guard let host else { return }
+        [hover, pan, click].forEach(host.removeGestureRecognizer)
         isDelivering = false
         lastLocation = nil
     }
 
     @objc private func handleHover(_ recognizer: UIHoverGestureRecognizer) {
-        let location = recognizer.location(in: self)
+        guard let host else { return }
+        let location = recognizer.location(in: host)
         switch recognizer.state {
         case .began:
             lastLocation = location
@@ -205,11 +216,12 @@ final class IndirectPointerSource: UIView, MouseSource, UIGestureRecognizerDeleg
     }
 
     @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
-        // Con un ratón, `scrollType == .discrete` es la rueda; `.continuous`
-        // es el gesto de dos dedos de un trackpad.
+        guard let host else { return }
+
+        // Con un ratón, un pan sin dedos encima es la rueda.
         if recognizer.numberOfTouches == 0 {
-            let scroll = recognizer.translation(in: self)
-            recognizer.setTranslation(.zero, in: self)
+            let scroll = recognizer.translation(in: host)
+            recognizer.setTranslation(.zero, in: host)
             if scroll != .zero {
                 markDelivering()
                 delegate?.mouseSource(self, didMove: MouseDelta(
@@ -223,10 +235,10 @@ final class IndirectPointerSource: UIView, MouseSource, UIGestureRecognizerDeleg
         // Arrastre con el botón pulsado.
         switch recognizer.state {
         case .began:
-            lastLocation = recognizer.location(in: self)
+            lastLocation = recognizer.location(in: host)
             delegate?.mouseSource(self, didPress: .left)
         case .changed:
-            emitTranslation(to: recognizer.location(in: self))
+            emitTranslation(to: recognizer.location(in: host))
         case .ended, .cancelled:
             delegate?.mouseSource(self, didRelease: .left)
             lastLocation = nil

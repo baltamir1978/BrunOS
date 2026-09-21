@@ -27,6 +27,9 @@ final class DesktopViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        // El escritorio va siempre oscuro, siga el iPhone el modo que siga.
+        overrideUserInterfaceStyle = .dark
+
         view.backgroundColor = Tokens.Color.background
         canvas.backgroundColor = Tokens.Color.background
         view.addSubview(canvas)
@@ -68,20 +71,20 @@ final class DesktopViewController: UIViewController {
         guard let screen = view.window?.windowScene?.screen else { return }
 
         let profile = services.externalDisplay.currentProfile
-            ?? DisplayProfileStore().profile(forNativePixels: screen.nativeBounds.size)
+            ?? DisplayProfileStore().profile(forNativePixels: ExternalDisplayManager.pixelSize(of: screen))
 
         // Puntos de UIKit que ocupa de verdad la ventana en el monitor.
         let physical = view.bounds.size
         guard physical.width > 0, physical.height > 0 else { return }
 
-        let native = screen.nativeBounds.size
-        // Cuántos puntos lógicos caben: los píxeles nativos partidos por la
-        // escala elegida. De ahí sale el factor con el que se estira el lienzo.
-        let logicalWidth = native.width / profile.scale.rawValue
+        let pixels = ExternalDisplayManager.pixelSize(of: screen)
+        // Cuántos puntos lógicos caben a lo ancho: los píxeles reales partidos
+        // por la escala elegida. De ahí sale el factor con el que se estira.
+        let logicalWidth = pixels.width / profile.scale.rawValue
         let factor = physical.width / logicalWidth
 
         let inset = profile.overscan.rawValue
-        let full = CGSize(width: logicalWidth, height: native.height / profile.scale.rawValue)
+        let full = CGSize(width: logicalWidth, height: pixels.height / profile.scale.rawValue)
         logicalSize = CGSize(
             width: full.width * (1 - 2 * inset),
             height: full.height * (1 - 2 * inset)
@@ -92,7 +95,46 @@ final class DesktopViewController: UIViewController {
         canvas.transform = CGAffineTransform(scaleX: factor, y: factor)
         canvas.center = CGPoint(x: physical.width / 2, y: physical.height / 2)
 
+        // **Esto es lo que hace que se vea nítido.**
+        //
+        // Una vista con `transform` escalado rasteriza su contenido al tamaño
+        // nominal de sus bounds y **después** estira el mapa de bits. Con un
+        // factor de 1,5 el texto sale emborronado, que es justo lo contrario de
+        // lo que se pretende con las resoluciones escaladas.
+        //
+        // Subiendo `contentsScale` se le dice a Core Animation que dibuje a esa
+        // densidad, así que el texto se rasteriza ya a resolución nativa y el
+        // escalado no le quita un píxel de definición.
+        contentsScale = screen.scale * max(factor, 1)
+
         layoutCanvas()
+    }
+
+    /// Densidad a la que se rasteriza el lienzo. Se propaga a mano porque
+    /// `contentsScale` no se hereda: cada capa nueva nace con la de la pantalla.
+    private var contentsScale: CGFloat = 1 {
+        didSet {
+            guard contentsScale != oldValue else { return }
+            Log.desktop.info("contentsScale del lienzo: \(self.contentsScale, format: .fixed(precision: 2))")
+        }
+    }
+
+    private func applyContentsScale(to view: UIView) {
+        view.layer.contentsScale = contentsScale
+        view.layer.rasterizationScale = contentsScale
+        for layer in view.layer.sublayers ?? [] {
+            applyContentsScale(to: layer)
+        }
+        for subview in view.subviews {
+            applyContentsScale(to: subview)
+        }
+    }
+
+    private func applyContentsScale(to layer: CALayer) {
+        layer.contentsScale = contentsScale
+        for sublayer in layer.sublayers ?? [] {
+            applyContentsScale(to: sublayer)
+        }
     }
 
     private func layoutCanvas() {
@@ -145,6 +187,10 @@ final class DesktopViewController: UIViewController {
             profile: services.externalDisplay.currentProfile,
             blockedCount: nil
         )
+
+        // Los paneles y las etiquetas que acaban de aparecer nacen con la
+        // densidad de la pantalla, no con la del lienzo.
+        applyContentsScale(to: canvas)
     }
 
     @objc private func refreshLayout() {

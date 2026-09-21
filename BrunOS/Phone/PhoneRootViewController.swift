@@ -20,8 +20,11 @@ final class PhoneRootViewController: UIViewController {
 
         view.backgroundColor = Tokens.Color.background
         embedPhoneInterface()
-        installPointerCapture()
         installOnScreenKeyboard()
+
+        // El puntero indirecto escucha sobre esta misma vista. No se le pone
+        // una vista propia encima: taparía los toques de la interfaz.
+        services.mouse.indirectSource.attach(to: view)
 
         services.keyboard.delegate = self
         services.mouse.delegate = self
@@ -88,21 +91,6 @@ final class PhoneRootViewController: UIViewController {
                 }
             }
         }
-    }
-
-    /// La vista que capta el puntero indirecto va **encima de todo** y sin
-    /// fondo: tiene que ver pasar el puntero del ratón, pero dejar que los
-    /// dedos lleguen al trackpad y a los botones de debajo.
-    private func installPointerCapture() {
-        let capture = services.mouse.indirectSource
-        capture.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(capture)
-        NSLayoutConstraint.activate([
-            capture.topAnchor.constraint(equalTo: view.topAnchor),
-            capture.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            capture.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            capture.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-        ])
     }
 }
 

@@ -10,23 +10,38 @@ enum Tokens {
 
     // MARK: - Colores
 
+    /// Los colores del iPhone **siguen el modo del sistema**; los de la pantalla
+    /// externa, no: el escritorio va siempre oscuro, porque es una estación de
+    /// trabajo delante de la que uno se sienta a mirar texto, no una app que
+    /// convenga en blanco a mediodía. `DesktopViewController` fuerza `.dark`.
+    ///
+    /// La paleta clara no es la oscura invertida. Dos ajustes que importan:
+    /// el ámbar y el turquesa se **oscurecen** sobre fondo claro, porque los de
+    /// la paleta oscura no llegan al contraste mínimo legible; y el fondo del
+    /// terminal se queda oscuro en los dos modos, que es lo que espera
+    /// cualquiera que use una consola.
     enum Color {
-        /// Fondo general del escritorio.
-        static let background = UIColor(hex: 0x0B0D10)
-        /// Fondo de un panel.
-        static let panel = UIColor(hex: 0x15181D)
+        static let background = dynamic(dark: 0x0B0D10, light: 0xF6F4F0)
+        static let panel = dynamic(dark: 0x15181D, light: 0xFFFFFF)
         /// Panel elevado: menús, lanzador, diálogos.
-        static let panelElevated = UIColor(hex: 0x1D2127)
-        /// Bordes y divisores del mosaico.
-        static let border = UIColor(hex: 0x262B33)
-        static let text = UIColor(hex: 0xE6E3DC)
-        static let textSecondary = UIColor(hex: 0x9AA1AB)
+        static let panelElevated = dynamic(dark: 0x1D2127, light: 0xEDEAE4)
+        static let border = dynamic(dark: 0x262B33, light: 0xD7D2C8)
+        static let text = dynamic(dark: 0xE6E3DC, light: 0x16191D)
+        static let textSecondary = dynamic(dark: 0x9AA1AB, light: 0x5C636D)
         /// Ámbar de marca: foco, selección y espacio de trabajo activo.
-        static let accent = UIColor(hex: 0xE8A33D)
+        static let accent = dynamic(dark: 0xE8A33D, light: 0xA96B06)
         /// Turquesa: estados correctos, bloqueador activo, barra de tmux.
-        static let accentAlt = UIColor(hex: 0x4FB3A3)
-        /// Fondo del terminal, algo más oscuro que el de un panel normal.
+        static let accentAlt = dynamic(dark: 0x4FB3A3, light: 0x2A7A6C)
+        /// Una consola es oscura en cualquier modo.
         static let terminalBackground = UIColor(hex: 0x0F1114)
+
+        private static func dynamic(dark: UInt32, light: UInt32) -> UIColor {
+            UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor(hex: dark)
+                    : UIColor(hex: light)
+            }
+        }
     }
 
     // MARK: - Tipografía

@@ -72,6 +72,19 @@ struct SettingsView: View {
                     .foregroundStyle(Color.brunosTextSecondary)
             }
         }
+
+        // El monitor lo tiene delante Bruno, no quien programa. Enseñar aquí lo
+        // que el sistema dice en crudo ahorra tener que pescarlo del log con el
+        // Mac conectado, y fue lo que destapó que `nativeBounds` no describe el
+        // modo de vídeo de una pantalla externa.
+        if let screen = services.externalDisplay.currentScreen {
+            Section("Diagnóstico de la pantalla") {
+                ForEach(ExternalDisplayManager.diagnostics(for: screen), id: \.0) { item in
+                    LabeledContent(item.0, value: item.1)
+                        .font(.brunosMono(13))
+                }
+            }
+        }
     }
 
     // MARK: - Ratón
