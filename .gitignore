@@ -1,0 +1,44 @@
+# --- Nada sensible entra en este repositorio: es público ---
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+*.certSigningRequest
+.env
+.env.*
+ExportOptions.plist
+Secrets.swift
+
+# --- Proyecto generado ---
+# El .xcodeproj lo regenera XcodeGen desde project.yml. No se versiona a
+# propósito: así no hay conflictos en el .pbxproj ni se cuela DEVELOPMENT_TEAM.
+*.xcodeproj/
+*.xcworkspace/
+
+# --- Xcode ---
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# --- Swift Package Manager ---
+.build/
+.swiftpm/
+Package.resolved
+
+# --- Listas de bloqueo generadas ---
+# EasyList y EasyPrivacy tienen licencia propia: no se redistribuyen aquí.
+# Tools/fetch-blocklists.sh las descarga y convierte en local.
+BrunOS/Resources/Blocklists/*.json
+
+# --- macOS ---
+.DS_Store
+
+# Info.plist lo genera XcodeGen desde project.yml
+BrunOS/App/Info.plist
+
+# Documento de trabajo personal, no va al repositorio público
+BrunOS-prompt.md
