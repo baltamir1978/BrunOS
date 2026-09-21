@@ -4,8 +4,11 @@ import UIKit
 /// marca, espacios de trabajo, título del panel con foco, resolución, anuncios
 /// bloqueados, batería y hora.
 ///
-/// Es puro rótulo: no recibe eventos, porque nada en la pantalla externa los
-/// recibe. Para cambiar de espacio se usan los atajos o el lanzador.
+/// **No recibe eventos del sistema**, porque nada en la pantalla externa los
+/// recibe. Pero sí responde al ratón: el escritorio le pregunta por geometría
+/// qué hay bajo el cursor. Tener los espacios rotulados arriba y que no se
+/// pudieran pulsar era desconcertante, y encima daba la sensación de que el
+/// ratón sólo funcionaba dentro del panel con foco.
 @MainActor
 final class TopBar: UIView {
 
@@ -19,6 +22,22 @@ final class TopBar: UIView {
 
     private var workspaceLabels: [UILabel] = []
     private var clockTimer: Timer?
+
+    /// Qué espacio de trabajo hay bajo un punto, en coordenadas de la barra.
+    ///
+    /// Se resuelve por geometría y no con `hitTest`, porque los toques no
+    /// llegan por UIKit: los entrega el escritorio desde su propio cursor.
+    func workspaceNumber(at point: CGPoint) -> Int? {
+        for (index, label) in workspaceLabels.enumerated() {
+            let frame = label.convert(label.bounds, to: self)
+            // Un poco de holgura: acertar a pulso con el ratón en una etiqueta
+            // de 12 pt es incómodo.
+            if frame.insetBy(dx: -3, dy: -6).contains(point) {
+                return index + 1
+            }
+        }
+        return nil
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)

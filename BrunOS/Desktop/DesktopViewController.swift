@@ -337,6 +337,7 @@ final class DesktopViewController: UIViewController {
         let position = services.pointer.position
         let frames = currentFrames()
 
+        if handleTopBar(kind, at: position) { return }
         if handleDivider(kind, at: position, frames: frames) { return }
 
         guard let hit = frames.first(where: { $0.value.contains(position) }) else { return }
@@ -355,6 +356,22 @@ final class DesktopViewController: UIViewController {
             ),
             modifiers: modifiers
         ))
+    }
+
+    /// Clics en la barra superior. Devuelve `true` si consumió el evento.
+    private func handleTopBar(_ kind: PointerEvent.Kind, at position: CGPoint) -> Bool {
+        guard topBar.frame.contains(position) else { return false }
+        guard case .down = kind else {
+            // El resto de eventos sobre la barra se traga igualmente: no tiene
+            // sentido que un clic empiece arriba y acabe en un panel.
+            return true
+        }
+
+        let pointInBar = CGPoint(x: position.x - topBar.frame.minX, y: position.y - topBar.frame.minY)
+        if let number = topBar.workspaceNumber(at: pointInBar) {
+            services.desktop.activate(number: number)
+        }
+        return true
     }
 
     // MARK: - Divisores
