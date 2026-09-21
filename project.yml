@@ -67,7 +67,6 @@ targets:
 
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        UIRequiresFullScreen: true
         UIUserInterfaceStyle: Dark
 
         UIAppFonts:
