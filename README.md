@@ -22,18 +22,18 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 
 | | Estado |
 | --- | --- |
-| **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | 🚧 escrito, sin probar |
-| **Ratón y teclado** Bluetooth, cursor propio y atajos de ventanas | 🚧 escrito, sin probar |
-| **Escritorio** en mosaico estilo i3, con 3 espacios de trabajo | 🚧 escrito, sin probar |
+| **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | ✅ funciona |
+| **Ratón y teclado** Bluetooth, cursor propio y atajos de ventanas | ✅ funciona |
+| **Escritorio** en mosaico estilo i3, con 3 espacios de trabajo y dock | ✅ funciona |
 | **Mando en el iPhone**: trackpad, teclado, dictado y ajustes | ✅ funciona |
-| **Terminal SSH** a través de Tailscale, con tmux y ratón | 🚧 Fase 2 |
-| **Navegador** con pestañas y bloqueo de anuncios | 🚧 Fase 3 |
-| **Gestor de ficheros**: iPhone, iCloud Drive, USB y SFTP | 🚧 Fase 4 |
+| **Fondos de escritorio**, propios o los de macOS | ✅ funciona |
+| **Terminal SSH** por Tailscale o contraseña, con tmux, selección y `known_hosts` | 🚧 escrito, sin probar contra un servidor |
+| **Navegador** con pestañas y bloqueo de anuncios | 🚧 a medias |
+| **Gestor de ficheros**: iPhone, iCloud Drive, USB y SFTP | ⬜ sin empezar |
 
-Va por la **Fase 1**. La interfaz del iPhone está probada en el simulador; **todo lo que dibuja en
-la pantalla externa está escrito pero no se ha ejecutado nunca**, porque el simulador de iOS no
-permite simular un monitor desde la línea de órdenes. La primera prueba de verdad será con un
-monitor delante.
+Probado con un monitor de verdad: la pantalla externa, el escalado, el ratón, el teclado y el
+escritorio funcionan. **El terminal SSH está escrito entero pero no se ha ejecutado ni una
+conexión**, así que trátalo como no verificado.
 
 ## Requisitos
 
@@ -51,7 +51,15 @@ Hace falta Xcode 27 y [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 ```bash
 brew install xcodegen
 xcodebuild -downloadComponent MetalToolchain   # lo pide SwiftTerm y no viene con Xcode
+cp Local.xcconfig.example Local.xcconfig       # y pon tu DEVELOPMENT_TEAM
 ./Tools/build.sh
+```
+
+Opcionales, porque lo que descargan no se versiona:
+
+```bash
+./Tools/fetch-wallpapers.sh    # copia los fondos de macOS de tu propio Mac
+./Tools/fetch-blocklists.sh    # descarga EasyList y EasyPrivacy y las convierte
 ```
 
 El `.xcodeproj` **no está versionado**: lo genera XcodeGen desde `project.yml`. El equipo de firma
@@ -69,6 +77,14 @@ Son de iOS, no del programa, y no hay intención de pelearse con ellas:
   pago, logins de terceros). Para eso está "Traer ventana": la página se muestra en el iPhone para
   tocarla con el dedo y vuelve al monitor.
 - **El contenido con DRM puede salir en negro** en la salida externa.
+- **El botón izquierdo del ratón no llega a la app como tal**: con AssistiveTouch, iOS lo convierte
+  en un toque en la pantalla del teléfono. Por eso, con monitor conectado, todo el iPhone hace de
+  trackpad.
+- **El puntero se para al llegar al borde de la pantalla del iPhone**, porque ése es el recorrido
+  físico disponible. Se compensa con proporción y aceleración, pero no desaparece.
+- **El fondo de pantalla del iPhone no se puede reutilizar**: iOS no se lo enseña a las apps.
+- **`keyboard-interactive` no funciona**: la librería SSH que usa BrunOS no habla ese método. Los
+  servidores configurados sólo con él no admitirán la contraseña.
 
 ## Licencia
 
@@ -77,10 +93,14 @@ El código de BrunOS es [MIT](LICENSE).
 Software de terceros:
 
 - [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) — MIT
-- [Citadel](https://github.com/orlandos-nl/Citadel) — MIT
+- [Citadel](https://github.com/orlandos-nl/Citadel) — MIT, fijado a la serie 0.11
 - [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) — SIL Open Font License 1.1
 - [IBM Plex Sans](https://github.com/IBM/plex) — SIL Open Font License 1.1
 
 Las listas de bloqueo **EasyList** y **EasyPrivacy** tienen licencia propia y **no se redistribuyen
 en este repositorio**: un script de `Tools/` las descarga y las convierte en local, y lo generado
 está en `.gitignore`.
+
+Lo mismo con los **fondos de macOS**: son de Apple, y `Tools/fetch-wallpapers.sh` los copia desde
+tu propio Mac sin que salgan de él. Los degradados que trae BrunOS de serie se dibujan por código
+y no dependen de nada.
