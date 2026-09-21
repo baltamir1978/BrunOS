@@ -18,6 +18,8 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     let terminalView: TerminalView
     /// Capa donde se pinta el resaltado de la selección.
     private let selectionLayer = CALayer()
+    /// Aviso de sesión caída. Sólo existe mientras hace falta.
+    private(set) var reconnectOverlay: ReconnectOverlay?
 
     var onTitleChange: (@MainActor () -> Void)?
 
@@ -88,12 +90,17 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         case .connected:
             write(banner: "Conectado.")
         case .failed(let reason):
-            // El fallo se escribe **dentro del terminal** en vez de en un
-            // diálogo: así queda junto a lo que se estaba haciendo y no tapa
-            // nada. Intro vuelve a intentarlo.
-            write(banner: "\r\n\(reason)\r\nPulsa Intro para reconectar.")
+            // El fallo se escribe **dentro del terminal**, junto a lo que se
+            // estaba haciendo, que muchas veces es la pista de por qué se cayó.
+            // Encima va el aviso con el botón.
+            write(banner: "\r\n\(reason)")
+            showReconnectOverlay(reason: reason)
         case .idle:
             break
+        }
+
+        if newState != .idle, case .failed = newState {} else {
+            hideReconnectOverlay()
         }
         onTitleChange?()
     }
@@ -107,6 +114,22 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
 
     private func write(banner: String) {
         terminalView.feed(text: "\r\n\u{1B}[38;2;232;163;61m\(banner)\u{1B}[0m\r\n")
+    }
+
+    private func showReconnectOverlay(reason: String) {
+        let overlay = reconnectOverlay ?? ReconnectOverlay()
+        overlay.onReconnect = { [weak self] in
+            self?.session.connect()
+        }
+        overlay.update(message: reason)
+        overlay.frame = terminalView.bounds
+        terminalView.addSubview(overlay)
+        reconnectOverlay = overlay
+    }
+
+    private func hideReconnectOverlay() {
+        reconnectOverlay?.removeFromSuperview()
+        reconnectOverlay = nil
     }
 
     // MARK: - Entrada
@@ -220,6 +243,13 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     }
 
     func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint, modifiers: UIKeyModifierFlags) {
+        if let overlay = reconnectOverlay {
+            if case .down = kind, overlay.hitsButton(point) {
+                overlay.onReconnect?()
+            }
+            return
+        }
+
         let position = position(at: point)
 
         // Shift deja pasar por encima del modo ratón, como en cualquier
@@ -395,6 +425,7 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
         session.resize(cols: newCols, rows: newRows)
         selectionLayer.frame = source.bounds
+        reconnectOverlay?.frame = source.bounds
         // Una selección hecha con otro tamaño ya no señala lo mismo.
         clearSelection()
     }

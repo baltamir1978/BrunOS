@@ -114,6 +114,18 @@ entra**. Las salidas son dos: usar clave pública, que Citadel sí admite (`ed25
 quedaron fuera de esta versión por decisión del prompt, pero el diseño está preparado), o parchear
 NIOSSH.
 
+### Lo que queda fuera de la Fase 2, y por qué
+
+- **Claves ed25519**: aplazadas a propósito, primero por el prompt y luego por Bruno. Citadel las
+  admite (`ed25519`, `p256`, `p384`, `p521`, `rsa`), así que es añadir un caso a
+  `SSHHost.Authentication` y guardar la clave en el Keychain.
+- **`keyboard-interactive`**: **no es posible con NIOSSH**, ver arriba.
+- **Banner de autenticación del servidor** (`SSH_MSG_USERAUTH_BANNER`): NIOSSH sólo lo contempla
+  **del lado servidor**, en `SSHServerConfiguration.banner`. Un cliente no tiene forma de leerlo.
+  El MOTD de después del login sí sale, porque llega por stdout como cualquier otra salida.
+- **Cmd+clic sobre una URL abre Safari**, no el navegador de BrunOS, que todavía no existe. Cuando
+  esté la Fase 3 hay que encaminarlo ahí, con Safari como alternativa.
+
 ### Claves de host (known_hosts)
 
 **Ya está hecho**, en `KnownHosts.swift`. El cifrado de SSH impide que nadie escuche por el camino,
