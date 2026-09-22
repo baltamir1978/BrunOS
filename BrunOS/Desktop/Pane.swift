@@ -27,10 +27,16 @@ protocol Pane: AnyObject {
     /// Texto que llega de una vez, sin pasar por el teclado: del dictado o de
     /// pegar. Los paneles que no acepten texto pueden ignorarlo.
     func insertText(_ text: String)
+
+    /// Si en ese punto se puede agarrar el panel para arrastrarlo: la parte
+    /// vacía de su barra, como la barra de título de una ventana de macOS.
+    /// Nunca un botón, una pestaña o la barra de direcciones.
+    func isDragArea(_ point: CGPoint) -> Bool
 }
 
 extension Pane {
     func insertText(_ text: String) {}
+    func isDragArea(_ point: CGPoint) -> Bool { false }
 }
 
 /// Evento de puntero en coordenadas locales del panel.

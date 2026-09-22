@@ -211,10 +211,7 @@ final class DesktopViewController: UIViewController {
             width: logicalSize.width,
             height: Dock.height
         )
-        // Los paneles se ponen debajo de las barras: con pantalla completa,
-        // el dock y la barra salen por encima de lo que haya.
-        canvas.bringSubviewToFront(topBar)
-        canvas.bringSubviewToFront(dock)
+
         dock.update(desktop: services.desktop)
 
         // El fondo va sin animación: si no, al cambiar de escala se ve la
@@ -232,7 +229,7 @@ final class DesktopViewController: UIViewController {
         // El cursor se mueve por todo el escritorio, barra incluida.
         services.pointer.bounds = CGRect(origin: .zero, size: logicalSize)
 
-        let frames = workspace.layout.frames(in: area, gap: gap)
+        let frames = paneFrames(tiled: workspace.layout.frames(in: area, gap: gap), in: workspace)
         emptyLabel.isHidden = !frames.isEmpty
 
         // Los paneles de otros espacios se quedan fuera de la jerarquía: así no
@@ -252,6 +249,7 @@ final class DesktopViewController: UIViewController {
                 pane.view.removeFromSuperview()
             }
         }
+        arrangeFloating(in: workspace, frames: frames)
 
         topBar.update(
             desktop: services.desktop,
@@ -342,12 +340,30 @@ final class DesktopViewController: UIViewController {
             }
 
         case .toggleMaximize:
-            workspace.toggleMaximize()
+            if let focused = workspace.focused, workspace.isFloating(focused) {
+                toggleZoom(focused, fullScreen: false)
+            } else {
+                workspace.toggleMaximize()
+            }
 
         case .toggleFullScreen:
             dockRevealed = false
             topBarRevealed = false
-            services.desktop.isFullScreen.toggle()
+            let entering = !services.desktop.isFullScreen
+            if entering, let focused = workspace.focused, workspace.isFloating(focused) {
+                // Una flotante a pantalla completa se lleva la pantalla entera,
+                // como una ventana de macOS con el botón verde.
+                zoomRestore[focused] = nil
+                toggleZoom(focused, fullScreen: true)
+            } else if !entering {
+                for (id, frame) in zoomRestore { workspace.setFloatingFrame(id, frame) }
+                zoomRestore.removeAll()
+            }
+            services.desktop.isFullScreen = entering
+
+        case .toggleFloating:
+            guard let focused = workspace.focused else { return true }
+            toggleFloating(focused)
 
         case .newPane:
             let kind = (workspace.focusedPane as? PlaceholderPane)?.kind
@@ -452,7 +468,11 @@ final class DesktopViewController: UIViewController {
         case .files: FilesPane(frame: .zero)
         }
 
-        workspace.add(pane, id: id, focusedFrame: focusedFrame)
+        if DesktopPreferences.newPanesFloat {
+            workspace.addFloating(pane, id: id, frame: nextFloatingFrame())
+        } else {
+            workspace.add(pane, id: id, focusedFrame: focusedFrame)
+        }
         services.desktop.notifyChange()
 
         if let terminal = pane as? TerminalPane {
@@ -726,8 +746,23 @@ final class DesktopViewController: UIViewController {
         return launcher.handleKey(event)
     }
 
+    /// Dónde está cada panel del espacio activo: los del mosaico y los que
+    /// flotan.
     private func currentFrames() -> [PaneID: CGRect] {
+        let workspace = services.desktop.active
+        return paneFrames(tiled: tiledFrames(), in: workspace)
+    }
+
+    private func tiledFrames() -> [PaneID: CGRect] {
         services.desktop.active.layout.frames(in: tileArea, gap: Tokens.Metric.tileGap)
+    }
+
+    private func paneFrames(tiled: [PaneID: CGRect], in workspace: Workspace) -> [PaneID: CGRect] {
+        var frames = tiled
+        for (id, frame) in workspace.floating {
+            frames[id] = frame
+        }
+        return frames
     }
 
     /// Dónde se reparten los paneles: entre la barra y el dock.
@@ -771,14 +806,21 @@ final class DesktopViewController: UIViewController {
         if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
         if let launcher, launcher.handlePointer(kind, at: position) { return }
 
+        // Una ventana que se está arrastrando manda sobre el dock y la barra:
+        // si no, al pasar por encima se quedarían el movimiento y la ventana
+        // se pararía a medio camino.
+        if windowDrag != nil, handleWindowDrag(kind, at: position) { return }
+
         if case .moved = kind, services.desktop.isFullScreen {
             updateFullScreenReveal(at: position)
         }
         if !services.desktop.isFullScreen || dockRevealed, handleDock(kind, at: position) { return }
         if !services.desktop.isFullScreen || topBarRevealed, handleTopBar(kind, at: position) { return }
-        if handleDivider(kind, at: position, frames: frames) { return }
+        if handleWindowDrag(kind, at: position) { return }
+        if floatingWindow(at: position) == nil,
+           handleDivider(kind, at: position, frames: tiledFrames()) { return }
 
-        guard let hit = frames.first(where: { $0.value.contains(position) }) else { return }
+        guard let hit = paneHit(at: position, frames: frames) else { return }
 
         let workspace = services.desktop.active
 
@@ -816,6 +858,303 @@ final class DesktopViewController: UIViewController {
             ),
             modifiers: modifiers
         ))
+    }
+
+    // MARK: - Ventanas flotantes
+
+    /// Sombras de las ventanas flotantes. Van en una vista aparte, debajo de
+    /// cada panel: los paneles recortan su contenido (`clipsToBounds`) para
+    /// las esquinas redondeadas, y una sombra dentro de ellos se recortaría
+    /// también.
+    private var floatingShadows: [PaneID: UIView] = [:]
+
+    /// Pone las flotantes encima del mosaico en su orden de apilamiento, y
+    /// deja por encima de todo las barras y las ventanas modales.
+    private func arrangeFloating(in workspace: Workspace, frames: [PaneID: CGRect]) {
+        for (id, shadow) in floatingShadows where !workspace.isFloating(id) {
+            shadow.removeFromSuperview()
+            floatingShadows[id] = nil
+        }
+        for id in workspace.floatingOrder {
+            guard let pane = workspace.pane(id), let frame = frames[id] else { continue }
+            let shadow = floatingShadows[id] ?? {
+                let view = UIView()
+                view.isUserInteractionEnabled = false
+                view.layer.shadowColor = UIColor.black.cgColor
+                view.layer.shadowOpacity = 0.28
+                view.layer.shadowRadius = 22
+                view.layer.shadowOffset = CGSize(width: 0, height: 10)
+                floatingShadows[id] = view
+                return view
+            }()
+            shadow.frame = frame
+            shadow.layer.shadowPath = UIBezierPath(
+                roundedRect: shadow.bounds,
+                cornerRadius: Tokens.Metric.paneCornerRadius
+            ).cgPath
+            canvas.addSubview(shadow)
+            canvas.bringSubviewToFront(shadow)
+            canvas.bringSubviewToFront(pane.view)
+        }
+
+        // Los paneles van debajo de las barras: con pantalla completa, el dock
+        // y la barra salen por encima de lo que haya. Y las ventanas modales,
+        // por encima de todo, incluidas las barras.
+        canvas.bringSubviewToFront(topBar)
+        canvas.bringSubviewToFront(dock)
+        let modals: [UIView?] = [launcher, settingsWindow, hostEditor, quickLook, prompt, contextMenu]
+        for modal in modals.compactMap({ $0 }) {
+            canvas.bringSubviewToFront(modal)
+        }
+    }
+
+    /// La ventana flotante de más delante que hay en un punto.
+    private func floatingWindow(at point: CGPoint, margin: CGFloat = 0) -> (PaneID, CGRect)? {
+        let workspace = services.desktop.active
+        for id in workspace.floatingOrder.reversed() {
+            guard let frame = workspace.floating[id] else { continue }
+            if frame.insetBy(dx: -margin, dy: -margin).contains(point) { return (id, frame) }
+        }
+        return nil
+    }
+
+    /// El panel que hay en un punto: primero las flotantes, de delante a
+    /// atrás, y luego el mosaico.
+    private func paneHit(at point: CGPoint, frames: [PaneID: CGRect]) -> (key: PaneID, value: CGRect)? {
+        if let (id, frame) = floatingWindow(at: point) { return (id, frame) }
+        let workspace = services.desktop.active
+        return frames.first { !workspace.isFloating($0.key) && $0.value.contains(point) }
+    }
+
+    /// Bordes que se agarran al redimensionar.
+    private struct Edges: OptionSet {
+        let rawValue: Int
+        static let left = Edges(rawValue: 1)
+        static let right = Edges(rawValue: 2)
+        static let top = Edges(rawValue: 4)
+        static let bottom = Edges(rawValue: 8)
+    }
+
+    private enum WindowDrag {
+        /// Se ha pulsado la barra de un panel del mosaico, pero todavía no se
+        /// ha movido lo bastante como para soltarlo: así un clic en la barra
+        /// no lo saca del mosaico sin querer.
+        case pending(id: PaneID, start: CGPoint, frame: CGRect)
+        case moving(id: PaneID, offset: CGPoint)
+        case resizing(id: PaneID, edges: Edges, start: CGPoint, frame: CGRect)
+    }
+
+    private var windowDrag: WindowDrag?
+    /// El último clic en una barra, para reconocer el doble clic.
+    private var lastBarClick: (id: PaneID, time: Date)?
+
+    private static let resizeMargin: CGFloat = 6
+    private static let minimumWindowSize = CGSize(width: 340, height: 220)
+
+    /// Arrastrar y redimensionar ventanas. Devuelve `true` si consumió el
+    /// evento.
+    private func handleWindowDrag(_ kind: PointerEvent.Kind, at position: CGPoint) -> Bool {
+        let workspace = services.desktop.active
+
+        switch kind {
+        case .down(let button) where button == .left:
+            // Los bordes de una flotante, lo primero: caen justo encima del
+            // contenido del panel, y si no, el panel se los comería.
+            if let (id, frame) = floatingWindow(at: position, margin: Self.resizeMargin) {
+                let edges = resizeEdges(at: position, frame: frame)
+                if !edges.isEmpty {
+                    focusPane(id)
+                    windowDrag = .resizing(id: id, edges: edges, start: position, frame: frame)
+                    return true
+                }
+            }
+
+            guard let hit = paneHit(at: position, frames: currentFrames()),
+                  let pane = workspace.pane(hit.key)
+            else { return false }
+            let local = CGPoint(x: position.x - hit.value.minX, y: position.y - hit.value.minY)
+            guard pane.isDragArea(local) else { return false }
+
+            // Doble clic en la barra: del mosaico a flotante y al revés.
+            let now = Date()
+            if let last = lastBarClick, last.id == hit.key, now.timeIntervalSince(last.time) < 0.5 {
+                lastBarClick = nil
+                windowDrag = nil
+                toggleFloating(hit.key)
+                return true
+            }
+            lastBarClick = (hit.key, now)
+
+            focusPane(hit.key)
+            windowDrag = workspace.isFloating(hit.key)
+                ? .moving(id: hit.key, offset: CGPoint(x: position.x - hit.value.minX, y: position.y - hit.value.minY))
+                : .pending(id: hit.key, start: position, frame: hit.value)
+            return true
+
+        case .moved:
+            guard let drag = windowDrag else { return false }
+            switch drag {
+            case .pending(let id, let start, let frame):
+                guard hypot(position.x - start.x, position.y - start.y) > 8 else { return true }
+                // Se suelta del mosaico. Si el hueco era enorme, la ventana
+                // sale algo más pequeña, pero siempre bajo el cursor y por el
+                // mismo punto de la barra por el que se agarró.
+                let area = tileArea
+                let size = CGSize(
+                    width: min(frame.width, area.width * 0.7),
+                    height: min(frame.height, area.height * 0.75)
+                )
+                let grab = CGPoint(
+                    x: (start.x - frame.minX) * size.width / frame.width,
+                    y: start.y - frame.minY
+                )
+                let origin = CGPoint(x: position.x - grab.x, y: position.y - grab.y)
+                workspace.float(id, frame: clampWindow(CGRect(origin: origin, size: size)))
+                windowDrag = .moving(id: id, offset: grab)
+                lastBarClick = nil
+                layoutWithoutAnimation()
+
+            case .moving(let id, let offset):
+                guard let frame = workspace.floating[id] else { windowDrag = nil; return true }
+                let origin = CGPoint(x: position.x - offset.x, y: position.y - offset.y)
+                workspace.setFloatingFrame(id, clampWindow(CGRect(origin: origin, size: frame.size)))
+                lastBarClick = nil
+                layoutWithoutAnimation()
+
+            case .resizing(let id, let edges, let start, let frame):
+                let dx = position.x - start.x
+                let dy = position.y - start.y
+                let minimum = Self.minimumWindowSize
+                var next = frame
+                if edges.contains(.left) {
+                    let width = max(minimum.width, frame.width - dx)
+                    next.origin.x = frame.maxX - width
+                    next.size.width = width
+                }
+                if edges.contains(.right) { next.size.width = max(minimum.width, frame.width + dx) }
+                if edges.contains(.top) {
+                    let height = max(minimum.height, frame.height - dy)
+                    next.origin.y = frame.maxY - height
+                    next.size.height = height
+                }
+                if edges.contains(.bottom) { next.size.height = max(minimum.height, frame.height + dy) }
+                workspace.setFloatingFrame(id, clampWindow(next))
+                layoutWithoutAnimation()
+            }
+            return true
+
+        case .up:
+            guard windowDrag != nil else { return false }
+            windowDrag = nil
+            services.desktop.notifyChange()
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    private func resizeEdges(at point: CGPoint, frame: CGRect) -> Edges {
+        let margin = Self.resizeMargin
+        var edges: Edges = []
+        if abs(point.x - frame.minX) <= margin { edges.insert(.left) }
+        if abs(point.x - frame.maxX) <= margin { edges.insert(.right) }
+        if abs(point.y - frame.minY) <= margin { edges.insert(.top) }
+        if abs(point.y - frame.maxY) <= margin { edges.insert(.bottom) }
+        // Fuera del alto o el ancho de la ventana no hay borde que agarrar.
+        let withinX = point.x >= frame.minX - margin && point.x <= frame.maxX + margin
+        let withinY = point.y >= frame.minY - margin && point.y <= frame.maxY + margin
+        return withinX && withinY ? edges : []
+    }
+
+    /// Una ventana nunca se pierde: la barra queda siempre a la vista y
+    /// siempre queda un trozo dentro de la pantalla para poder recuperarla.
+    private func clampWindow(_ frame: CGRect) -> CGRect {
+        let top = services.desktop.isFullScreen ? 0 : Tokens.Metric.topBarHeight
+        var result = frame
+        result.size.width = min(result.width, logicalSize.width)
+        result.size.height = min(result.height, logicalSize.height - top)
+        result.origin.y = min(max(result.minY, top), logicalSize.height - 40)
+        result.origin.x = min(max(result.minX, 100 - result.width), logicalSize.width - 100)
+        return result
+    }
+
+    private func layoutWithoutAnimation() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layoutCanvas()
+        CATransaction.commit()
+    }
+
+    private func focusPane(_ id: PaneID) {
+        let workspace = services.desktop.active
+        guard workspace.focused != id else {
+            workspace.raise(id)
+            return
+        }
+        workspace.setFocus(id)
+        services.desktop.notifyChange()
+    }
+
+    /// Del mosaico a flotante y al revés. Cmd+Mayús+Espacio y doble clic en
+    /// la barra.
+    func toggleFloating(_ id: PaneID) {
+        let workspace = services.desktop.active
+        if workspace.isFloating(id) {
+            let neighbor = workspace.layout.panes.first
+            workspace.tile(id, nextTo: neighbor, neighborFrame: neighbor.flatMap { tiledFrames()[$0] })
+            zoomRestore[id] = nil
+        } else {
+            let area = tileArea
+            let current = tiledFrames()[id] ?? area
+            let size = CGSize(
+                width: max(Self.minimumWindowSize.width, min(current.width, area.width * 0.62)),
+                height: max(Self.minimumWindowSize.height, min(current.height, area.height * 0.7))
+            )
+            let frame = CGRect(
+                x: current.midX - size.width / 2,
+                y: current.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            )
+            workspace.float(id, frame: clampWindow(frame))
+        }
+        workspace.setFocus(id)
+        services.desktop.notifyChange()
+    }
+
+    /// Dónde sale una ventana nueva cuando los paneles nuevos flotan: centrada
+    /// y en cascada, para que no se tape una con otra exactamente.
+    private func nextFloatingFrame() -> CGRect {
+        let area = tileArea
+        let size = CGSize(
+            width: max(Self.minimumWindowSize.width, area.width * 0.6),
+            height: max(Self.minimumWindowSize.height, area.height * 0.7)
+        )
+        let step = CGFloat(services.desktop.active.floating.count % 6) * 28
+        return clampWindow(CGRect(
+            x: area.midX - size.width / 2 + step,
+            y: area.midY - size.height / 2 + step,
+            width: size.width,
+            height: size.height
+        ))
+    }
+
+    /// Dónde estaba cada flotante antes de maximizarla, para devolverla.
+    private var zoomRestore: [PaneID: CGRect] = [:]
+
+    /// Maximizar una flotante: ocupa el área del mosaico, o la pantalla entera
+    /// con `fullScreen`. Si ya lo estaba, vuelve a su tamaño.
+    private func toggleZoom(_ id: PaneID, fullScreen: Bool) {
+        let workspace = services.desktop.active
+        guard let frame = workspace.floating[id] else { return }
+        if let previous = zoomRestore[id] {
+            zoomRestore[id] = nil
+            workspace.setFloatingFrame(id, previous)
+        } else {
+            zoomRestore[id] = frame
+            workspace.setFloatingFrame(id, fullScreen ? CGRect(origin: .zero, size: logicalSize) : tileArea)
+        }
     }
 
     // MARK: - Pantalla completa

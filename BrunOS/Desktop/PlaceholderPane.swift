@@ -108,6 +108,10 @@ final class PlaceholderPane: UIView, Pane {
         fatalError("BrunOS no usa storyboards")
     }
 
+    func isDragArea(_ point: CGPoint) -> Bool {
+        point.y < 30
+    }
+
     func setFocused(_ focused: Bool) {
         layer.borderColor = focused
             ? Tokens.Color.accent.desktopCGColor

@@ -705,6 +705,16 @@ final class FilesPane: UIView, Pane {
         }
     }
 
+    /// La cabecera vacía y la franja de arriba de la barra lateral, donde van
+    /// los botones de ventana.
+    func isDragArea(_ point: CGPoint) -> Bool {
+        let buttons = [upFrame, settingsFrame] + Array(sortFrames.values) + Array(modeFrames.values)
+        if buttons.contains(where: { $0.insetBy(dx: -4, dy: -4).contains(point) }) { return false }
+        if WindowControls.button(at: point, x: Self.controlsX, midY: Self.controlsMidY) != nil { return false }
+        if point.x >= Self.sidebarWidth { return point.y < Self.headerHeight }
+        return point.y < 28
+    }
+
     /// El elemento bajo un punto. Lo que el scroll ha metido debajo de la
     /// cabecera no cuenta: ahí se está pulsando la cabecera.
     private func itemIndex(at point: CGPoint) -> Int? {

@@ -129,11 +129,17 @@ final class BrowserChrome: UIView {
             closeFrames = []
         }
 
+        // La dirección no se come la barra entera: con un ancho tope y
+        // centrada en su hueco, a los lados queda sitio vacío para agarrar el
+        // panel y arrastrarlo, como la barra de título de Safari.
+        let addressStart = reloadFrame.maxX + 6
         let addressEnd = (tabFrames.first?.minX ?? blockerFrame.minX) - 8
+        let available = max(60, addressEnd - addressStart)
+        let width = min(available, max(420, available * 0.72))
         addressFrame = CGRect(
-            x: reloadFrame.maxX + 6,
+            x: addressStart + (available - width) / 2,
             y: y + 3,
-            width: max(60, addressEnd - reloadFrame.maxX - 6),
+            width: width,
             height: size - 6
         )
     }

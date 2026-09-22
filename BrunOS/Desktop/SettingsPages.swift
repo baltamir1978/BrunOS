@@ -54,6 +54,19 @@ enum SettingsPages {
                     ]
                 ),
                 SettingsGroup(
+                    "Ventanas",
+                    footer: "Cualquier panel se suelta del mosaico arrastrándolo por la parte vacía de "
+                        + "su barra, y se redimensiona por los bordes. Doble clic en la barra, o "
+                        + "Cmd + Mayús + Espacio, lo pasa de flotante a mosaico y al revés. "
+                        + "Rojo cierra, amarillo lo manda al dock y verde maximiza.",
+                    rows: [
+                        SettingsRow("Paneles nuevos", .choice(
+                            ["En mosaico", "Flotantes"],
+                            selected: DesktopPreferences.newPanesFloat ? 1 : 0
+                        ) { DesktopPreferences.newPanesFloat = $0 == 1 }),
+                    ]
+                ),
+                SettingsGroup(
                     "Fondo de escritorio",
                     footer: "Los degradados tienen versión clara y oscura, y cambian con el modo. "
                         + "Las fotos son los fondos de macOS que copia Tools/fetch-wallpapers.sh; "
@@ -143,6 +156,7 @@ enum SettingsPages {
                     SettingsRow("Mover el foco", .value("Cmd + Opción + flechas")),
                     SettingsRow("Mover el panel", .value("Cmd + Mayús + flechas")),
                     SettingsRow("Maximizar el panel", .value("Cmd + Intro")),
+                    SettingsRow("Flotar o volver al mosaico", .value("Cmd + Mayús + Espacio")),
                     SettingsRow("Pantalla completa", .value("Ctrl + Cmd + F")),
                     SettingsRow("Nueva pestaña · cerrarla", .value("Cmd + T · Cmd + W")),
                     SettingsRow("Nuevo panel", .value("Cmd + N")),

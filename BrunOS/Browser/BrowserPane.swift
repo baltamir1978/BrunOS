@@ -312,6 +312,11 @@ final class BrowserPane: UIView, Pane {
         AppServices.shared.blocker.toggleException(for: host)
     }
 
+    func isDragArea(_ point: CGPoint) -> Bool {
+        guard chrome.frame.contains(point) else { return false }
+        return chrome.hit(at: CGPoint(x: point.x, y: point.y - chrome.frame.minY)) == .none
+    }
+
     // MARK: - Menú contextual
 
     /// El menú del clic derecho sobre la página.

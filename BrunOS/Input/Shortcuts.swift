@@ -13,6 +13,7 @@ enum DesktopCommand: Equatable {
     case movePane(TilingLayout.Direction)
     case toggleMaximize
     case toggleFullScreen
+    case toggleFloating
     case newTab
     case closeTab
     case newPane
@@ -34,6 +35,7 @@ enum DesktopCommand: Equatable {
         case .movePane: "Mover el panel"
         case .toggleMaximize: "Maximizar o restaurar"
         case .toggleFullScreen: "Pantalla completa"
+        case .toggleFloating: "Flotar o volver al mosaico"
         case .newTab: "Nueva pestaña o sesión"
         case .closeTab: "Cerrar pestaña o sesión"
         case .newPane: "Nuevo panel"
@@ -100,6 +102,9 @@ enum Shortcuts {
             // Como en macOS. Va antes que Cmd+F, que es buscar.
             Entry(input: "f", modifiers: [.command, .control], command: .toggleFullScreen,
                   title: "Pantalla completa"),
+            // Mod+Mayús+Espacio es el de i3 para lo mismo.
+            Entry(input: " ", modifiers: [.command, .shift], command: .toggleFloating,
+                  title: "Flotar"),
             Entry(input: "t", modifiers: .command, command: .newTab, title: "Nueva pestaña"),
             Entry(input: "w", modifiers: .command, command: .closeTab, title: "Cerrar pestaña"),
             Entry(input: "n", modifiers: .command, command: .newPane, title: "Nuevo panel"),

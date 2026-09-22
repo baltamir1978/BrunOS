@@ -249,6 +249,10 @@ final class TerminalPane: UIView, Pane {
         )
     }
 
+    func isDragArea(_ point: CGPoint) -> Bool {
+        tabBar.frame.contains(point) && tabBar.target(at: point) == nil
+    }
+
     private func pointInTerminal(_ point: CGPoint) -> CGPoint {
         CGPoint(x: point.x, y: point.y - tabBar.frame.height)
     }

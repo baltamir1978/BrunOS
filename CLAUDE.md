@@ -112,6 +112,27 @@ pantalla completa). Lo minimizado sale del mosaico pero sigue vivo —la sesión
 vuelve a su sitio al pulsar su icono en el dock, entre el separador y los ajustes. Cmd+Intro
 sigue maximizando dentro del mosaico.
 
+### Ventanas flotantes (22-sep-2026)
+
+Un panel está **o en el mosaico o flotando**, nunca en los dos: `Workspace.floating` guarda el
+marco de cada flotante y `floatingOrder` el apilamiento; al flotar sale de `TilingLayout`, y al
+volver entra junto al primer panel del mosaico. Las flotantes van encima del mosaico, con sombra
+en una vista aparte (los paneles recortan su contenido y se la comerían), y **por debajo de las
+barras y de las ventanas modales**, que se vuelven a traer delante en cada maquetación.
+
+- **Soltar del mosaico**: arrastrando la parte vacía de la barra del panel (`Pane.isDragArea`).
+  Hay un umbral de 8 puntos para que un clic en la barra no lo saque sin querer.
+- **Redimensionar**: 6 puntos a cada lado del borde de una flotante. Se miran antes que el
+  contenido del panel, que si no se los comería.
+- **Doble clic en la barra** o Cmd+Mayús+Espacio (el Mod+Mayús+Espacio de i3): flotante ↔ mosaico.
+- Verde en una flotante: se lleva la pantalla entera; Cmd+Intro: el área del mosaico. Las dos
+  recuerdan el marco anterior (`zoomRestore`).
+- Un arrastre en curso manda sobre el dock y la barra superior: si no, al pasar por encima se
+  quedaban el movimiento.
+- Ajustes › General › Ventanas: si los paneles nuevos salen flotando o en mosaico.
+
+**Sin probar en el iPhone.** No hay cursor de redimensionar: el cursor sigue siendo la flecha.
+
 ### El ratón se atascaba en el borde del iPhone: ahora va en absoluto
 
 Con AssistiveTouch, el ratón llega como **puntero indirecto**: iOS mueve su propio puntero por la
@@ -245,8 +266,6 @@ Pequeños, de fases anteriores:
   ahí, con Safari de respaldo.
 - **Buscar en la página (Cmd+F)**: se reconoce y se encamina, pero `perform(_:)` devuelve `false`
   porque no hay barra de búsqueda todavía.
-- **Ventanas flotantes**: los botones de ventana ya están, con su comportamiento definitivo. Falta
-  la capa de ventanas encima del mosaico, el arrastre por el título y la redimensión.
 - **Autorrelleno de contraseñas**: el de Safari no está al alcance de una app (el llavero de
   Contraseñas sólo se ofrece en el teclado del sistema sobre un campo nativo, y en el monitor no
   hay ni una cosa ni la otra). Dos caminos posibles, sin decidir: un campo nativo en el iPhone
@@ -266,9 +285,6 @@ Del gestor de ficheros (Fase 4):
 
 Apuntados por Bruno para el final:
 
-- **Ventanas flotantes**. La Fase 1 se hizo con mosaico puro estilo i3, a propósito. Añadirlas
-  implica que `TilingLayout` deje de repartir todo el espacio: harían falta una capa de ventanas
-  por encima del mosaico, orden de apilamiento, arrastre de título y redimensión por las esquinas.
 - **Claves ed25519** para SSH.
 - **`Tools/testflight.sh`**: subir con la clave de la API de App Store Connect e incremento
   automático de build. Hasta entonces, las subidas van a mano desde Xcode.
