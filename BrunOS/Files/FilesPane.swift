@@ -377,6 +377,158 @@ final class FilesPane: UIView, Pane {
         }
     }
 
+    /// Menú del clic derecho.
+    func contextMenuEntries(at location: CGPoint) -> [ContextMenu.Entry] {
+        let index = rowFrames.firstIndex { $0.contains(location) }
+        if let index { selectedIndex = index; setNeedsDisplay() }
+        let item = index.flatMap { items.indices.contains($0) ? items[$0] : nil }
+        let files = services.files
+
+        var entries: [ContextMenu.Entry] = []
+
+        if let item {
+            if !item.isDirectory {
+                entries.append(ContextMenu.Entry(title: "Vista previa", symbol: "eye") { [weak self] in
+                    self?.preview(item)
+                })
+                entries.append(ContextMenu.Entry(
+                    title: "Abrir en el navegador",
+                    symbol: "safari"
+                ) { [weak self] in
+                    self?.openInBrowser(item)
+                })
+            } else {
+                entries.append(ContextMenu.Entry(title: "Abrir", symbol: "folder") { [weak self] in
+                    self?.open(item)
+                })
+            }
+            entries.append(ContextMenu.Entry(title: "Copiar", symbol: "doc.on.doc") {
+                files.copy(item)
+            })
+            entries.append(ContextMenu.Entry(title: "Cortar", symbol: "scissors") {
+                files.cut(item)
+            })
+            entries.append(ContextMenu.Entry(title: "Renombrar", symbol: "pencil") { [weak self] in
+                self?.startRename(item)
+            })
+            entries.append(ContextMenu.Entry(
+                title: "Borrar",
+                symbol: "trash",
+                isDestructive: true
+            ) { [weak self] in
+                self?.confirmDelete(item)
+            })
+        }
+
+        entries.append(ContextMenu.Entry(
+            title: "Pegar",
+            symbol: "doc.on.clipboard",
+            isEnabled: files.clipboard != nil
+        ) { [weak self] in
+            self?.paste()
+        })
+        entries.append(ContextMenu.Entry(title: "Nueva carpeta", symbol: "folder.badge.plus") { [weak self] in
+            self?.createFolder()
+        })
+        entries.append(ContextMenu.Entry(
+            title: "Añadir ubicación…",
+            symbol: "folder.badge.plus"
+        ) {
+            // iCloud, una carpeta de Archivos o el USB: en iOS las tres se
+            // añaden igual, con el selector de carpetas del sistema.
+            NotificationCenter.default.post(name: .brunosPickFolder, object: nil)
+        })
+
+        return entries
+    }
+
+    // MARK: - Operaciones
+
+    private func openInBrowser(_ item: FileItem) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let url = try await self.services.files.currentProvider.localURL(for: item)
+                self.services.desktopViewController?.openInBrowser(url)
+            } catch {
+                self.show(error)
+            }
+        }
+    }
+
+    private func paste() {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                self.status = "Copiando…"
+                self.setNeedsDisplay()
+                try await self.services.files.paste(into: self.path)
+                self.reload()
+            } catch {
+                self.show(error)
+            }
+        }
+    }
+
+    private func startRename(_ item: FileItem) {
+        services.desktopViewController?.presentPrompt(
+            title: "Renombrar",
+            value: item.name
+        ) { [weak self] newName in
+            guard let self, let newName, newName != item.name else { return }
+            Task {
+                do {
+                    try await self.services.files.currentProvider.rename(item.path, to: newName)
+                    self.reload()
+                } catch {
+                    self.show(error)
+                }
+            }
+        }
+    }
+
+    private func createFolder() {
+        services.desktopViewController?.presentPrompt(
+            title: "Nueva carpeta",
+            value: "Sin título"
+        ) { [weak self] name in
+            guard let self, let name, !name.isEmpty else { return }
+            let path = self.path.hasSuffix("/") ? self.path + name : self.path + "/" + name
+            Task {
+                do {
+                    try await self.services.files.currentProvider.createDirectory(path)
+                    self.reload()
+                } catch {
+                    self.show(error)
+                }
+            }
+        }
+    }
+
+    /// Borrar **siempre pregunta**: no hay papelera de donde recuperarlo.
+    private func confirmDelete(_ item: FileItem) {
+        services.desktopViewController?.presentConfirm(
+            title: "¿Borrar \(item.name)?",
+            message: "No se puede deshacer: BrunOS no tiene papelera.",
+            destructive: "Borrar"
+        ) { [weak self] confirmed in
+            guard let self, confirmed else { return }
+            Task {
+                do {
+                    try await self.services.files.currentProvider.delete(item.path)
+                    self.reload()
+                } catch {
+                    self.show(error)
+                }
+            }
+        }
+    }
+
+    private func show(_ error: any Error) {
+        status = error.localizedDescription
+        setNeedsDisplay()
+    }
+
     private func scroll(by amount: CGFloat) {
         let total = CGFloat(items.count) * Self.rowHeight
         let visible = bounds.height - Self.headerHeight

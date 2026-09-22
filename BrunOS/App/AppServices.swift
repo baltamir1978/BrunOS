@@ -34,9 +34,23 @@ final class AppServices {
     private init() {}
 
     func start() {
+        // Lo primero: los orígenes de ficheros no se pueden montar en el
+        // `init` de `FileService` porque necesitan este mismo singleton.
+        files.rebuild()
+
         mouse.start()
         assistiveTouch.start()
         tailscale.start()
+
+        // Las máquinas SSH aparecen también como orígenes de ficheros, así que
+        // hay que rehacer la lista cuando se añada o se quite alguna.
+        NotificationCenter.default.addObserver(
+            forName: HostStore.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { AppServices.shared.files.rebuild() }
+        }
         Task { await blocker.prepare() }
     }
 

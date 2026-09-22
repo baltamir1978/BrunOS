@@ -347,8 +347,34 @@ sólo se queda con el primero—, vídeo y audio con `AVPlayerLayer`, PDF con `P
 no entiende lo dice, en vez de enseñar un rectángulo vacío. De los ficheros de texto se leen sólo
 los primeros 200 KB: un log de medio giga colgaría la interfaz al maquetarlo entero.
 
-**Pendiente**: iCloud, USB y SFTP; copiar, pegar, renombrar, borrar y crear carpeta; menú
-contextual; y arrastrar entre ubicaciones.
+### Orígenes
+
+- `LocalProvider`: el contenedor de la app, con `Descargas`.
+- `ExternalFolderProvider`: iCloud, carpetas de Archivos y el USB. **En iOS las tres son lo mismo**:
+  no hay API de «montar un USB», hay carpetas a las que el usuario da permiso con el selector en
+  modo carpeta. **El marcador de seguridad no es opcional**: sin él, el permiso se pierde al cerrar
+  la app. Y cada acceso va entre `startAccessingSecurityScopedResource()` y su pareja; olvidar el
+  cierre agota los permisos del sistema y acaban fallando todos.
+- `SFTPProvider`: reutiliza los perfiles y la autenticación de la Fase 2, incluido `known_hosts`.
+  Las máquinas SSH **aparecen solas** en la barra lateral: si ya están configuradas para el
+  terminal, no tiene sentido darlas de alta otra vez.
+
+Copiar y pegar funciona igual dentro de un origen que entre dos distintos, **local ↔ SFTP
+incluido**: se lee de uno y se escribe en el otro. Copiar carpetas enteras todavía no está: pide
+recorrerlas y una barra de progreso de verdad.
+
+### El bloqueo de arranque del singleton
+
+La app dejó de arrancar, sin mensaje: el log se cortaba y se quedaba colgada. Causa:
+`FileService.init()` llamaba a `rebuild()`, que mira `AppServices.shared` para sacar las máquinas
+SSH — y `FileService` se construye **dentro** de esa misma propiedad estática. **Pedir un `static
+let` mientras se está inicializando deja a Swift bloqueado para siempre en `swift_once`**, sin
+excepción ni traza. Los orígenes se montan ahora desde `AppServices.start()`.
+
+**Regla**: nada de lo que cuelga de `AppServices.shared` puede mirar a `AppServices.shared` en su
+`init`.
+
+**Pendiente**: copiar carpetas enteras con progreso, y arrastrar entre ubicaciones.
 
 ## Cómo se compila
 

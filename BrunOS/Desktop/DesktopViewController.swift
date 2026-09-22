@@ -185,6 +185,7 @@ final class DesktopViewController: UIViewController {
         settingsWindow?.frame = CGRect(origin: .zero, size: logicalSize)
         hostEditor?.frame = CGRect(origin: .zero, size: logicalSize)
         quickLook?.frame = CGRect(origin: .zero, size: logicalSize)
+        prompt?.frame = CGRect(origin: .zero, size: logicalSize)
         launcher?.frame = CGRect(origin: .zero, size: logicalSize)
 
         dock.frame = CGRect(
@@ -464,6 +465,79 @@ final class DesktopViewController: UIViewController {
         quickLook = view
     }
 
+    /// Menú del clic derecho.
+    func presentContextMenu(_ entries: [ContextMenu.Entry], at point: CGPoint) {
+        contextMenu?.removeFromSuperview()
+        guard !entries.isEmpty else { return }
+
+        let menu = ContextMenu(
+            entries: entries,
+            at: point,
+            in: CGRect(origin: .zero, size: logicalSize)
+        )
+        menu.onDismiss = { [weak self] in
+            self?.contextMenu?.removeFromSuperview()
+            self?.contextMenu = nil
+        }
+        canvas.addSubview(menu)
+        contextMenu = menu
+    }
+
+    private var prompt: PromptWindow?
+    private var contextMenu: ContextMenu?
+
+    /// Pide un texto: renombrar, crear carpeta.
+    func presentPrompt(title: String, value: String, completion: @escaping (String?) -> Void) {
+        prompt?.removeFromSuperview()
+        let window = PromptWindow(
+            title: title,
+            value: value,
+            frame: CGRect(origin: .zero, size: logicalSize)
+        )
+        window.onFinish = { [weak self] result in
+            self?.prompt?.removeFromSuperview()
+            self?.prompt = nil
+            completion(result)
+        }
+        canvas.addSubview(window)
+        prompt = window
+    }
+
+    /// Pide confirmación para algo que no se puede deshacer.
+    func presentConfirm(
+        title: String,
+        message: String,
+        destructive: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        prompt?.removeFromSuperview()
+        let window = PromptWindow(
+            title: title,
+            message: message,
+            confirmTitle: destructive,
+            destructive: true,
+            frame: CGRect(origin: .zero, size: logicalSize)
+        )
+        window.onFinish = { [weak self] result in
+            self?.prompt?.removeFromSuperview()
+            self?.prompt = nil
+            completion(result != nil)
+        }
+        canvas.addSubview(window)
+        prompt = window
+    }
+
+    /// Abre un fichero local en el navegador.
+    func openInBrowser(_ url: URL) {
+        services.desktop.activate(number: PaneKind.browser.preferredWorkspace)
+        if let browser = services.desktop.active.focusedPane as? BrowserPane {
+            browser.newTab(url: url.absoluteString)
+        } else {
+            addPane(kind: .browser)
+            (services.desktop.active.focusedPane as? BrowserPane)?.newTab(url: url.absoluteString)
+        }
+    }
+
     private var hostEditor: HostEditorWindow?
 
     /// Alta y edición de máquinas, también en el monitor.
@@ -571,6 +645,8 @@ final class DesktopViewController: UIViewController {
         let frames = currentFrames()
 
         // Lo modal manda, y la vista previa va por encima de todo.
+        if let contextMenu, contextMenu.handlePointer(kind, at: position) { return }
+        if let prompt, prompt.handlePointer(kind, at: position) { return }
         if let quickLook, quickLook.handlePointer(kind, at: position) { return }
         if let hostEditor, hostEditor.handlePointer(kind, at: position) { return }
         if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
@@ -583,6 +659,14 @@ final class DesktopViewController: UIViewController {
         guard let hit = frames.first(where: { $0.value.contains(position) }) else { return }
 
         let workspace = services.desktop.active
+
+        if case .down(let button) = kind, button == .right,
+           let files = workspace.pane(hit.key) as? FilesPane {
+            let local = CGPoint(x: position.x - hit.value.minX, y: position.y - hit.value.minY)
+            presentContextMenu(files.contextMenuEntries(at: local), at: position)
+            return
+        }
+
         if case .down = kind, workspace.focused != hit.key {
             workspace.setFocus(hit.key)
             services.desktop.notifyChange()
@@ -705,6 +789,8 @@ final class DesktopViewController: UIViewController {
 
     /// Entrega una tecla al panel con foco.
     func deliverKey(_ event: KeyEvent) {
+        if let contextMenu, contextMenu.handleKey(event) { return }
+        if let prompt, prompt.handleKey(event) { return }
         if let quickLook, quickLook.handleKey(event) { return }
         if let hostEditor, hostEditor.handleKey(event) { return }
         if let settingsWindow, settingsWindow.handleKey(event) { return }

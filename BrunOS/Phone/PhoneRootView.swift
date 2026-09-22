@@ -8,6 +8,7 @@ struct PhoneRootView: View {
 
     @State private var dictation = DictationController()
     @State private var showingSettings = false
+    @State private var showingFolderPicker = false
     @State private var isDimmed = false
 
     private let services = AppServices.shared
@@ -33,6 +34,18 @@ struct PhoneRootView: View {
         // interfaz no está montada.
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+        }
+        .fileImporter(
+            isPresented: $showingFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            try? services.files.externalFolders.add(url)
+            services.files.rebuild()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .brunosPickFolder)) { _ in
+            showingFolderPicker = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .brunosShowSettings)) { _ in
             showingSettings = true
@@ -181,6 +194,9 @@ extension Notification.Name {
     static let brunosShowSettings = Notification.Name("BrunOSShowSettings")
     /// Cambió el zoom del navegador desde los ajustes.
     static let brunosBrowserZoomChanged = Notification.Name("BrunOSBrowserZoomChanged")
+    /// Añadir una carpeta externa. El selector de iOS es modal del sistema y
+    /// sólo puede salir en el iPhone, aunque se pida desde el monitor.
+    static let brunosPickFolder = Notification.Name("BrunOSPickFolder")
 }
 
 /// Aviso de que el ratón no va a funcionar hasta activar AssistiveTouch.
