@@ -68,8 +68,11 @@ subidas van a mano desde Xcode.
 
 ## Fase 2 — Terminal SSH
 
-**Escrita y compilando. Ninguna conexión SSH se ha llegado a hacer.** No hay forma de probarla sin
-un servidor, así que todo `SSHSession` y `TerminalTab` es código sin ejecutar.
+**Terminada y funcionando: Bruno confirmó el 22-sep-2026 que la conexión SSH conecta de verdad**
+contra una máquina suya. Era la mayor incógnita del proyecto y está despejada.
+
+Lo que sigue sin probarse de esta fase: tmux y vim con ratón, la selección con arrastre, el
+`known_hosts` ante una clave que cambie, y la reconexión tras una caída real.
 
 Lo que hay:
 
@@ -167,6 +170,16 @@ los suyos.
 `1 web · 2 ssh · 3 files` en una esquina se lee como un rótulo de estado, no como algo pulsable, y
 obligaba a subir el ratón hasta arriba del todo, que con el tope del puntero indirecto es el
 movimiento más incómodo que hay.
+
+## Pendientes apuntados por Bruno
+
+- **Ventanas flotantes**, para el final del todo. La Fase 1 se hizo con mosaico puro estilo i3, a
+  propósito. Añadirlas implica que `TilingLayout` deje de repartir todo el espacio: harían falta
+  una capa de ventanas por encima del mosaico, orden de apilamiento, arrastre de título y
+  redimensión por las esquinas.
+- **Claves ed25519** para SSH, también para el final.
+- **Elegir el fondo desde el gestor de ficheros** (el caso `Wallpaper.file` ya está previsto).
+- **Descargas en el navegador**, a una carpeta visible desde el gestor de ficheros.
 
 ## Fase 4 — notas antes de empezar
 

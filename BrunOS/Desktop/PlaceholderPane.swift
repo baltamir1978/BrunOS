@@ -14,6 +14,16 @@ enum PaneKind: String, CaseIterable, Sendable {
         }
     }
 
+    /// Icono del dock. Símbolos del sistema: se ven nítidos a cualquier escala
+    /// y no hay que dibujar ni mantener nada.
+    var symbol: String {
+        switch self {
+        case .terminal: "apple.terminal.fill"
+        case .browser: "globe"
+        case .files: "folder.fill"
+        }
+    }
+
     /// Espacio de trabajo al que va por defecto: `1 web`, `2 ssh`, `3 files`.
     var preferredWorkspace: Int {
         switch self {

@@ -62,6 +62,10 @@ struct SSHHost: Codable, Identifiable, Equatable, Sendable {
 @Observable
 final class HostStore {
 
+    /// Avisa al escritorio, que no observa este objeto y necesita enterarse
+    /// para conectar los paneles que estuvieran esperando una máquina.
+    static let didChangeNotification = Notification.Name("BrunOSHostsDidChange")
+
     private(set) var hosts: [SSHHost] = []
 
     private let url: URL = {
@@ -95,12 +99,14 @@ final class HostStore {
             hosts.append(host)
         }
         save()
+        NotificationCenter.default.post(name: Self.didChangeNotification, object: nil)
     }
 
     func remove(_ host: SSHHost) {
         hosts.removeAll { $0.id == host.id }
         SSHKeychain.removePassword(for: host)
         save()
+        NotificationCenter.default.post(name: Self.didChangeNotification, object: nil)
     }
 }
 

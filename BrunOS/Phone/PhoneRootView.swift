@@ -71,6 +71,9 @@ struct PhoneRootView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .brunosShowSettings)) { _ in
+                showingSettings = true
+            }
         }
         .tint(.brunosAccent)
     }
@@ -181,6 +184,8 @@ struct PhoneRootView: View {
 
 extension Notification.Name {
     static let brunosShowKeyboard = Notification.Name("BrunOSShowKeyboard")
+    /// La pide el icono de ajustes del dock, desde la pantalla externa.
+    static let brunosShowSettings = Notification.Name("BrunOSShowSettings")
 }
 
 /// Aviso de que el ratón no va a funcionar hasta activar AssistiveTouch.

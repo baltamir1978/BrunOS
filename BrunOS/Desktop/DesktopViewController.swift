@@ -41,6 +41,13 @@ final class DesktopViewController: UIViewController {
         canvas.addSubview(topBar)
         canvas.addSubview(dock)
 
+        dock.onSettings = {
+            // Los ajustes siguen viviendo en el iPhone, pero se abren desde
+            // aquí: con el trackpad a pantalla completa, ir a buscarlos al
+            // teléfono obliga a dejar de mirar el monitor.
+            NotificationCenter.default.post(name: .brunosShowSettings, object: nil)
+        }
+
         emptyLabel.attributedText = TopBar.brandText(size: 44)
         emptyLabel.textAlignment = .center
         canvas.addSubview(emptyLabel)
@@ -63,6 +70,13 @@ final class DesktopViewController: UIViewController {
             self,
             selector: #selector(refreshLayout),
             name: WallpaperStore.didChangeNotification,
+            object: nil
+        )
+        // Una máquina recién añadida tiene que poder usarse sin reiniciar.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(hostsChanged),
+            name: HostStore.didChangeNotification,
             object: nil
         )
     }
@@ -217,6 +231,23 @@ final class DesktopViewController: UIViewController {
 
     @objc private func refreshLayout() {
         applyDisplayProfile()
+    }
+
+    /// Se añadió o cambió una máquina en el iPhone.
+    ///
+    /// Si algún panel de terminal está esperando —se creó cuando todavía no
+    /// había ninguna configurada— se conecta ahora. Antes había que cerrar la
+    /// app y volver a abrirla, porque el panel se quedaba con el aviso puesto
+    /// para siempre.
+    @objc private func hostsChanged() {
+        guard let host = services.hosts.hosts.first else { return }
+        for workspace in services.desktop.workspaces {
+            for (_, pane) in workspace.panes {
+                guard let terminal = pane as? TerminalPane, terminal.isWaitingForHost else { continue }
+                terminal.openSession(to: host)
+            }
+        }
+        services.desktop.notifyChange()
     }
 
     // MARK: - Órdenes del gestor de ventanas
@@ -458,7 +489,9 @@ final class DesktopViewController: UIViewController {
         guard dock.frame.contains(position), dock.contains(point: pointInDock) else { return false }
         guard case .down = kind else { return true }
 
-        if let number = dock.workspaceNumber(at: pointInDock) {
+        if dock.hitsSettings(pointInDock) {
+            dock.onSettings?()
+        } else if let number = dock.workspaceNumber(at: pointInDock) {
             services.desktop.activate(number: number)
         }
         return true

@@ -17,7 +17,12 @@ final class Dock: UIView {
     static let height: CGFloat = 58
     static let bottomMargin: CGFloat = 10
 
+    /// Qué hacer al pulsar el icono de ajustes.
+    var onSettings: (() -> Void)?
+
     private var items: [DockItem] = []
+    private var settingsItem: DockItem?
+    private let separator = UIView()
     private let background = UIView()
 
     override init(frame: CGRect) {
@@ -32,6 +37,17 @@ final class Dock: UIView {
         background.layer.shadowRadius = 12
         background.layer.shadowOffset = CGSize(width: 0, height: 4)
         addSubview(background)
+
+        separator.backgroundColor = Tokens.Color.border
+        background.addSubview(separator)
+
+        // Los ajustes también desde el monitor: con el trackpad a pantalla
+        // completa, ir a buscarlos al iPhone es incómodo, y a veces ni siquiera
+        // se está mirando el teléfono.
+        let settings = DockItem()
+        settings.updateAsSettings()
+        background.addSubview(settings)
+        settingsItem = settings
     }
 
     @available(*, unavailable)
@@ -44,8 +60,8 @@ final class Dock: UIView {
     func update(desktop: DesktopModel) {
         if items.count != desktop.workspaces.count {
             items.forEach { $0.removeFromSuperview() }
-            items = desktop.workspaces.map { workspace in
-                let item = DockItem(workspace: workspace)
+            items = desktop.workspaces.map { _ in
+                let item = DockItem()
                 background.addSubview(item)
                 return item
             }
@@ -57,6 +73,7 @@ final class Dock: UIView {
                 isActive: index == desktop.activeIndex
             )
         }
+        settingsItem?.updateAsSettings()
         setNeedsLayout()
     }
 
@@ -64,10 +81,15 @@ final class Dock: UIView {
         super.layoutSubviews()
         guard !items.isEmpty else { return }
 
-        let itemSize: CGFloat = 42
+        let itemSize: CGFloat = 44
         let spacing: CGFloat = 10
         let padding: CGFloat = 10
-        let contentWidth = CGFloat(items.count) * itemSize + CGFloat(items.count - 1) * spacing
+        let separatorWidth: CGFloat = 1
+        let separatorGap: CGFloat = 10
+
+        let count = CGFloat(items.count)
+        let contentWidth = count * itemSize + (count - 1) * spacing
+            + separatorGap * 2 + separatorWidth + itemSize
         let width = contentWidth + padding * 2
 
         background.frame = CGRect(
@@ -77,14 +99,26 @@ final class Dock: UIView {
             height: Self.height
         )
 
-        for (index, item) in items.enumerated() {
+        var x = padding
+        for item in items {
             item.frame = CGRect(
-                x: padding + CGFloat(index) * (itemSize + spacing),
-                y: (Self.height - itemSize) / 2,
-                width: itemSize,
-                height: itemSize
+                x: x, y: (Self.height - itemSize) / 2,
+                width: itemSize, height: itemSize
             )
+            x += itemSize + spacing
         }
+
+        x += separatorGap - spacing
+        separator.frame = CGRect(
+            x: x, y: (Self.height - itemSize) / 2 + 6,
+            width: separatorWidth, height: itemSize - 12
+        )
+        x += separatorWidth + separatorGap
+
+        settingsItem?.frame = CGRect(
+            x: x, y: (Self.height - itemSize) / 2,
+            width: itemSize, height: itemSize
+        )
     }
 
     /// Qué espacio hay bajo un punto en coordenadas del dock.
@@ -98,6 +132,13 @@ final class Dock: UIView {
         return nil
     }
 
+    /// Si el punto cae en el icono de ajustes.
+    func hitsSettings(_ point: CGPoint) -> Bool {
+        guard let settingsItem else { return false }
+        let frame = settingsItem.convert(settingsItem.bounds, to: self)
+        return frame.insetBy(dx: -4, dy: -4).contains(point)
+    }
+
     /// Si el punto cae en el dock, para que el escritorio se trague el evento.
     func contains(point: CGPoint) -> Bool {
         background.frame.contains(point)
@@ -105,24 +146,31 @@ final class Dock: UIView {
 }
 
 /// Un icono del dock.
+///
+/// Lleva símbolo del sistema y no una letra: `W S F` en un dock no dice nada y
+/// obliga a traducir mentalmente cada vez. Un globo, una consola y una carpeta
+/// se reconocen sin pensar.
 @MainActor
 private final class DockItem: UIView {
 
-    private let iconLabel = UILabel()
+    private let iconView = UIImageView()
     private let indicator = UIView()
 
-    init(workspace: Workspace) {
+    init() {
         super.init(frame: .zero)
 
         layer.cornerRadius = 11
-        iconLabel.textAlignment = .center
-        iconLabel.font = Tokens.mono(17, bold: true)
-        addSubview(iconLabel)
+        iconView.contentMode = .scaleAspectFit
+        iconView.tintColor = Tokens.Color.textSecondary
+        addSubview(iconView)
 
-        // Punto debajo del espacio activo, como el del Dock de macOS.
+        // Punto debajo del espacio activo, como el Dock de macOS.
         indicator.backgroundColor = Tokens.Color.accent
         indicator.layer.cornerRadius = 2
         addSubview(indicator)
+
+        isAccessibilityElement = true
+        accessibilityTraits = .button
     }
 
     @available(*, unavailable)
@@ -131,23 +179,35 @@ private final class DockItem: UIView {
     }
 
     func update(workspace: Workspace, isActive: Bool) {
-        // Una inicial, no un número: `1 2 3` en un dock no dice nada, y la
-        // letra se reconoce de un vistazo.
-        iconLabel.text = workspace.name.prefix(1).uppercased()
-        iconLabel.textColor = isActive ? Tokens.Color.background : Tokens.Color.textSecondary
-        backgroundColor = isActive
-            ? Tokens.Color.accent
-            : Tokens.Color.panel.withAlphaComponent(0.9)
+        let kind = PaneKind.allCases.first { $0.preferredWorkspace == workspace.index }
+        setSymbol(kind?.symbol ?? "square.grid.2x2", active: isActive)
+
         indicator.isHidden = !isActive
         // Un espacio con paneles se distingue de uno vacío.
-        layer.borderWidth = workspace.isEmpty ? 0 : 1
-        layer.borderColor = Tokens.Color.border.cgColor
+        alpha = workspace.isEmpty && !isActive ? 0.45 : 1
         accessibilityLabel = "Espacio \(workspace.index), \(workspace.name)"
+    }
+
+    func updateAsSettings() {
+        setSymbol("gearshape.fill", active: false)
+        indicator.isHidden = true
+        accessibilityLabel = "Ajustes"
+    }
+
+    private func setSymbol(_ name: String, active: Bool) {
+        let configuration = UIImage.SymbolConfiguration(pointSize: 21, weight: .regular)
+        iconView.image = UIImage(systemName: name, withConfiguration: configuration)
+        iconView.tintColor = active ? Tokens.Color.background : Tokens.Color.text
+        backgroundColor = active
+            ? Tokens.Color.accent
+            : Tokens.Color.panel.withAlphaComponent(0.9)
+        layer.borderWidth = active ? 0 : 1
+        layer.borderColor = Tokens.Color.border.withAlphaComponent(0.6).cgColor
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        iconLabel.frame = bounds
+        iconView.frame = bounds
         indicator.frame = CGRect(x: bounds.midX - 7, y: bounds.maxY + 3, width: 14, height: 3)
     }
 }

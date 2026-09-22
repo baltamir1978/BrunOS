@@ -14,6 +14,10 @@ final class TerminalPane: UIView, Pane {
     private var tabs: [TerminalTab] = []
     private var activeIndex = 0
 
+    /// El panel está enseñando el aviso de "no hay máquinas" y espera que
+    /// alguien configure una.
+    private(set) var isWaitingForHost = false
+
     var title: String {
         guard let tab = activeTab else { return "Terminal" }
         return tab.title
@@ -76,6 +80,13 @@ final class TerminalPane: UIView, Pane {
     /// Abre una sesión contra un host y le pasa el foco.
     @discardableResult
     func openSession(to host: SSHHost) -> TerminalTab {
+        // Si estaba el aviso puesto, se va: ya hay con qué conectar.
+        if isWaitingForHost {
+            isWaitingForHost = false
+            tabs.forEach { $0.terminalView.removeFromSuperview() }
+            tabs.removeAll()
+        }
+
         let tab = TerminalTab(host: host)
         tab.onTitleChange = { [weak self] in
             self?.tabBar.update(titles: self?.tabs.map(\.title) ?? [], active: self?.activeIndex ?? 0)
@@ -105,6 +116,7 @@ final class TerminalPane: UIView, Pane {
     /// el panel se vea siempre igual: un escritorio donde cada estado tiene su
     /// propia pinta acaba pareciendo roto.
     func showMessage(_ message: String) {
+        isWaitingForHost = true
         let tab = TerminalTab(host: SSHHost(name: "BrunOS", host: "local", username: "-"))
         tabs.append(tab)
         content.addSubview(tab.terminalView)

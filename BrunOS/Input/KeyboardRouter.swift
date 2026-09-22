@@ -37,7 +37,11 @@ final class KeyboardRouter: UIResponder {
     /// Se registran sólo los del escritorio; el resto de teclas no se declara
     /// aquí a propósito, para que lleguen crudas al panel.
     override var keyCommands: [UIKeyCommand]? {
-        Shortcuts.all.map { entry in
+        // Con un campo de texto activo en el iPhone tampoco se registran los
+        // atajos: Cmd+C tiene que copiar del campo, no del terminal.
+        guard !isEditingOnPhone else { return nil }
+
+        return Shortcuts.all.map { entry in
             let command = UIKeyCommand(
                 title: entry.title,
                 action: #selector(handleKeyCommand(_:)),
@@ -79,7 +83,18 @@ final class KeyboardRouter: UIResponder {
         super.pressesEnded(presses, with: event)
     }
 
+    /// Si hay un campo de texto con el foco en la interfaz del iPhone.
+    ///
+    /// **Mientras lo haya, el router no toca nada.** Si no, al abrir los
+    /// ajustes o el editor de máquinas las teclas se iban al monitor y era
+    /// imposible escribir en el teléfono: el router se las quedaba todas.
+    private var isEditingOnPhone: Bool {
+        UIResponder.brunosCurrentFirstResponder is any UITextInput
+    }
+
     private func forward(_ key: UIKey, phase: KeyEvent.Phase) -> Bool {
+        guard !isEditingOnPhone else { return false }
+
         // Con Cmd pulsado manda la tabla de atajos. Si la combinación no está
         // en ella, se deja pasar: puede ser Cmd+C o Cmd+V, que son del panel.
         if key.modifierFlags.contains(.command),
@@ -93,5 +108,32 @@ final class KeyboardRouter: UIResponder {
 
         delegate?.keyboardRouter(self, didReceiveKey: KeyEvent(phase: phase, key: key))
         return true
+    }
+}
+
+
+// MARK: - Quién tiene el foco
+
+extension UIResponder {
+
+    private static weak var brunosFound: UIResponder?
+
+    /// El first responder actual.
+    ///
+    /// UIKit no lo expone. El truco conocido es mandar una acción a `nil`, que
+    /// UIKit entrega precisamente al first responder, y que éste se apunte.
+    static var brunosCurrentFirstResponder: UIResponder? {
+        brunosFound = nil
+        UIApplication.shared.sendAction(
+            #selector(brunosCaptureFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        return brunosFound
+    }
+
+    @objc private func brunosCaptureFirstResponder() {
+        UIResponder.brunosFound = self
     }
 }
