@@ -46,6 +46,14 @@ conviene no confundir "está escrito" con "funciona":
 - **Si el espacio lógico sale nítido** a todas las escalas: el lienzo se escala con un
   `CGAffineTransform` y, si el factor estuviera mal, se vería borroso o cortado.
 
+## Cómo se cierra cada bloque de trabajo
+
+Lo pidió Bruno el 22-sep-2026: **cada bloque que compile sin errores termina en commit, `git push`,
+subida a TestFlight (`./Tools/testflight.sh`) y README y memoria al día**, sin preguntar en cada
+paso. Antes del push, revisar el diff por si se cuela algo sensible: el repositorio es público.
+
+Última build subida: **0.1.0 (2609221525)**, 22-sep-2026, con el dock estilo macOS.
+
 ## Dónde está el resto
 
 Lo de cada parte vive junto a su código y se carga sólo al trabajar allí:
