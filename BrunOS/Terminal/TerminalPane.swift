@@ -12,6 +12,9 @@ final class TerminalPane: UIView, Pane {
     private let tabBar = TerminalTabBar()
     private let content = UIView()
     private let home = TerminalHomeView()
+    /// Cmd+F.
+    private let findBar = FindBar()
+    private var isFinding = false
     private var tabs: [TerminalTab] = []
     private var activeIndex = 0
     /// Se está viendo la lista de conexiones en vez de una sesión.
@@ -40,6 +43,13 @@ final class TerminalPane: UIView, Pane {
         addSubview(tabBar)
         addSubview(content)
         content.addSubview(home)
+        addSubview(findBar)
+        findBar.isHidden = true
+        findBar.placeholder = "Buscar en el terminal"
+        findBar.onChange = { [weak self] text in self?.find(text, backwards: false, restart: true) }
+        findBar.onNext = { [weak self] in self.map { $0.find($0.findBar.query, backwards: false, restart: false) } }
+        findBar.onPrevious = { [weak self] in self.map { $0.find($0.findBar.query, backwards: true, restart: false) } }
+        findBar.onClose = { [weak self] in self?.hideFind() }
 
         home.onConnect = { [weak self] host in
             self?.openSession(to: host)
@@ -89,11 +99,14 @@ final class TerminalPane: UIView, Pane {
 
         let barHeight = TerminalTabBar.height
         tabBar.frame = CGRect(x: 0, y: 0, width: bounds.width, height: barHeight)
+        findBar.isHidden = !isFinding
+        findBar.frame = CGRect(x: 0, y: barHeight, width: bounds.width, height: FindBar.height)
+        let top = barHeight + (isFinding ? FindBar.height : 0)
         content.frame = CGRect(
             x: 0,
-            y: barHeight,
+            y: top,
             width: bounds.width,
-            height: max(0, bounds.height - barHeight)
+            height: max(0, bounds.height - top)
         )
         home.frame = content.bounds
         for tab in tabs {
@@ -133,6 +146,34 @@ final class TerminalPane: UIView, Pane {
         setNeedsLayout()
         tab.connect()
         return tab
+    }
+
+    // MARK: - Buscar
+
+    /// Cmd+F: buscar en la sesión, historial incluido.
+    func showFind() {
+        guard activeTab != nil else { return }
+        if !isFinding {
+            isFinding = true
+            findBar.reset()
+        }
+        setNeedsLayout()
+    }
+
+    private func hideFind() {
+        isFinding = false
+        activeTab?.clearFind()
+        setNeedsLayout()
+    }
+
+    private func find(_ text: String, backwards: Bool, restart: Bool) {
+        guard let tab = activeTab, !text.isEmpty else {
+            findBar.status = nil
+            activeTab?.clearFind()
+            return
+        }
+        let (index, total) = tab.find(text, backwards: backwards, restart: restart)
+        findBar.status = total == 0 ? "Sin resultados" : "\(max(index, 1)) de \(total)"
     }
 
     /// Cierra todas las sesiones. Lo usa el botón rojo, al cerrar el panel.
@@ -179,6 +220,7 @@ final class TerminalPane: UIView, Pane {
     }
 
     private func activate(_ index: Int) {
+        if isFinding { hideFind() }
         activeIndex = max(0, min(index, tabs.count - 1))
         isShowingHome = tabs.isEmpty
         updateVisibility()
@@ -208,11 +250,19 @@ final class TerminalPane: UIView, Pane {
             home.handleKey(event)
             return
         }
+        if isFinding {
+            findBar.handleKey(event)
+            return
+        }
         guard event.phase == .down, let tab = activeTab else { return }
         tab.sendKey(event.key)
     }
 
     func insertText(_ text: String) {
+        if isFinding {
+            findBar.insertText(text)
+            return
+        }
         activeTab?.session.send(text)
     }
 
@@ -231,6 +281,13 @@ final class TerminalPane: UIView, Pane {
             return
         }
         tabBar.hover(at: nil)
+
+        if isFinding, findBar.frame.contains(event.location) {
+            findBar.handlePointer(event.kind, at: CGPoint(
+                x: event.location.x, y: event.location.y - findBar.frame.minY
+            ))
+            return
+        }
 
         if isShowingHome {
             home.handlePointer(PointerEvent(
@@ -254,7 +311,7 @@ final class TerminalPane: UIView, Pane {
     }
 
     private func pointInTerminal(_ point: CGPoint) -> CGPoint {
-        CGPoint(x: point.x, y: point.y - tabBar.frame.height)
+        CGPoint(x: point.x, y: point.y - content.frame.minY)
     }
 
     // MARK: - Zoom

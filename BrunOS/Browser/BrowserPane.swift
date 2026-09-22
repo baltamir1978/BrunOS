@@ -27,6 +27,10 @@ final class BrowserPane: UIView, Pane {
     /// sustituye.
     private var isAddressSelected = false
 
+    /// Cmd+F.
+    private let findBar = FindBar()
+    private var isFinding = false
+
     /// El aviso de descarga, abajo del panel.
     private let downloadToast = UILabel()
     private var downloadToastTimer: Timer?
@@ -51,6 +55,13 @@ final class BrowserPane: UIView, Pane {
 
         addSubview(content)
         addSubview(chrome)
+        addSubview(findBar)
+        findBar.isHidden = true
+        findBar.placeholder = "Buscar en la página"
+        findBar.onChange = { [weak self] text in self?.find(text, backwards: false) }
+        findBar.onNext = { [weak self] in self.map { $0.find($0.findBar.query, backwards: false) } }
+        findBar.onPrevious = { [weak self] in self.map { $0.find($0.findBar.query, backwards: true) } }
+        findBar.onClose = { [weak self] in self?.hideFind() }
 
         downloadToast.font = Tokens.sans(12, weight: .medium)
         downloadToast.textColor = Tokens.Color.text
@@ -85,11 +96,15 @@ final class BrowserPane: UIView, Pane {
     override func layoutSubviews() {
         super.layoutSubviews()
         chrome.frame = CGRect(x: 0, y: 0, width: bounds.width, height: BrowserChrome.height)
+        let findHeight = isFinding ? FindBar.height : 0
+        findBar.isHidden = !isFinding
+        findBar.frame = CGRect(x: 0, y: chrome.frame.maxY, width: bounds.width, height: FindBar.height)
+        let top = chrome.frame.maxY + findHeight
         content.frame = CGRect(
             x: 0,
-            y: BrowserChrome.height,
+            y: top,
             width: bounds.width,
-            height: max(0, bounds.height - BrowserChrome.height)
+            height: max(0, bounds.height - top)
         )
         for tab in tabs {
             tab.webView.frame = content.bounds
@@ -229,6 +244,7 @@ final class BrowserPane: UIView, Pane {
     }
 
     private func activate(_ index: Int) {
+        if isFinding { hideFind() }
         activeIndex = max(0, min(index, tabs.count - 1))
         for (position, tab) in tabs.enumerated() {
             tab.webView.isHidden = position != activeIndex
@@ -317,6 +333,41 @@ final class BrowserPane: UIView, Pane {
         return chrome.hit(at: CGPoint(x: point.x, y: point.y - chrome.frame.minY)) == .none
     }
 
+    // MARK: - Buscar
+
+    /// Cmd+F: la barra de búsqueda bajo la de direcciones.
+    func showFind() {
+        isEditingAddress = false
+        if !isFinding {
+            isFinding = true
+            findBar.reset()
+        }
+        setNeedsLayout()
+        refreshChrome()
+    }
+
+    private func hideFind() {
+        isFinding = false
+        activeTab?.clearFind()
+        setNeedsLayout()
+    }
+
+    private func find(_ text: String, backwards: Bool) {
+        guard let tab = activeTab else { return }
+        guard !text.isEmpty else {
+            findBar.status = nil
+            tab.clearFind()
+            return
+        }
+        Task { [weak self] in
+            let (found, count) = await tab.find(text, backwards: backwards)
+            guard let self, self.findBar.query == text else { return }
+            self.findBar.status = found
+                ? (count == 1 ? "1 coincidencia" : "\(count) coincidencias")
+                : "Sin resultados"
+        }
+    }
+
     // MARK: - Menú contextual
 
     /// El menú del clic derecho sobre la página.
@@ -328,7 +379,8 @@ final class BrowserPane: UIView, Pane {
     func contextMenuEntries(at location: CGPoint) async -> [ContextMenu.Entry] {
         if chrome.frame.contains(location) { return [] }
         guard let tab = activeTab else { return [] }
-        let point = CGPoint(x: location.x, y: location.y - BrowserChrome.height)
+        guard content.frame.contains(location) else { return [] }
+        let point = CGPoint(x: location.x, y: location.y - content.frame.minY)
         let hit = await tab.describe(at: point)
 
         var entries: [ContextMenu.Entry] = []
@@ -418,6 +470,13 @@ final class BrowserPane: UIView, Pane {
         }
         chrome.hover(at: nil)
 
+        if isFinding, findBar.frame.contains(event.location) {
+            findBar.handlePointer(event.kind, at: CGPoint(
+                x: event.location.x, y: event.location.y - findBar.frame.minY
+            ))
+            return
+        }
+
         if downloadToast.alpha > 0.5, downloadToast.frame.contains(event.location) {
             if case .down = event.kind { revealDownloads() }
             return
@@ -427,7 +486,7 @@ final class BrowserPane: UIView, Pane {
         // Coordenadas de la página, que empieza bajo la barra del panel.
         let point = CGPoint(
             x: event.location.x,
-            y: event.location.y - BrowserChrome.height
+            y: event.location.y - content.frame.minY
         )
 
         switch event.kind {
@@ -522,6 +581,11 @@ final class BrowserPane: UIView, Pane {
             return
         }
 
+        if isFinding {
+            findBar.handleKey(event)
+            return
+        }
+
         activeTab?.sendKey(event.key)
     }
 
@@ -534,6 +598,8 @@ final class BrowserPane: UIView, Pane {
                 addressDraft += text
             }
             refreshChrome()
+        } else if isFinding {
+            findBar.insertText(text)
         } else {
             activeTab?.insertText(text)
         }

@@ -337,7 +337,20 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
 
     private func open(_ link: String) {
         guard let url = URL(string: link) else { return }
-        UIApplication.shared.open(url)
+        Self.open(url)
+    }
+
+    /// Las páginas web, al navegador de BrunOS, en una pestaña nueva: es el
+    /// que está en el monitor. Safari sólo cuando no hay escritorio (sin
+    /// monitor) o para lo que no es una web (`mailto:`, `tel:`…), que el
+    /// navegador propio no sabría abrir.
+    static func open(_ url: URL) {
+        let isWeb = url.scheme == "http" || url.scheme == "https"
+        if isWeb, let desktop = AppServices.shared.desktopViewController {
+            desktop.openInBrowser(url)
+        } else {
+            UIApplication.shared.open(url)
+        }
     }
 
     /// Dibuja el resaltado de la selección.
@@ -415,6 +428,24 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         fontSize = TerminalTheme.fontSize
     }
 
+    // MARK: - Buscar
+
+    /// Busca en lo que hay en pantalla y en el historial, y devuelve «n de m».
+    /// SwiftTerm selecciona el resultado y lleva el scroll hasta él.
+    func find(_ text: String, backwards: Bool, restart: Bool) -> (index: Int, total: Int) {
+        if restart { terminalView.clearSearch() }
+        if backwards {
+            terminalView.findPrevious(text)
+        } else {
+            terminalView.findNext(text)
+        }
+        return terminalView.searchMatchSummary(text)
+    }
+
+    func clearFind() {
+        terminalView.clearSearch()
+    }
+
     // MARK: - Tema
 
     /// Colores ya resueltos, nunca dinámicos.
@@ -463,7 +494,7 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         // El modo `check` de Tailscale pide reautenticarse con una URL. Abrirla
         // es justo lo que hay que poder hacer sin salir del terminal.
         guard let url = URL(string: link) else { return }
-        UIApplication.shared.open(url)
+        Self.open(url)
     }
 
     func bell(source: TerminalView) {}

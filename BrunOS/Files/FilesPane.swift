@@ -15,7 +15,14 @@ final class FilesPane: UIView, Pane {
 
     private let services = AppServices.shared
 
+    /// Lo que se ve: la carpeta entera o, con Cmd+F, lo que coincide.
     private var items: [FileItem] = []
+    /// La carpeta entera, ya ordenada.
+    private var allItems: [FileItem] = []
+    /// Cmd+F filtra por nombre. La barra va abajo, sobre la lista.
+    private let findBar = FindBar()
+    private var isFinding = false
+    private var filter = ""
     private var path: String
     private var selectedIndex: Int?
     private var hoveredIndex: Int?
@@ -170,7 +177,8 @@ final class FilesPane: UIView, Pane {
             do {
                 let listed = try await provider.list(path)
                 guard let self else { return }
-                self.items = self.sorted(listed)
+                self.allItems = self.sorted(listed)
+                self.items = self.filtered(self.allItems)
                 let wanted = self.pendingSelection
                 self.pendingSelection = nil
                 self.thumbnails = [:]
@@ -183,6 +191,7 @@ final class FilesPane: UIView, Pane {
                 AppServices.shared.desktop.notifyChange()
             } catch {
                 self?.items = []
+                self?.allItems = []
                 self?.status = error.localizedDescription
                 self?.setNeedsDisplay()
             }
@@ -227,8 +236,53 @@ final class FilesPane: UIView, Pane {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        findBar.isHidden = !isFinding
+        findBar.frame = CGRect(
+            x: Self.sidebarWidth, y: bounds.height - FindBar.height,
+            width: bounds.width - Self.sidebarWidth, height: FindBar.height
+        )
         recomputeFrames()
         setNeedsDisplay()
+    }
+
+    // MARK: - Filtrar
+
+    /// Cmd+F: filtra la carpeta por nombre mientras se escribe.
+    func showFind() {
+        if !isFinding {
+            isFinding = true
+            findBar.reset()
+            if findBar.superview == nil {
+                addSubview(findBar)
+                findBar.placeholder = "Filtrar por nombre"
+                findBar.onChange = { [weak self] text in self?.applyFilter(text) }
+                findBar.onNext = { [weak self] in self?.move(by: 1) }
+                findBar.onPrevious = { [weak self] in self?.move(by: -1) }
+                findBar.onClose = { [weak self] in self?.hideFind() }
+            }
+        }
+        setNeedsLayout()
+    }
+
+    private func hideFind() {
+        isFinding = false
+        applyFilter("")
+        setNeedsLayout()
+    }
+
+    private func applyFilter(_ text: String) {
+        filter = text
+        items = filtered(allItems)
+        selectedIndex = items.isEmpty ? nil : 0
+        scrollOffset = 0
+        findBar.status = text.isEmpty ? nil : (items.count == 1 ? "1 elemento" : "\(items.count) elementos")
+        recomputeFrames()
+        setNeedsDisplay()
+    }
+
+    private func filtered(_ list: [FileItem]) -> [FileItem] {
+        guard !filter.isEmpty else { return list }
+        return list.filter { $0.name.localizedStandardContains(filter) }
     }
 
     private func recomputeFrames() {
@@ -634,6 +688,12 @@ final class FilesPane: UIView, Pane {
     }
 
     func handlePointer(_ event: PointerEvent) {
+        if isFinding, findBar.frame.contains(event.location) {
+            findBar.handlePointer(event.kind, at: CGPoint(
+                x: event.location.x - findBar.frame.minX, y: event.location.y - findBar.frame.minY
+            ))
+            return
+        }
         switch event.kind {
         case .moved:
             let inControls = WindowControls.groupContains(event.location, x: Self.controlsX, midY: Self.controlsMidY)
@@ -668,7 +728,8 @@ final class FilesPane: UIView, Pane {
             }
             for (kind, frame) in sortFrames where frame.insetBy(dx: -6, dy: -6).contains(event.location) {
                 sort = kind
-                items = sorted(items)
+                allItems = sorted(allItems)
+                items = filtered(allItems)
                 setNeedsDisplay()
                 return
             }
@@ -894,6 +955,20 @@ final class FilesPane: UIView, Pane {
     func handleKey(_ event: KeyEvent) {
         guard event.phase == .down else { return }
 
+        // Con el filtro abierto, las letras van a él; las flechas y la
+        // espaciadora siguen moviéndose por la lista, como en el Finder.
+        if isFinding {
+            switch event.key.keyCode {
+            case .keyboardUpArrow, .keyboardDownArrow, .keyboardLeftArrow, .keyboardRightArrow:
+                break
+            case .keyboardReturnOrEnter where !items.isEmpty:
+                break
+            default:
+                findBar.handleKey(event)
+                return
+            }
+        }
+
         switch event.key.keyCode {
         case .keyboardUpArrow:
             move(by: -columns)
@@ -944,6 +1019,12 @@ final class FilesPane: UIView, Pane {
         } else if top + height > scrollOffset + visible {
             scrollOffset = top + height - visible
         }
+    }
+
+    /// El dictado o pegar, con el filtro abierto, van a él.
+    func insertText(_ text: String) {
+        guard isFinding else { return }
+        findBar.insertText(text)
     }
 
     /// Enseña una carpeta del iPhone y, si se dice, deja marcado un fichero.

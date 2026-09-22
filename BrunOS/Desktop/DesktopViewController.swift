@@ -427,10 +427,13 @@ final class DesktopViewController: UIViewController {
             default: return false
             }
 
-        // Buscar en la página llega cuando haya barra de búsqueda.
         case .find:
-            Log.desktop.debug("Orden aún sin destino: \(String(describing: command))")
-            return false
+            switch workspace.focusedPane {
+            case let browser as BrowserPane: browser.showFind()
+            case let terminal as TerminalPane: terminal.showFind()
+            case let files as FilesPane: files.showFind()
+            default: return false
+            }
         }
 
         services.desktop.notifyChange()

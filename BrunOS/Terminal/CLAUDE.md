@@ -60,8 +60,8 @@ NIOSSH.
 - **Banner de autenticación del servidor** (`SSH_MSG_USERAUTH_BANNER`): NIOSSH sólo lo contempla
   **del lado servidor**, en `SSHServerConfiguration.banner`. Un cliente no tiene forma de leerlo.
   El MOTD de después del login sí sale, porque llega por stdout como cualquier otra salida.
-- **Cmd+clic sobre una URL abre Safari**, no el navegador de BrunOS, que todavía no existe. Cuando
-  esté la Fase 3 hay que encaminarlo ahí, con Safari como alternativa.
+- **Cmd+clic sobre una URL** la abre en una pestaña nueva del navegador de BrunOS. Safari sólo
+  sin monitor o para lo que no es una web (`mailto:`, `tel:`).
 
 ### Claves de host (known_hosts)
 

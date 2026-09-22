@@ -112,6 +112,14 @@ pantalla completa). Lo minimizado sale del mosaico pero sigue vivo —la sesión
 vuelve a su sitio al pulsar su icono en el dock, entre el separador y los ajustes. Cmd+Intro
 sigue maximizando dentro del mosaico.
 
+### Buscar (Cmd+F)
+
+Una barra propia (`FindBar`), la misma en los tres paneles: en el navegador busca con
+`WKWebView.find` (resalta y lleva al resultado; el total se cuenta aparte en el texto de la página,
+porque WebKit sólo dice si ha encontrado algo), en el terminal con la búsqueda de SwiftTerm, que da
+«2 de 14» e incluye el historial, y en Ficheros filtra la carpeta por nombre. Intro al siguiente,
+Mayús+Intro al anterior, Esc cierra.
+
 ### Ventanas flotantes (22-sep-2026)
 
 Un panel está **o en el mosaico o flotando**, nunca en los dos: `Workspace.floating` guarda el
@@ -262,10 +270,6 @@ movimiento más incómodo que hay.
 
 Pequeños, de fases anteriores:
 
-- **Cmd+clic sobre una URL del terminal abre Safari.** Ya hay navegador propio: hay que mandarla
-  ahí, con Safari de respaldo.
-- **Buscar en la página (Cmd+F)**: se reconoce y se encamina, pero `perform(_:)` devuelve `false`
-  porque no hay barra de búsqueda todavía.
 - **Autorrelleno de contraseñas**: el de Safari no está al alcance de una app (el llavero de
   Contraseñas sólo se ofrece en el teclado del sistema sobre un campo nativo, y en el monitor no
   hay ni una cosa ni la otra). Dos caminos posibles, sin decidir: un campo nativo en el iPhone

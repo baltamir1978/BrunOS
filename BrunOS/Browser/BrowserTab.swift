@@ -366,6 +366,49 @@ final class BrowserTab: NSObject {
         return String(array.dropFirst().dropLast())
     }
 
+    // MARK: - Buscar
+
+    /// Busca en la página con el buscador de WebKit, que resalta y lleva al
+    /// resultado. Repetir la misma búsqueda va al siguiente.
+    ///
+    /// WebKit sólo dice si ha encontrado algo, no cuántas veces: el total se
+    /// cuenta aparte en el texto de la página, sin distinguir mayúsculas, que
+    /// es como busca WebKit por defecto.
+    func find(_ text: String, backwards: Bool) async -> (found: Bool, count: Int) {
+        let configuration = WKFindConfiguration()
+        configuration.backwards = backwards
+        configuration.wraps = true
+        let found: Bool = await withCheckedContinuation { continuation in
+            webView.find(text, configuration: configuration) { result in
+                continuation.resume(returning: result.matchFound)
+            }
+        }
+        let script = """
+            (function (needle) {
+                const haystack = (document.body ? document.body.innerText : '').toLowerCase();
+                needle = needle.toLowerCase();
+                let count = 0, index = 0;
+                while ((index = haystack.indexOf(needle, index)) !== -1) { count++; index += needle.length; }
+                return count;
+            })(\(Self.jsString(text)));
+            """
+        let count: Int = await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript(script, in: nil, in: world) { result in
+                if case .success(let value) = result, let number = value as? Int {
+                    continuation.resume(returning: number)
+                } else {
+                    continuation.resume(returning: 0)
+                }
+            }
+        }
+        return (found, found ? max(count, 1) : 0)
+    }
+
+    /// Quita el resaltado de la última búsqueda.
+    func clearFind() {
+        run("window.getSelection().removeAllRanges();")
+    }
+
     /// Copia lo que haya seleccionado en la página.
     func copySelection() {
         webView.evaluateJavaScript("window.getSelection().toString();", in: nil, in: world) { result in
