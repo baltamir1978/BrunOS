@@ -3,12 +3,16 @@ import UIKit
 
 /// Movimiento de ratón ya normalizado, venga de donde venga.
 ///
-/// Siempre **relativo**: BrunOS lleva su propio cursor en coordenadas lógicas de
-/// la pantalla externa, así que nunca le sirve una posición absoluta del iPhone.
+/// Relativo en `GCMouse`, que da movimiento en bruto. **Absoluto en el puntero
+/// indirecto**, que da la posición del puntero del sistema en el iPhone: ver
+/// `IndirectPointerSource` para el porqué.
 struct MouseDelta {
     /// Desplazamiento en puntos, con la y hacia abajo.
     var translation: CGVector
     var scroll: CGVector
+    /// Posición en la pantalla del iPhone, de 0 a 1 en cada eje. Cuando está,
+    /// manda sobre `translation`.
+    var position: CGPoint?
 }
 
 @MainActor
@@ -152,8 +156,19 @@ final class GCMouseSource: NSObject, MouseSource {
 /// `cancelsTouchesInView = false`, de modo que el dedo sigue llegando a SwiftUI
 /// y el puntero se capta igual.
 ///
-/// El puntero indirecto da posiciones absolutas dentro de la vista, así que hay
-/// que derivar el movimiento restando la posición anterior.
+/// **El puntero indirecto se usa en absoluto**: la posición del puntero en el
+/// iPhone, escalada, es la posición del cursor en el monitor.
+///
+/// Antes se restaban posiciones para sacar un desplazamiento y se le sumaba al
+/// cursor propio, con aceleración encima. Los dos cursores —el del sistema en el
+/// teléfono y el de BrunOS en el monitor— se iban descuadrando, y cuando el del
+/// sistema topaba con el borde del iPhone ya no había más desplazamiento: **el
+/// cursor se quedaba trabado a media pantalla**. Ningún ajuste de sensibilidad lo
+/// arreglaba, sólo lo retrasaba. En absoluto no puede pasar: el borde del
+/// teléfono es el borde del monitor, siempre a la vez.
+///
+/// La velocidad la pone entonces iOS: Accesibilidad › Control del puntero ›
+/// Velocidad de seguimiento.
 @MainActor
 final class IndirectPointerSource: NSObject, MouseSource, UIGestureRecognizerDelegate {
 
@@ -203,10 +218,7 @@ final class IndirectPointerSource: NSObject, MouseSource, UIGestureRecognizerDel
         guard let host else { return }
         let location = recognizer.location(in: host)
         switch recognizer.state {
-        case .began:
-            lastLocation = location
-            markDelivering()
-        case .changed:
+        case .began, .changed:
             emitTranslation(to: location)
         case .ended, .cancelled:
             lastLocation = nil
@@ -254,39 +266,20 @@ final class IndirectPointerSource: NSObject, MouseSource, UIGestureRecognizerDel
 
     private func emitTranslation(to location: CGPoint) {
         defer { lastLocation = location }
-        guard let previous = lastLocation else { return }
+        guard location != lastLocation, let host, host.bounds.width > 0, host.bounds.height > 0 else { return }
 
-        var delta = CGVector(dx: location.x - previous.x, dy: location.y - previous.y)
-        guard delta != .zero else { return }
-
-        // El recorrido disponible es la pantalla del iPhone, que es **más
-        // pequeña que el escritorio**: 852 pt de alto contra 960 lógicos en un
-        // monitor 2K a escala 1,5. Trasladando el movimiento 1:1, recorrer el
-        // teléfono entero no llegaba a cruzar la pantalla y el cursor se
-        // plantaba al tocar el borde, sobre todo hacia arriba.
-        //
-        // Se compensa con la razón entre los dos tamaños, de modo que un
-        // barrido completo del iPhone cubra el escritorio completo.
-        let ratio = desktopToHostRatio()
-        delta.dx *= ratio.width
-        delta.dy *= ratio.height
-
-        markDelivering()
-        delegate?.mouseSource(self, didMove: MouseDelta(translation: delta, scroll: .zero))
-    }
-
-    private func desktopToHostRatio() -> CGSize {
-        guard let host, host.bounds.width > 0, host.bounds.height > 0 else {
-            return CGSize(width: 1, height: 1)
-        }
-        let desktop = AppServices.shared.pointer.bounds
-        guard desktop.width > 0, desktop.height > 0 else {
-            return CGSize(width: 1, height: 1)
-        }
-        return CGSize(
-            width: desktop.width / host.bounds.width,
-            height: desktop.height / host.bounds.height
+        // El puntero del sistema llega hasta el último punto del borde, pero no
+        // más allá: se deja un margen de un punto para que el borde del
+        // escritorio sea alcanzable aunque iOS se quede a medio punto.
+        let inset: CGFloat = 1
+        let normalized = CGPoint(
+            x: min(max((location.x - inset) / max(1, host.bounds.width - 2 * inset), 0), 1),
+            y: min(max((location.y - inset) / max(1, host.bounds.height - 2 * inset), 0), 1)
         )
+        markDelivering()
+        delegate?.mouseSource(self, didMove: MouseDelta(
+            translation: .zero, scroll: .zero, position: normalized
+        ))
     }
 
     private func markDelivering() {

@@ -213,7 +213,7 @@ final class TerminalHomeView: UIView {
 
     private func drawSymbol(_ name: String, at center: CGPoint, size: CGFloat, color: UIColor) {
         let configuration = UIImage.SymbolConfiguration(pointSize: size, weight: .medium)
-        guard let image = UIImage(systemName: name, withConfiguration: configuration)?
+        guard let image = UIImage.crispSymbol(name, configuration: configuration, scale: layer.contentsScale)?
             .withTintColor(color.resolvedColor(with: traitCollection), renderingMode: .alwaysOriginal)
         else { return }
         image.draw(at: CGPoint(x: center.x - image.size.width / 2, y: center.y - image.size.height / 2))

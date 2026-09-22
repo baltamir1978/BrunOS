@@ -149,7 +149,10 @@ extension PhoneRootViewController: KeyboardRouterDelegate {
 extension PhoneRootViewController: MouseSourceDelegate {
 
     func mouseSource(_ source: any MouseSource, didMove delta: MouseDelta) {
-        if delta.translation != .zero {
+        if let position = delta.position {
+            services.pointer.move(toNormalized: position)
+            services.desktopViewController?.deliverPointer(.moved, modifiers: [])
+        } else if delta.translation != .zero {
             services.pointer.move(by: delta.translation)
             services.desktopViewController?.deliverPointer(.moved, modifiers: [])
         }

@@ -29,6 +29,12 @@ final class FilesPane: UIView, Pane {
     /// descargar cada foto entera para enseñar un sello de 84 puntos.
     private var thumbnails: [String: UIImage] = [:]
     private var pendingThumbnails: Set<String> = []
+    /// El último clic, para reconocer el doble clic.
+    private var lastClick: (index: Int, time: Date, location: CGPoint)?
+    private static let doubleClickInterval: TimeInterval = 0.5
+    /// El botón de subir un nivel, en la cabecera.
+    private var upFrame: CGRect = .zero
+
     /// Qué dejar seleccionado cuando termine de leerse la carpeta.
     private var pendingSelection: String?
 
@@ -99,6 +105,9 @@ final class FilesPane: UIView, Pane {
     private var sortFrames: [Sort: CGRect] = [:]
     private var modeFrames: [ViewMode: CGRect] = [:]
     private var settingsFrame: CGRect = .zero
+    private var hoveringControls = false
+    private static let controlsX: CGFloat = 13
+    private static let controlsMidY: CGFloat = 15
     /// Casillas por fila en las vistas de iconos. Lo usan las flechas.
     private var columns = 1
 
@@ -225,13 +234,14 @@ final class FilesPane: UIView, Pane {
     private func recomputeFrames() {
         sidebarFrames = services.files.providers.indices.map { index in
             CGRect(
-                x: 6, y: 34 + CGFloat(index) * 28,
+                x: 6, y: 56 + CGFloat(index) * 28,
                 width: Self.sidebarWidth - 12, height: 26
             )
         }
 
         let listX = Self.sidebarWidth
         let listWidth = bounds.width - listX
+        upFrame = CGRect(x: listX + 6, y: 4, width: 22, height: 22)
         sortFrames = [
             .name: CGRect(x: listX + 34, y: 6, width: 140, height: 18),
             .size: CGRect(x: bounds.width - Self.sizeColumnInset, y: 6, width: 70, height: 18),
@@ -316,8 +326,11 @@ final class FilesPane: UIView, Pane {
         context.setFillColor(Tokens.Color.border.desktopCGColor)
         context.fill(CGRect(x: Self.sidebarWidth - 1, y: 0, width: 1, height: bounds.height))
 
+        WindowControls.draw(in: context, x: Self.controlsX, midY: Self.controlsMidY,
+                            hovering: hoveringControls, scale: layer.contentsScale)
+
         ("UBICACIONES" as NSString).draw(
-            at: CGPoint(x: 12, y: 12),
+            at: CGPoint(x: 12, y: 36),
             withAttributes: [
                 .font: Tokens.sans(9, weight: .semibold),
                 .foregroundColor: Tokens.Color.textSecondary,
@@ -360,7 +373,10 @@ final class FilesPane: UIView, Pane {
             width: bounds.width - listX, height: 1
         ))
 
-        drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.textSecondary)
+        let canGoUp = services.files.currentProvider.parent(of: path) != nil
+        drawSymbol("chevron.left", in: upFrame,
+                   color: canGoUp ? Tokens.Color.text : Tokens.Color.textSecondary.withAlphaComponent(0.35))
+        drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.text.withAlphaComponent(0.72), pointSize: 13.5)
 
         for (mode, frame) in modeFrames {
             let isActive = mode == self.mode
@@ -596,8 +612,8 @@ final class FilesPane: UIView, Pane {
         color: UIColor,
         pointSize: CGFloat = 12
     ) {
-        let configuration = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
-        guard let image = UIImage(systemName: name, withConfiguration: configuration)?
+        let configuration = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
+        guard let image = UIImage.crispSymbol(name, configuration: configuration, scale: layer.contentsScale)?
             .withTintColor(
                 color.resolvedColor(with: UITraitCollection(userInterfaceStyle: DesktopTheme.style)),
                 renderingMode: .alwaysOriginal
@@ -620,6 +636,11 @@ final class FilesPane: UIView, Pane {
     func handlePointer(_ event: PointerEvent) {
         switch event.kind {
         case .moved:
+            let inControls = WindowControls.groupContains(event.location, x: Self.controlsX, midY: Self.controlsMidY)
+            if inControls != hoveringControls {
+                hoveringControls = inControls
+                setNeedsDisplay()
+            }
             let index = itemIndex(at: event.location)
             if hoveredIndex != index {
                 hoveredIndex = index
@@ -627,6 +648,10 @@ final class FilesPane: UIView, Pane {
             }
 
         case .down:
+            if let button = WindowControls.button(at: event.location, x: Self.controlsX, midY: Self.controlsMidY) {
+                WindowControls.perform(button, on: self)
+                return
+            }
             if let index = sidebarFrames.firstIndex(where: { $0.contains(event.location) }) {
                 services.files.select(index)
                 path = services.files.currentProvider.rootPath
@@ -648,12 +673,28 @@ final class FilesPane: UIView, Pane {
                 return
             }
             if let index = itemIndex(at: event.location) {
-                // Un clic selecciona; para abrir, Intro o la espaciadora. El
-                // doble clic con un cursor sintético es poco fiable: depende de
-                // que dos eventos lleguen lo bastante seguidos.
+                // Doble clic: dos clics sobre el mismo elemento, seguidos y sin
+                // apenas mover el ratón. El margen de tiempo es algo más
+                // generoso que el de macOS porque los clics pasan por
+                // AssistiveTouch y pueden llegar con un poco de retraso.
+                let now = Date()
+                let isDouble = lastClick.map {
+                    $0.index == index
+                        && now.timeIntervalSince($0.time) < Self.doubleClickInterval
+                        && hypot($0.location.x - event.location.x, $0.location.y - event.location.y) < 6
+                } ?? false
+
+                if isDouble, items.indices.contains(index) {
+                    lastClick = nil
+                    open(items[index])
+                    return
+                }
+                lastClick = (index, now, event.location)
                 selectedIndex = index
                 setNeedsDisplay()
                 AppServices.shared.desktop.notifyChange()
+            } else if upFrame.contains(event.location) {
+                goUp()
             }
 
         case .scroll(let delta):

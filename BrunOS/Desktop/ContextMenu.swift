@@ -87,7 +87,7 @@ final class ContextMenu: UIView {
             }
 
             let configuration = UIImage.SymbolConfiguration(pointSize: 11, weight: .regular)
-            if let image = UIImage(systemName: entry.symbol, withConfiguration: configuration)?
+            if let image = UIImage.crispSymbol(entry.symbol, configuration: configuration, scale: layer.contentsScale)?
                 .withTintColor(
                     color.resolvedColor(with: UITraitCollection(userInterfaceStyle: DesktopTheme.style)),
                     renderingMode: .alwaysOriginal

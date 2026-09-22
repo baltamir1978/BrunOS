@@ -155,3 +155,22 @@ extension SwiftUI.Font {
         return .custom(name, size: size)
     }
 }
+
+extension UIImage {
+
+    /// Un símbolo de SF Symbols pedido para la densidad real de la capa.
+    ///
+    /// Los iconos de la pantalla externa se dibujan en capas cuya densidad sube
+    /// el escritorio a mano (`contentsScale`) para que nada se emborrone al
+    /// escalar el lienzo. Pedido sin más, el símbolo sale para la pantalla del
+    /// iPhone, y a según qué escala del monitor se veía difuso: la rueda de
+    /// ajustes de los paneles era lo que más lo cantaba.
+    static func crispSymbol(
+        _ name: String,
+        configuration: SymbolConfiguration,
+        scale: CGFloat
+    ) -> UIImage? {
+        UIImage(systemName: name, compatibleWith: UITraitCollection(displayScale: max(scale, 1)))?
+            .applyingSymbolConfiguration(configuration)
+    }
+}

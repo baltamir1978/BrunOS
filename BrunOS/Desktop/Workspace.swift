@@ -16,6 +16,11 @@ final class Workspace {
     private(set) var panes: [PaneID: any Pane] = [:]
     var focused: PaneID?
 
+    /// Paneles mandados al dock con el botón amarillo, en el orden en que se
+    /// minimizaron. Siguen vivos —la sesión SSH, la página—, sólo que fuera
+    /// del mosaico.
+    private(set) var minimized: [(id: PaneID, pane: any Pane)] = []
+
     init(index: Int, name: String) {
         self.index = index
         self.name = name
@@ -57,6 +62,28 @@ final class Workspace {
         if let id, let pane = panes[id] {
             pane.setFocused(true)
         }
+    }
+
+    /// Saca un panel del mosaico y lo deja en el dock.
+    func minimize(_ id: PaneID) {
+        guard let pane = panes[id] else { return }
+        if layout.maximized == id { layout.maximized = nil }
+        pane.setFocused(false)
+        pane.view.removeFromSuperview()
+        panes[id] = nil
+        layout.remove(id)
+        minimized.append((id, pane))
+        if focused == id {
+            focused = nil
+            setFocus(layout.panes.first)
+        }
+    }
+
+    /// Lo devuelve al mosaico, junto al panel con foco, y le da el foco.
+    func restore(_ id: PaneID, focusedFrame: CGRect?) {
+        guard let index = minimized.firstIndex(where: { $0.id == id }) else { return }
+        let entry = minimized.remove(at: index)
+        add(entry.pane, id: entry.id, focusedFrame: focusedFrame)
     }
 
     /// Alterna el panel maximizado. Es el *fullscreen* de i3: ocupa todo el

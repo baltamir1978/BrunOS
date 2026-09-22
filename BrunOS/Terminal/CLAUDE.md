@@ -87,6 +87,10 @@ El terminal **ya no se conecta solo** al abrirse: enseña `TerminalHomeView`, la
 con su botón, y Cmd+T o el «+» de la barra vuelven a ella. La barra va siempre, con la rueda de
 ajustes.
 
+**`exit` dejaba el terminal muerto**: cuando el servidor cierra el canal, `run()` vuelve sin
+error, y el estado se quedaba en «conectado». Ahora pasa a `.ended`, se cierra la pestaña y se
+vuelve a la lista de conexiones.
+
 En modo claro, **el terminal pintaba texto casi negro sobre fondo negro**: el fondo era fijo y el
 texto era el color dinámico del escritorio. SwiftTerm convierte los `UIColor` al asignarlos y no
 se entera de los cambios, así que `TerminalTab.applyTheme` le pasa colores ya resueltos y una

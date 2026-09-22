@@ -411,6 +411,7 @@ final class BrowserPane: UIView, Pane {
             handleChromePointer(event)
             return
         }
+        chrome.hover(at: nil)
 
         if downloadToast.alpha > 0.5, downloadToast.frame.contains(event.location) {
             if case .down = event.kind { revealDownloads() }
@@ -449,8 +450,9 @@ final class BrowserPane: UIView, Pane {
     }
 
     private func handleChromePointer(_ event: PointerEvent) {
-        guard case .down = event.kind else { return }
         let point = CGPoint(x: event.location.x, y: event.location.y - chrome.frame.minY)
+        chrome.hover(at: point)
+        guard case .down = event.kind else { return }
 
         switch chrome.hit(at: point) {
         case .tab(let index):
@@ -472,6 +474,8 @@ final class BrowserPane: UIView, Pane {
             toggleBlockerForCurrentSite()
         case .settings:
             AppServices.shared.desktopViewController?.presentSettings(.browser)
+        case .window(let button):
+            WindowControls.perform(button, on: self)
         case BrowserChrome.Target.none:
             isEditingAddress = false
             refreshChrome()

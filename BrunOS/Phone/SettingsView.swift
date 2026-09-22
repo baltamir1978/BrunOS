@@ -180,17 +180,15 @@ struct SettingsView: View {
                 set: { services.blocker.isEnabled = $0 }
             ))
 
-            LabeledContent(
-                "Listas",
-                value: services.blocker.isReady
-                    ? "\(services.blocker.sources.count) cargadas"
-                    : "sin cargar"
-            )
-            .font(.brunosMono(14))
-
-            if !services.blocker.exceptions.isEmpty {
-                LabeledContent("Sitios excluidos", value: "\(services.blocker.exceptions.count)")
-                    .font(.brunosMono(14))
+            NavigationLink {
+                BlockerSettingsView()
+            } label: {
+                LabeledContent(
+                    "Listas y reglas",
+                    value: services.blocker.isReady
+                        ? "\(services.blocker.sources.count) listas"
+                        : "sin cargar"
+                )
             }
 
             if let error = services.blocker.lastError {
@@ -255,7 +253,10 @@ struct SettingsView: View {
 
             Toggle("Aceleración", isOn: $pointer.acceleration)
 
-            Toggle("Scroll natural", isOn: $pointer.naturalScrolling)
+            Picker("Dirección del scroll", selection: $pointer.naturalScrolling) {
+                Text("Natural").tag(true)
+                Text("Inversa").tag(false)
+            }
         } header: {
             Text("Ratón")
         } footer: {

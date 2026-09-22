@@ -22,6 +22,8 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     private(set) var reconnectOverlay: ReconnectOverlay?
 
     var onTitleChange: (@MainActor () -> Void)?
+    /// La sesión terminó por las buenas. El panel cierra la pestaña.
+    var onEnded: (@MainActor () -> Void)?
 
     /// Lo que el servidor haya puesto como título, si dijo algo.
     private var remoteTitle: String?
@@ -94,6 +96,8 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
             // Encima va el aviso con el botón.
             write(banner: "\r\n\(reason)")
             showReconnectOverlay(reason: reason)
+        case .ended:
+            onEnded?()
         case .idle:
             break
         }

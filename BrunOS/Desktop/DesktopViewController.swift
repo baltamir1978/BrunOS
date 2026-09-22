@@ -148,8 +148,16 @@ final class DesktopViewController: UIViewController {
         }
     }
 
+    /// **Si cambia la densidad, hay que volver a dibujar.** Subir
+    /// `contentsScale` no repinta lo que ya estaba dibujado: una vista que se
+    /// pintó antes de entrar en el lienzo se quedaba con su primer dibujado, a
+    /// baja densidad, hasta que algo la obligara a repintarse. La barra del
+    /// terminal, que casi nunca cambia, salía borrosa por eso.
     private func applyContentsScale(to view: UIView) {
-        view.layer.contentsScale = contentsScale
+        if view.layer.contentsScale != contentsScale {
+            view.layer.contentsScale = contentsScale
+            view.setNeedsDisplay()
+        }
         view.layer.rasterizationScale = contentsScale
         for layer in view.layer.sublayers ?? [] {
             applyContentsScale(to: layer)
@@ -280,6 +288,10 @@ final class DesktopViewController: UIViewController {
             for (id, pane) in workspace.panes {
                 pane.setFocused(id == workspace.focused)
                 if pane.view.superview == nil { redraw(pane.view) }
+            }
+            for entry in workspace.minimized {
+                entry.pane.setFocused(false)
+                redraw(entry.pane.view)
             }
         }
         dock.applyTheme()
@@ -570,6 +582,52 @@ final class DesktopViewController: UIViewController {
         prompt = window
     }
 
+    /// El botón rojo: cierra un panel, con lo que tenga dentro.
+    func closePane(_ view: UIView) {
+        for workspace in services.desktop.workspaces {
+            guard let (id, pane) = workspace.panes.first(where: { $0.value.view === view }).map({ ($0.key, $0.value) })
+            else { continue }
+            (pane as? TerminalPane)?.closeAll()
+            pane.view.removeFromSuperview()
+            workspace.remove(id)
+            // Sin pantalla completa que valga si ya no queda nada que enseñar.
+            if workspace.isEmpty, services.desktop.isFullScreen {
+                services.desktop.isFullScreen = false
+            }
+            services.desktop.notifyChange()
+            return
+        }
+    }
+
+    /// El botón amarillo: el panel sale del mosaico y queda en el dock.
+    func minimizePane(_ view: UIView) {
+        let workspace = services.desktop.active
+        guard let id = workspace.panes.first(where: { $0.value.view === view })?.key else { return }
+        workspace.minimize(id)
+        if workspace.isEmpty, services.desktop.isFullScreen {
+            services.desktop.isFullScreen = false
+        }
+        services.desktop.notifyChange()
+    }
+
+    /// Devuelve un panel minimizado a su espacio y le pasa el foco.
+    func restoreMinimized(_ id: PaneID, in workspace: Workspace) {
+        services.desktop.activate(number: workspace.index)
+        let focusedFrame = workspace.focused.flatMap { currentFrames()[$0] }
+        workspace.restore(id, focusedFrame: focusedFrame)
+        services.desktop.notifyChange()
+    }
+
+    /// Da el foco a un panel. Los botones de ventana lo piden antes de actuar,
+    /// porque maximizar y pantalla completa van sobre el panel con foco.
+    func focus(_ view: UIView) {
+        let workspace = services.desktop.active
+        guard let id = workspace.panes.first(where: { $0.value.view === view })?.key,
+              workspace.focused != id else { return }
+        workspace.setFocus(id)
+        services.desktop.notifyChange()
+    }
+
     /// Enseña un fichero o una carpeta del iPhone en el gestor de ficheros.
     func revealInFiles(_ url: URL) {
         var isDirectory: ObjCBool = false
@@ -791,6 +849,8 @@ final class DesktopViewController: UIViewController {
 
         if dock.hitsSettings(pointInDock) {
             dock.onSettings?()
+        } else if let (workspace, id) = dock.minimizedEntry(at: pointInDock) {
+            restoreMinimized(id, in: workspace)
         } else if let number = dock.workspaceNumber(at: pointInDock) {
             services.desktop.activate(number: number)
         }

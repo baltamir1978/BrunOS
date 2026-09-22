@@ -212,6 +212,16 @@ final class PointerController {
         pendingPosition = position
     }
 
+    /// Coloca el cursor en una posición del escritorio, dada de 0 a 1 en cada
+    /// eje. La usa el puntero indirecto, que va en absoluto.
+    func move(toNormalized point: CGPoint) {
+        position = clamp(CGPoint(
+            x: bounds.minX + point.x * bounds.width,
+            y: bounds.minY + point.y * bounds.height
+        ))
+        pendingPosition = position
+    }
+
     /// Curva de aceleración: 1× parado y hasta 3,5× a toda velocidad.
     ///
     /// El umbral está en puntos por evento, no por segundo, porque los eventos

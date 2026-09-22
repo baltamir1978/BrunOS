@@ -119,6 +119,13 @@ final class TerminalPane: UIView, Pane {
             self?.refreshBar()
             AppServices.shared.desktop.notifyChange()
         }
+        // Al salir con `exit`, fuera la pestaña y de vuelta a la lista, para
+        // elegir la misma máquina u otra.
+        tab.onEnded = { [weak self, weak tab] in
+            guard let self, let tab, let index = self.tabs.firstIndex(where: { $0 === tab }) else { return }
+            self.closeTab(at: index)
+            self.showHome()
+        }
         tab.applyTheme(TerminalTheme.style)
         tabs.append(tab)
         content.addSubview(tab.terminalView)
@@ -126,6 +133,15 @@ final class TerminalPane: UIView, Pane {
         setNeedsLayout()
         tab.connect()
         return tab
+    }
+
+    /// Cierra todas las sesiones. Lo usa el botón rojo, al cerrar el panel.
+    func closeAll() {
+        for tab in tabs {
+            tab.disconnect()
+            tab.terminalView.removeFromSuperview()
+        }
+        tabs.removeAll()
     }
 
     /// Enseña la lista de conexiones. Cmd+T y el «+» de la barra.
@@ -209,6 +225,7 @@ final class TerminalPane: UIView, Pane {
             case .close(let index): closeTab(at: index)
             case .newTab: showHome()
             case .settings: AppServices.shared.desktopViewController?.presentSettings(.terminal)
+            case .window(let button): WindowControls.perform(button, on: self)
             case nil: break
             }
             return

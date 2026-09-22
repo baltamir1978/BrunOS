@@ -27,6 +27,7 @@ final class BrowserChrome: UIView {
         case address
         case blocker
         case settings
+        case window(WindowControls.Button)
         case none
     }
 
@@ -49,6 +50,10 @@ final class BrowserChrome: UIView {
     private var addressFrame: CGRect = .zero
     private var blockerFrame: CGRect = .zero
     private var settingsFrame: CGRect = .zero
+    /// El cursor está sobre los botones de ventana, que es cuando enseñan sus
+    /// símbolos.
+    private var hoveringControls = false
+    private static let controlsX: CGFloat = 13
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -94,7 +99,7 @@ final class BrowserChrome: UIView {
         let size = Self.buttonSize
         let y = (Self.height - size) / 2
 
-        backFrame = CGRect(x: 6, y: y, width: size, height: size)
+        backFrame = CGRect(x: Self.controlsX + WindowControls.width + 10, y: y, width: size, height: size)
         forwardFrame = CGRect(x: backFrame.maxX + 1, y: y, width: size, height: size)
         reloadFrame = CGRect(x: forwardFrame.maxX + 1, y: y, width: size, height: size)
 
@@ -139,7 +144,17 @@ final class BrowserChrome: UIView {
         setNeedsDisplay()
     }
 
+    func hover(at point: CGPoint?) {
+        let inside = point.map { WindowControls.groupContains($0, x: Self.controlsX, midY: Self.height / 2) } ?? false
+        guard inside != hoveringControls else { return }
+        hoveringControls = inside
+        setNeedsDisplay()
+    }
+
     func hit(at point: CGPoint) -> Target {
+        if let button = WindowControls.button(at: point, x: Self.controlsX, midY: Self.height / 2) {
+            return .window(button)
+        }
         if let index = closeFrames.firstIndex(where: { $0.insetBy(dx: -3, dy: -3).contains(point) }) {
             return .closeTab(index)
         }
@@ -162,6 +177,8 @@ final class BrowserChrome: UIView {
 
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
+        WindowControls.draw(in: context, x: Self.controlsX, midY: Self.height / 2,
+                            hovering: hoveringControls, scale: layer.contentsScale)
 
         drawTabs(in: context)
         drawNavigationButtons()
@@ -172,7 +189,7 @@ final class BrowserChrome: UIView {
             color: blockerOn ? Tokens.Color.accentAlt : Tokens.Color.textSecondary
         )
         drawSymbol("plus", in: newTabFrame, color: Tokens.Color.textSecondary)
-        drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.textSecondary)
+        drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.text.withAlphaComponent(0.72), size: 13.5)
 
         context.setFillColor(Tokens.Color.border.desktopCGColor)
         context.fill(CGRect(x: 0, y: bounds.maxY - 1, width: bounds.width, height: 1))
@@ -294,7 +311,7 @@ final class BrowserChrome: UIView {
     /// que tuviera el iPhone en ese momento.
     private func drawSymbol(_ name: String, in frame: CGRect, color: UIColor, size: CGFloat = 12) {
         let configuration = UIImage.SymbolConfiguration(pointSize: size, weight: .medium)
-        guard let image = UIImage(systemName: name, withConfiguration: configuration)?
+        guard let image = UIImage.crispSymbol(name, configuration: configuration, scale: layer.contentsScale)?
             .withTintColor(
                 color.resolvedColor(with: UITraitCollection(userInterfaceStyle: DesktopTheme.style)),
                 renderingMode: .alwaysOriginal

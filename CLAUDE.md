@@ -101,10 +101,39 @@ La primera versión era una lista de filas que cambiaban de valor al pulsarlas: 
 «un horror» y no dejaba cambiar casi nada. Las explicaciones de cada ajuste van en la nota de
 debajo de su grupo.
 
-### Pantalla completa
+### Pantalla completa y los botones de ventana
 
 Ctrl+Cmd+F, o desde Ajustes › Pantalla: se esconden dock y barra y los paneles se llevan todo. El
 dock asoma al llevar el cursor al borde de abajo, y la barra al de arriba.
+
+Cada panel lleva las **tres bolitas de macOS** (`WindowControls`), con lo que Bruno decidió
+pensando ya en las ventanas flotantes: **rojo cierra, amarillo al dock, verde maximiza** (a
+pantalla completa). Lo minimizado sale del mosaico pero sigue vivo —la sesión SSH no se corta— y
+vuelve a su sitio al pulsar su icono en el dock, entre el separador y los ajustes. Cmd+Intro
+sigue maximizando dentro del mosaico.
+
+### El ratón se atascaba en el borde del iPhone: ahora va en absoluto
+
+Con AssistiveTouch, el ratón llega como **puntero indirecto**: iOS mueve su propio puntero por la
+pantalla del iPhone y la app ve su posición. Antes se restaban posiciones para sacar
+desplazamientos y se sumaban al cursor de BrunOS, con aceleración encima. Los dos cursores se
+descuadraban y, cuando el del sistema topaba con el borde del teléfono, **el del monitor se
+quedaba trabado a media pantalla**. Ajustar la sensibilidad sólo lo retrasaba.
+
+Ahora `IndirectPointerSource` manda la **posición normalizada** (0…1) y el cursor del monitor va
+exactamente ahí: el borde del iPhone es el borde del monitor, a la vez. La velocidad la pone iOS
+(Accesibilidad › Control del puntero › Velocidad de seguimiento); la sensibilidad y la aceleración
+de BrunOS quedan para el trackpad táctil y para `GCMouse`, que sigue siendo relativo.
+
+**Sin probar en el iPhone.** Si la posición que da el puntero indirecto no cubre la pantalla
+entera (por ejemplo, si iOS la limita al área segura), el cursor no llegaría a los bordes del
+monitor: es lo primero que hay que mirar.
+
+### Atenuar
+
+Baja el brillo del iPhone al mínimo (`ScreenDimmer`) y pone un velo que **no recibe toques**: el
+trackpad sigue funcionando. Antes era un negro opaco que se comía los toques. El brillo es un
+ajuste del sistema, así que se devuelve al salir de la app.
 
 ### Al conectar el monitor, el iPhone vuelve a su pantalla de mando
 
@@ -216,6 +245,8 @@ Pequeños, de fases anteriores:
   ahí, con Safari de respaldo.
 - **Buscar en la página (Cmd+F)**: se reconoce y se encamina, pero `perform(_:)` devuelve `false`
   porque no hay barra de búsqueda todavía.
+- **Ventanas flotantes**: los botones de ventana ya están, con su comportamiento definitivo. Falta
+  la capa de ventanas encima del mosaico, el arrastre por el título y la redimensión.
 - **Autorrelleno de contraseñas**: el de Safari no está al alcance de una app (el llavero de
   Contraseñas sólo se ofrece en el teclado del sistema sobre un campo nativo, y en el monitor no
   hay ni una cosa ni la otra). Dos caminos posibles, sin decidir: un campo nativo en el iPhone

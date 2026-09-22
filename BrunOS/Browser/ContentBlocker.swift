@@ -42,6 +42,20 @@ final class ContentBlocker {
         var selector: String
         /// `nil` es en todas partes.
         var domain: String?
+
+        /// Con la sintaxis de AdBlock: `ejemplo.com##.banner` es el selector
+        /// `.banner` en `ejemplo.com`; `##.banner` o `.banner`, en todas.
+        static func parse(_ text: String) -> HideRule? {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            guard let range = trimmed.range(of: "##") else {
+                return HideRule(selector: trimmed, domain: nil)
+            }
+            let domain = String(trimmed[..<range.lowerBound])
+            let selector = String(trimmed[range.upperBound...])
+            guard !selector.isEmpty else { return nil }
+            return HideRule(selector: selector, domain: domain.isEmpty ? nil : domain)
+        }
     }
 
     /// Reglas compiladas y listas para usar, por fuente.

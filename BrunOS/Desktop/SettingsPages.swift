@@ -110,10 +110,24 @@ enum SettingsPages {
 
             return [
                 SettingsGroup(
+                    "Rueda",
+                    footer: "Natural es la de Apple: el contenido sigue al dedo, y al girar la rueda "
+                        + "hacia ti la página sube. Inversa es la de Windows y la de siempre: la "
+                        + "página baja.",
+                    rows: [
+                        SettingsRow("Dirección del scroll", .choice(
+                            ["Natural", "Inversa"],
+                            selected: pointer.naturalScrolling ? 0 : 1
+                        ) { index in update { $0.naturalScrolling = index == 0 } }),
+                    ]
+                ),
+                SettingsGroup(
                     "Ratón",
-                    footer: "La sensibilidad se multiplica con la velocidad de seguimiento de iOS "
-                        + "(Accesibilidad › Control del puntero). Si el cursor da saltos, baja ésta "
-                        + "antes que aquélla.",
+                    footer: "Con AssistiveTouch, el cursor del monitor sigue la posición del puntero "
+                        + "en el iPhone: el borde del teléfono es el borde del monitor, y no se "
+                        + "atasca. La velocidad se ajusta en iOS: Accesibilidad › Control del puntero "
+                        + "› Velocidad de seguimiento. La sensibilidad y la aceleración de aquí valen "
+                        + "para el trackpad del iPhone y para GCMouse.",
                     rows: [
                         SettingsRow("Fuente activa", .value(services.mouse.activeSourceName)),
                         SettingsRow("Sensibilidad", .choice(
@@ -122,9 +136,6 @@ enum SettingsPages {
                         ) { index in update { $0.sensitivity = steps[index] } }),
                         SettingsRow("Aceleración", subtitle: "Lento para apuntar fino, rápido para cruzar",
                                     .toggle(pointer.acceleration) { value in update { $0.acceleration = value } }),
-                        SettingsRow("Scroll natural", .toggle(pointer.naturalScrolling) { value in
-                            update { $0.naturalScrolling = value }
-                        }),
                     ]
                 ),
                 SettingsGroup("Atajos", rows: [
@@ -276,7 +287,7 @@ enum SettingsPages {
             hideRows.append(SettingsRow("Ocultar un elemento", .buttons([
                 SettingsButton("Añadir…") {
                     desktop?.presentPrompt(title: "Regla (dominio##selector)", value: "") { text in
-                        guard let text, let rule = parseHideRule(text) else { return }
+                        guard let text, let rule = ContentBlocker.HideRule.parse(text) else { return }
                         blocker.addHideRule(rule)
                     }
                 },
@@ -289,19 +300,6 @@ enum SettingsPages {
             ))
             return groups
         }
-    }
-
-    /// `ejemplo.com##.banner` → selector `.banner` en `ejemplo.com`.
-    private static func parseHideRule(_ text: String) -> ContentBlocker.HideRule? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        guard let range = trimmed.range(of: "##") else {
-            return ContentBlocker.HideRule(selector: trimmed, domain: nil)
-        }
-        let domain = String(trimmed[..<range.lowerBound])
-        let selector = String(trimmed[range.upperBound...])
-        guard !selector.isEmpty else { return nil }
-        return ContentBlocker.HideRule(selector: selector, domain: domain.isEmpty ? nil : domain)
     }
 
     private static var downloads: SettingsPage {

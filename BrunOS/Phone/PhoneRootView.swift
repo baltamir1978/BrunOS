@@ -10,6 +10,7 @@ struct PhoneRootView: View {
     @State private var showingSettings = false
     @State private var showingFolderPicker = false
     @State private var isDimmed = false
+    @Environment(\.scenePhase) private var scenePhase
 
     private let services = AppServices.shared
 
@@ -59,6 +60,15 @@ struct PhoneRootView: View {
         // parecía muerto en la pantalla externa.
         .onChange(of: isRemoteMode) { _, remote in
             if remote { showingSettings = false }
+        }
+        .onChange(of: isDimmed) { _, dimmed in
+            dimmed ? ScreenDimmer.dim() : ScreenDimmer.restore()
+        }
+        // El brillo es del sistema, no de la app: si se sale con la pantalla
+        // atenuada, hay que devolverlo, o el iPhone se queda a oscuras fuera
+        // de BrunOS.
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active, isDimmed { isDimmed = false }
         }
         .tint(.brunosAccent)
     }
@@ -187,14 +197,21 @@ struct PhoneRootView: View {
         .accessibilityLabel(title)
     }
 
-    /// "Atenuar" apaga la pantalla del iPhone a ojo, sin bloquearla: la app
-    /// tiene que seguir en primer plano o iOS vuelve a duplicar la pantalla.
+    /// «Atenuar» baja el brillo del iPhone al mínimo y oscurece un poco más la
+    /// interfaz, **sin taparla**.
+    ///
+    /// La primera versión ponía un negro opaco encima que se comía los toques:
+    /// la pantalla quedaba en negro total y, de paso, el trackpad dejaba de
+    /// funcionar hasta tocar para volver. Ahora el velo no recibe toques, así
+    /// que el trackpad y los botones siguen a mano, y se vuelve con el mismo
+    /// botón. La app tiene que seguir en primer plano: bloquear el iPhone haría
+    /// que iOS volviera a duplicar la pantalla.
     private var dimOverlay: some View {
         Color.black
+            .opacity(0.55)
             .ignoresSafeArea()
-            .onTapGesture { isDimmed = false }
-            .accessibilityLabel("Pantalla atenuada. Toca para volver.")
-            .accessibilityAddTraits(.isButton)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

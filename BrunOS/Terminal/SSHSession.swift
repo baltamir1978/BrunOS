@@ -25,6 +25,8 @@ final class SSHSession {
         /// Se cayó o no se pudo conectar. El texto es para enseñárselo a Bruno,
         /// no para que lo lea un programa.
         case failed(String)
+        /// El servidor cerró la sesión sin error: `exit`, `logout`, Ctrl+D.
+        case ended
 
         var isConnected: Bool { self == .connected }
     }
@@ -68,6 +70,11 @@ final class SSHSession {
             guard let self else { return }
             do {
                 try await self.run()
+                // **Sin esto, un `exit` dejaba la sesión «conectada» para
+                // siempre**: `run()` vuelve sin error cuando el servidor cierra
+                // el canal, y nadie cambiaba el estado. El terminal se quedaba
+                // muerto y sin forma de volver a la lista de conexiones.
+                if !Task.isCancelled { self.setState(.ended) }
             } catch is CancellationError {
                 // Cierre pedido por quien usa la app: no es un fallo.
             } catch {

@@ -17,8 +17,11 @@ ubicaciones más lista) en lugar de los dos paneles de Total Commander.
 - **Tres vistas**: lista, iconos pequeños e iconos grandes, con el selector en la cabecera o desde
   el clic derecho. Se recuerda la elegida. En iconos, las flechas se mueven en rejilla y las
   imágenes **locales** llevan miniatura (por SFTP habría que descargar cada foto entera).
-- **Un clic selecciona, no abre.** El doble clic con un cursor sintético es poco fiable: depende de
-  que dos eventos lleguen lo bastante seguidos, y los nuestros pasan por AssistiveTouch.
+- **Un clic selecciona; doble clic abre** (22-sep-2026, lo pidió Bruno). Se reconoce en el panel:
+  dos clics sobre el mismo elemento en menos de 0,5 s y sin moverse más de 6 puntos. El margen es
+  más generoso que el de macOS porque los clics pasan por AssistiveTouch. Intro sigue abriendo, y
+  la flecha de la cabecera sube un nivel. **Sin probar en el iPhone**: si el doble clic falla, lo
+  primero es mirar cuánto tardan en llegar los dos clics.
 
 ### La vista previa NO usa QuickLook
 

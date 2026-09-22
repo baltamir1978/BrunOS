@@ -776,7 +776,7 @@ final class SettingsWindow: UIView {
         weight: UIImage.SymbolWeight = .regular
     ) {
         let configuration = UIImage.SymbolConfiguration(pointSize: size, weight: weight)
-        guard let image = UIImage(systemName: name, withConfiguration: configuration)?
+        guard let image = UIImage.crispSymbol(name, configuration: configuration, scale: layer.contentsScale)?
             .withTintColor(
                 color.resolvedColor(with: UITraitCollection(userInterfaceStyle: DesktopTheme.style)),
                 renderingMode: .alwaysOriginal

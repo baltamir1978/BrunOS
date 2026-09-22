@@ -19,6 +19,7 @@ final class TerminalTabBar: UIView {
         case close(Int)
         case newTab
         case settings
+        case window(WindowControls.Button)
     }
 
     private var titles: [String] = []
@@ -29,6 +30,10 @@ final class TerminalTabBar: UIView {
     private var newTabFrame: CGRect = .zero
     private var settingsFrame: CGRect = .zero
     private var hovered: Target?
+    private var hoveringControls = false
+    private static let controlsX: CGFloat = 11
+    /// Dónde empiezan las pestañas: detrás de los botones de ventana.
+    private static var tabsX: CGFloat { controlsX + WindowControls.width + 12 }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -65,15 +70,18 @@ final class TerminalTabBar: UIView {
         settingsFrame = CGRect(x: bounds.width - 32, y: 3, width: 26, height: bounds.height - 6)
         newTabFrame = CGRect(x: settingsFrame.minX - 30, y: 3, width: 26, height: bounds.height - 6)
 
-        let available = max(0, newTabFrame.minX - 8)
+        let available = max(0, newTabFrame.minX - 8 - Self.tabsX)
         let count = max(labels.count, 1)
         let width = min(available / CGFloat(count), 220)
         itemFrames = labels.indices.map { index in
-            CGRect(x: CGFloat(index) * width, y: 0, width: width, height: bounds.height)
+            CGRect(x: Self.tabsX + CGFloat(index) * width, y: 0, width: width, height: bounds.height)
         }
     }
 
     func target(at point: CGPoint) -> Target? {
+        if let button = WindowControls.button(at: point, x: Self.controlsX, midY: bounds.height / 2) {
+            return .window(button)
+        }
         if settingsFrame.contains(point) { return .settings }
         if newTabFrame.contains(point) { return .newTab }
         guard let index = itemFrames.firstIndex(where: { $0.contains(point) }) else { return nil }
@@ -85,8 +93,10 @@ final class TerminalTabBar: UIView {
 
     func hover(at point: CGPoint?) {
         let target = point.flatMap(target(at:))
-        guard target != hovered else { return }
+        let inControls = point.map { WindowControls.groupContains($0, x: Self.controlsX, midY: bounds.height / 2) } ?? false
+        guard target != hovered || inControls != hoveringControls else { return }
         hovered = target
+        hoveringControls = inControls
         setNeedsDisplay()
     }
 
@@ -101,6 +111,8 @@ final class TerminalTabBar: UIView {
 
         context.setFillColor(cg(Tokens.Color.border))
         context.fill(CGRect(x: 0, y: bounds.height - 1, width: bounds.width, height: 1))
+        WindowControls.draw(in: context, x: Self.controlsX, midY: bounds.height / 2,
+                            hovering: hoveringControls, scale: layer.contentsScale)
 
         let font = Tokens.mono(11)
         for (index, frame) in itemFrames.enumerated() {
@@ -151,14 +163,14 @@ final class TerminalTabBar: UIView {
                 context.addPath(UIBezierPath(roundedRect: frame, cornerRadius: 6).cgPath)
                 context.fillPath()
             }
-            drawSymbol(symbol, at: CGPoint(x: frame.midX, y: frame.midY), size: 12,
-                       color: hovered == target ? Tokens.Color.text : Tokens.Color.textSecondary)
+            drawSymbol(symbol, at: CGPoint(x: frame.midX, y: frame.midY), size: 13,
+                       color: hovered == target ? Tokens.Color.text : Tokens.Color.text.withAlphaComponent(0.72))
         }
     }
 
     private func drawSymbol(_ name: String, at center: CGPoint, size: CGFloat, color: UIColor) {
         let configuration = UIImage.SymbolConfiguration(pointSize: size, weight: .semibold)
-        guard let image = UIImage(systemName: name, withConfiguration: configuration)?
+        guard let image = UIImage.crispSymbol(name, configuration: configuration, scale: layer.contentsScale)?
             .withTintColor(color.resolvedColor(with: traitCollection), renderingMode: .alwaysOriginal)
         else { return }
         image.draw(at: CGPoint(x: center.x - image.size.width / 2, y: center.y - image.size.height / 2))
