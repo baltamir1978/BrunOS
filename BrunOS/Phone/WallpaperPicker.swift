@@ -47,8 +47,9 @@ struct WallpaperPicker: View {
                     GradientPreview(gradient: gradient)
                 case .image(let name):
                     ImagePreview(name: name)
-                case .file:
+                case .file, .custom:
                     Color.brunosPanel
+                        .overlay { Image(systemName: "photo").foregroundStyle(Color.brunosTextSecondary) }
                 }
             }
             .frame(height: 62)

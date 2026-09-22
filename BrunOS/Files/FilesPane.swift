@@ -42,6 +42,23 @@ final class FilesPane: UIView, Pane {
     /// El botón de subir un nivel, en la cabecera.
     private var upFrame: CGRect = .zero
 
+    /// Un clic sobre un elemento que todavía puede convertirse en arrastre.
+    private var press: (index: Int, location: CGPoint)?
+    /// Dónde caería lo que se está arrastrando, para marcarlo.
+    private var dropHighlight: DropTarget?
+
+    /// Dónde se puede soltar algo en este panel.
+    enum DropTarget: Equatable {
+        case folder(Int)
+        case location(Int)
+        case here
+    }
+
+    /// La copia en curso y cómo va.
+    private var pasteTask: Task<Void, Never>?
+    private var copyProgress: FileService.Progress?
+    private var cancelCopyFrame: CGRect = .zero
+
     /// Qué dejar seleccionado cuando termine de leerse la carpeta.
     private var pendingSelection: String?
 
@@ -372,6 +389,8 @@ final class FilesPane: UIView, Pane {
         drawSidebar(in: context)
         drawHeader(in: context)
         drawRows(in: context)
+        drawDropHighlight(in: context)
+        drawCopyProgress(in: context)
     }
 
     private func drawSidebar(in context: CGContext) {
@@ -688,6 +707,10 @@ final class FilesPane: UIView, Pane {
     }
 
     func handlePointer(_ event: PointerEvent) {
+        if copyProgress != nil, cancelCopyFrame.contains(event.location) {
+            if case .down = event.kind { pasteTask?.cancel() }
+            return
+        }
         if isFinding, findBar.frame.contains(event.location) {
             findBar.handlePointer(event.kind, at: CGPoint(
                 x: event.location.x - findBar.frame.minX, y: event.location.y - findBar.frame.minY
@@ -696,6 +719,17 @@ final class FilesPane: UIView, Pane {
         }
         switch event.kind {
         case .moved:
+            if let press, hypot(event.location.x - press.location.x, event.location.y - press.location.y) > 6,
+               items.indices.contains(press.index) {
+                self.press = nil
+                lastClick = nil
+                AppServices.shared.desktopViewController?.beginFileDrag(
+                    items[press.index],
+                    from: services.files.currentProvider,
+                    source: self
+                )
+                return
+            }
             let inControls = WindowControls.groupContains(event.location, x: Self.controlsX, midY: Self.controlsMidY)
             if inControls != hoveringControls {
                 hoveringControls = inControls
@@ -751,6 +785,7 @@ final class FilesPane: UIView, Pane {
                     return
                 }
                 lastClick = (index, now, event.location)
+                press = (index, event.location)
                 selectedIndex = index
                 setNeedsDisplay()
                 AppServices.shared.desktop.notifyChange()
@@ -762,7 +797,7 @@ final class FilesPane: UIView, Pane {
             scroll(by: -delta.dy)
 
         case .up:
-            break
+            press = nil
         }
     }
 
@@ -803,6 +838,14 @@ final class FilesPane: UIView, Pane {
                 ) { [weak self] in
                     self?.openInBrowser(item)
                 })
+                if item.kind == .image {
+                    entries.append(ContextMenu.Entry(
+                        title: "Usar como fondo de escritorio",
+                        symbol: "photo.on.rectangle"
+                    ) { [weak self] in
+                        self?.useAsWallpaper(item)
+                    })
+                }
             } else {
                 entries.append(ContextMenu.Entry(title: "Abrir", symbol: "folder") { [weak self] in
                     self?.open(item)
@@ -870,18 +913,104 @@ final class FilesPane: UIView, Pane {
         }
     }
 
-    private func paste() {
+    /// Pone la imagen de fondo. Vale de cualquier origen: se descarga si hace
+    /// falta y se copia a la carpeta de la app.
+    private func useAsWallpaper(_ item: FileItem) {
         Task { [weak self] in
             guard let self else { return }
             do {
-                self.status = "Copiando…"
-                self.setNeedsDisplay()
-                try await self.services.files.paste(into: self.path)
-                self.reload()
+                let url = try await self.services.files.currentProvider.localURL(for: item)
+                try self.services.wallpaper.setCustomImage(from: url)
             } catch {
                 self.show(error)
             }
         }
+    }
+
+    private func paste() {
+        guard pasteTask == nil else { return }
+        copyProgress = FileService.Progress()
+        setNeedsDisplay()
+        pasteTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.services.files.paste(into: self.path) { [weak self] progress in
+                    self?.copyProgress = progress
+                    self?.setNeedsDisplay()
+                }
+                self.finishPaste()
+                self.reload()
+            } catch is CancellationError {
+                self.finishPaste()
+                self.status = "Copia cancelada. Lo que ya se había copiado se queda."
+                self.reload()
+            } catch {
+                self.finishPaste()
+                self.show(error)
+            }
+        }
+    }
+
+    private func finishPaste() {
+        pasteTask = nil
+        copyProgress = nil
+        setNeedsDisplay()
+    }
+
+    /// La barra de progreso de una copia, abajo de la lista, con su botón de
+    /// cancelar.
+    private func drawCopyProgress(in context: CGContext) {
+        guard let progress = copyProgress else {
+            cancelCopyFrame = .zero
+            return
+        }
+        let panel = CGRect(
+            x: Self.sidebarWidth + 10, y: bounds.height - 62,
+            width: bounds.width - Self.sidebarWidth - 20, height: 52
+        )
+        context.setFillColor(Tokens.Color.panelElevated.desktopCGColor)
+        context.addPath(UIBezierPath(roundedRect: panel, cornerRadius: 10).cgPath)
+        context.fillPath()
+        context.setStrokeColor(Tokens.Color.border.desktopCGColor)
+        context.setLineWidth(1)
+        context.addPath(UIBezierPath(roundedRect: panel.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 10).cgPath)
+        context.strokePath()
+
+        let bytes: (Int64) -> String = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+        let detail = progress.filesTotal == 0
+            ? progress.current
+            : "\(progress.filesDone) de \(progress.filesTotal) · \(bytes(progress.bytesDone)) de \(bytes(progress.bytesTotal))"
+        ("Copiando \(progress.current.isEmpty ? "" : "«\(progress.current)»")" as NSString).draw(
+            in: CGRect(x: panel.minX + 14, y: panel.minY + 8, width: panel.width - 130, height: 16),
+            withAttributes: [.font: Tokens.sans(12, weight: .medium), .foregroundColor: Tokens.Color.text]
+        )
+        (detail as NSString).draw(
+            at: CGPoint(x: panel.minX + 14, y: panel.minY + 26),
+            withAttributes: [.font: Tokens.mono(10.5), .foregroundColor: Tokens.Color.textSecondary]
+        )
+
+        let track = CGRect(x: panel.minX + 14, y: panel.maxY - 9, width: panel.width - 124, height: 4)
+        context.setFillColor(Tokens.Color.border.desktopCGColor)
+        context.addPath(UIBezierPath(roundedRect: track, cornerRadius: 2).cgPath)
+        context.fillPath()
+        var filled = track
+        filled.size.width = max(4, track.width * progress.fraction)
+        context.setFillColor(Tokens.Color.accent.desktopCGColor)
+        context.addPath(UIBezierPath(roundedRect: filled, cornerRadius: 2).cgPath)
+        context.fillPath()
+
+        cancelCopyFrame = CGRect(x: panel.maxX - 96, y: panel.midY - 13, width: 84, height: 26)
+        context.setStrokeColor(Tokens.Color.border.desktopCGColor)
+        context.addPath(UIBezierPath(roundedRect: cancelCopyFrame, cornerRadius: 7).cgPath)
+        context.strokePath()
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: Tokens.sans(12, weight: .medium), .foregroundColor: Tokens.Color.text,
+        ]
+        let size = ("Cancelar" as NSString).size(withAttributes: attributes)
+        ("Cancelar" as NSString).draw(
+            at: CGPoint(x: cancelCopyFrame.midX - size.width / 2, y: cancelCopyFrame.midY - size.height / 2),
+            withAttributes: attributes
+        )
     }
 
     private func startRename(_ item: FileItem) {
@@ -929,7 +1058,7 @@ final class FilesPane: UIView, Pane {
             guard let self, confirmed else { return }
             Task {
                 do {
-                    try await self.services.files.currentProvider.delete(item.path)
+                    try await self.services.files.deleteRecursively(item, from: self.services.files.currentProvider)
                     self.reload()
                 } catch {
                     self.show(error)
@@ -1019,6 +1148,102 @@ final class FilesPane: UIView, Pane {
         } else if top + height > scrollOffset + visible {
             scrollOffset = top + height - visible
         }
+    }
+
+    // MARK: - Soltar
+
+    /// Qué hay bajo un punto a efectos de soltar: una carpeta de la lista, una
+    /// ubicación de la barra lateral o la carpeta que se está viendo.
+    func dropTarget(at point: CGPoint) -> DropTarget? {
+        if let index = sidebarFrames.firstIndex(where: { $0.contains(point) }) {
+            return .location(index)
+        }
+        guard point.x >= Self.sidebarWidth, point.y > Self.headerHeight else { return nil }
+        if let index = itemIndex(at: point), items.indices.contains(index), items[index].isDirectory {
+            return .folder(index)
+        }
+        return .here
+    }
+
+    func highlightDrop(_ target: DropTarget?) {
+        guard target != dropHighlight else { return }
+        dropHighlight = target
+        setNeedsDisplay()
+    }
+
+    /// Suelta aquí algo arrastrado desde este panel o desde otro.
+    ///
+    /// Como en el Finder: **dentro del mismo origen se mueve, entre orígenes
+    /// distintos se copia**. Arrastrar del iPhone a una máquina por SFTP no
+    /// debería borrar nada del teléfono.
+    func drop(_ item: FileItem, from source: any FileProvider, at target: DropTarget) {
+        highlightDrop(nil)
+        let files = services.files
+        let (provider, directory): (any FileProvider, String) = switch target {
+        case .location(let index):
+            (files.providers[index], files.providers[index].rootPath)
+        case .folder(let index):
+            (files.currentProvider, items[index].path)
+        case .here:
+            (files.currentProvider, path)
+        }
+        let move = source === provider
+        // Soltarlo donde ya estaba no hace nada.
+        if move, (item.path as NSString).deletingLastPathComponent == directory { return }
+        runTransfer(item, from: source, to: provider, into: directory, move: move)
+    }
+
+    private func runTransfer(
+        _ item: FileItem,
+        from source: any FileProvider,
+        to target: any FileProvider,
+        into directory: String,
+        move: Bool
+    ) {
+        guard pasteTask == nil else { return }
+        copyProgress = FileService.Progress()
+        setNeedsDisplay()
+        pasteTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.services.files.transfer(
+                    item, from: source, to: target, into: directory, move: move
+                ) { [weak self] progress in
+                    self?.copyProgress = progress
+                    self?.setNeedsDisplay()
+                }
+                self.finishPaste()
+                self.reload()
+                AppServices.shared.desktopViewController?.refreshFilesPanes()
+            } catch is CancellationError {
+                self.finishPaste()
+                self.status = "Copia cancelada. Lo que ya se había copiado se queda."
+                self.reload()
+            } catch {
+                self.finishPaste()
+                self.show(error)
+            }
+        }
+    }
+
+    private func drawDropHighlight(in context: CGContext) {
+        let frame: CGRect? = switch dropHighlight {
+        case .folder(let index): rowFrames.indices.contains(index) ? rowFrames[index].insetBy(dx: 3, dy: 1) : nil
+        case .location(let index): sidebarFrames.indices.contains(index) ? sidebarFrames[index] : nil
+        case .here: CGRect(
+            x: Self.sidebarWidth + 3, y: Self.headerHeight + 3,
+            width: bounds.width - Self.sidebarWidth - 6, height: bounds.height - Self.headerHeight - 6
+        )
+        case nil: nil
+        }
+        guard let frame else { return }
+        context.setFillColor(Tokens.Color.accent.withAlphaComponent(0.12).desktopCGColor)
+        context.addPath(UIBezierPath(roundedRect: frame, cornerRadius: 7).cgPath)
+        context.fillPath()
+        context.setStrokeColor(Tokens.Color.accent.desktopCGColor)
+        context.setLineWidth(2)
+        context.addPath(UIBezierPath(roundedRect: frame.insetBy(dx: 1, dy: 1), cornerRadius: 7).cgPath)
+        context.strokePath()
     }
 
     /// Enseña la raíz de un origen. Lo usa el lanzador.

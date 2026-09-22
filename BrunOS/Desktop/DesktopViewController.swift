@@ -885,6 +885,8 @@ final class DesktopViewController: UIViewController {
         if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
         if let launcher, launcher.handlePointer(kind, at: position) { return }
 
+        if fileDrag != nil, handleFileDrag(kind, at: position) { return }
+
         // Una ventana que se está arrastrando manda sobre el dock y la barra:
         // si no, al pasar por encima se quedarían el movimiento y la ventana
         // se pararía a medio camino.
@@ -1233,6 +1235,98 @@ final class DesktopViewController: UIViewController {
         } else {
             zoomRestore[id] = frame
             workspace.setFloatingFrame(id, fullScreen ? CGRect(origin: .zero, size: logicalSize) : tileArea)
+        }
+    }
+
+    // MARK: - Arrastrar ficheros
+
+    private struct FileDrag {
+        var item: FileItem
+        var provider: any FileProvider
+        weak var source: FilesPane?
+        var ghost: UIView
+        weak var target: FilesPane?
+    }
+
+    private var fileDrag: FileDrag?
+
+    /// Un panel de Ficheros empieza a arrastrar algo. A partir de aquí el
+    /// escritorio lleva el cursor: el arrastre puede acabar en otro panel.
+    func beginFileDrag(_ item: FileItem, from provider: any FileProvider, source: FilesPane) {
+        let ghost = UILabel()
+        let icon = NSTextAttachment()
+        icon.image = UIImage(
+            systemName: item.isDirectory ? "folder.fill" : "doc.fill",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .medium)
+        )?.withTintColor(Tokens.Color.accent.resolvedColor(with: traitCollection), renderingMode: .alwaysOriginal)
+        let text = NSMutableAttributedString(attachment: icon)
+        text.append(NSAttributedString(string: "  " + item.name, attributes: [
+            .font: Tokens.sans(12.5, weight: .medium),
+            .foregroundColor: Tokens.Color.text,
+        ]))
+        ghost.attributedText = text
+        ghost.textAlignment = .center
+        ghost.backgroundColor = Tokens.Color.panelElevated.withAlphaComponent(0.95)
+        ghost.layer.cornerRadius = 8
+        ghost.layer.masksToBounds = true
+        ghost.setThemedBorder(Tokens.Color.accent.withAlphaComponent(0.6))
+        ghost.layer.borderWidth = 1
+        let size = ghost.intrinsicContentSize
+        ghost.frame.size = CGSize(width: min(size.width + 24, 320), height: 28)
+        canvas.addSubview(ghost)
+        applyContentsScale(to: ghost)
+        fileDrag = FileDrag(item: item, provider: provider, source: source, ghost: ghost, target: nil)
+        moveGhost(to: services.pointer.position)
+    }
+
+    private func moveGhost(to position: CGPoint) {
+        guard let ghost = fileDrag?.ghost else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        ghost.frame.origin = CGPoint(x: position.x + 14, y: position.y + 10)
+        canvas.bringSubviewToFront(ghost)
+        CATransaction.commit()
+    }
+
+    /// El panel de Ficheros bajo el cursor y el punto en sus coordenadas.
+    private func filesPane(at position: CGPoint) -> (FilesPane, CGPoint)? {
+        guard let hit = paneHit(at: position, frames: currentFrames()),
+              let pane = services.desktop.active.pane(hit.key) as? FilesPane
+        else { return nil }
+        return (pane, CGPoint(x: position.x - hit.value.minX, y: position.y - hit.value.minY))
+    }
+
+    private func handleFileDrag(_ kind: PointerEvent.Kind, at position: CGPoint) -> Bool {
+        guard var drag = fileDrag else { return false }
+        switch kind {
+        case .moved:
+            moveGhost(to: position)
+            let found = filesPane(at: position)
+            if drag.target !== found?.0 { drag.target?.highlightDrop(nil) }
+            found?.0.highlightDrop(found.map { $0.0.dropTarget(at: $0.1) } ?? nil)
+            drag.target = found?.0
+            fileDrag = drag
+
+        case .up:
+            drag.ghost.removeFromSuperview()
+            drag.target?.highlightDrop(nil)
+            fileDrag = nil
+            if let (pane, local) = filesPane(at: position), let target = pane.dropTarget(at: local) {
+                pane.drop(drag.item, from: drag.provider, at: target)
+            }
+
+        default:
+            break
+        }
+        return true
+    }
+
+    /// Tras mover algo entre paneles, que los dos enseñen lo que hay ahora.
+    func refreshFilesPanes() {
+        for workspace in services.desktop.workspaces {
+            for (_, pane) in workspace.panes {
+                (pane as? FilesPane)?.refresh()
+            }
         }
     }
 

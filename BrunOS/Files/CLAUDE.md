@@ -48,5 +48,17 @@ los primeros 200 KB: un log de medio giga colgaría la interfaz al maquetarlo en
   terminal, no tiene sentido darlas de alta otra vez.
 
 Copiar y pegar funciona igual dentro de un origen que entre dos distintos, **local ↔ SFTP
-incluido**: se lee de uno y se escribe en el otro. Copiar carpetas enteras todavía no está: pide
-recorrerlas y una barra de progreso de verdad.
+incluido**: se lee de uno y se escribe en el otro (`FileService.transfer`).
+
+- **Carpetas enteras**: primero se recorren para saber cuántos ficheros y bytes hay, y luego se
+  recrean carpeta a carpeta. Barra de progreso abajo del panel, con Cancelar (se mira entre
+  fichero y fichero; lo ya copiado se queda). Si el nombre existe, la copia se llama «copia»,
+  como en el Finder.
+- **Borrar una carpeta con cosas dentro** por SFTP fallaba: `rmdir` sólo borra vacías. Ahora
+  `deleteRecursively` vacía antes.
+- **Arrastrar**: a una carpeta de la lista, a una ubicación de la barra lateral o a otro panel de
+  Ficheros. El panel de origen lo empieza (más de 6 puntos con el botón pulsado) y a partir de ahí
+  el escritorio lleva un «fantasma» bajo el cursor, porque el arrastre puede acabar en otro panel.
+  **Dentro del mismo origen se mueve, entre orígenes se copia**, como en el Finder.
+- Los ficheros pasan enteros por memoria (`read` devuelve `Data`): un vídeo de varios gigas por
+  SFTP puede ser demasiado. Si da problemas, hay que pasar a lectura por trozos.

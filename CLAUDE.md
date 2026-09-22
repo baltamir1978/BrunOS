@@ -266,9 +266,10 @@ los suyos.
   13 estáticos en disco; el resto son `.madesktop`, descargas bajo demanda que puede que ni estén.
 - Sobre las imágenes va **un velo oscuro al 35 %**: los fondos de macOS son luminosos y encima de
   un cielo claro se pierden el texto de la barra y los bordes de los paneles.
-- Pendiente (Fase 4): elegir una imagen cualquiera desde el gestor de ficheros. El caso
-  `Wallpaper.file(bookmark:)` ya está previsto, con marcador de seguridad porque en iOS una carpeta
-  externa deja de ser accesible entre sesiones sin él.
+- **Imagen propia**: botón derecho sobre una imagen en Ficheros › «Usar como fondo de escritorio».
+  Se **copia** a Application Support (`Wallpaper.custom`), reducida a 3840 px. El marcador de
+  seguridad que se había previsto (`Wallpaper.file`) no servía: con una foto del propio
+  contenedor el permiso falla, y por SFTP no hay marcador posible.
 
 **El dock** sustituye a las tres etiquetas de espacios de la barra superior. El motivo es de uso:
 `1 web · 2 ssh · 3 files` en una esquina se lee como un rótulo de estado, no como algo pulsable, y
@@ -277,26 +278,15 @@ movimiento más incómodo que hay.
 
 ## Pendientes
 
-Pequeños, de fases anteriores:
-
-- **Autorrelleno de contraseñas**: el de Safari no está al alcance de una app (el llavero de
-  Contraseñas sólo se ofrece en el teclado del sistema sobre un campo nativo, y en el monitor no
-  hay ni una cosa ni la otra). Dos caminos posibles, sin decidir: un campo nativo en el iPhone
-  que pida la contraseña a iOS y la inyecte en la página, o un gestor propio en el Keychain que
-  guarde al enviar el formulario (`webView(_:willSubmitForm:submissionHandler:)`, nuevo en iOS
-  27, confirmado en el SDK).
-
-Del gestor de ficheros (Fase 4):
-
-- **Copiar carpetas enteras**, con una barra de progreso de verdad.
-- **Arrastrar entre ubicaciones.**
-- **Elegir el fondo desde el gestor de ficheros** (el caso `Wallpaper.file` ya está previsto).
-
-Apuntados por Bruno para el final:
-
 - **Claves ed25519** para SSH.
 - **`Tools/testflight.sh`**: subir con la clave de la API de App Store Connect e incremento
   automático de build. Hasta entonces, las subidas van a mano desde Xcode.
+- **Autorrelleno de contraseñas**, lo último por decisión de Bruno. El de Safari no está al
+  alcance de una app (el llavero de Contraseñas sólo se ofrece en el teclado del sistema sobre un
+  campo nativo, y en el monitor no hay ni una cosa ni la otra). Dos caminos posibles, sin decidir:
+  un campo nativo en el iPhone que pida la contraseña a iOS y la inyecte en la página, o un
+  gestor propio en el Keychain que guarde al enviar el formulario
+  (`webView(_:willSubmitForm:submissionHandler:)`, nuevo en iOS 27, confirmado en el SDK).
 
 ## El bloqueo de arranque del singleton
 

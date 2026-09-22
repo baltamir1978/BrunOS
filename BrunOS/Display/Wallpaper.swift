@@ -25,10 +25,16 @@ enum Wallpaper: Codable, Equatable, Sendable {
     case gradient(Gradient)
     /// Nombre del fichero dentro de `Resources/Wallpapers`.
     case image(String)
-    /// Imagen elegida desde el gestor de ficheros (Fase 4). Se guarda un
-    /// marcador de seguridad, no una ruta: las carpetas externas de iOS no
-    /// siguen siendo accesibles entre sesiones sin él.
+    /// Previsto para una imagen de fuera por marcador de seguridad. **No se
+    /// usa**: se queda para poder leer lo guardado por versiones anteriores.
+    /// Ver `custom`.
     case file(bookmark: Data)
+    /// Imagen elegida desde el gestor de ficheros, **copiada** a la carpeta de
+    /// la app. El marcador que se había previsto no servía: con una foto del
+    /// propio contenedor el permiso de seguridad falla, y por SFTP no hay
+    /// marcador posible. Una copia vale venga de donde venga, y no depende de
+    /// que el USB siga enchufado.
+    case custom(String)
 
     /// Degradados propios.
     ///
@@ -117,7 +123,7 @@ enum Wallpaper: Codable, Equatable, Sendable {
         case .solid: "Liso"
         case .gradient(let value): value.label
         case .image(let name): Self.prettyName(for: name)
-        case .file: "Imagen propia"
+        case .file, .custom: "Imagen propia"
         }
     }
 
@@ -150,6 +156,7 @@ final class WallpaperStore {
         var result: [Wallpaper] = Wallpaper.Gradient.allCases.map { .gradient($0) }
         result.append(.solid)
         result += imageNames.map { .image($0) }
+        if case .custom = current { result.append(current) }
         return result
     }
 
@@ -226,6 +233,12 @@ final class WallpaperStore {
                 return
             }
             Self.paint(current, image: image, into: layer, bounds: bounds, style: DesktopTheme.style)
+        case .custom(let name):
+            guard let image = loadCustomImage(named: name) else {
+                fallBackToGradient(layer: layer, bounds: bounds)
+                return
+            }
+            Self.paint(current, image: image, into: layer, bounds: bounds, style: DesktopTheme.style)
         default:
             Self.paint(current, image: nil, into: layer, bounds: bounds, style: DesktopTheme.style)
         }
@@ -268,7 +281,7 @@ final class WallpaperStore {
             glow.opacity = gradient.glowOpacity
             layer.addSublayer(glow)
 
-        case .image, .file:
+        case .image, .file, .custom:
             guard let image else { return }
             addImageLayers(image, to: layer, bounds: bounds, style: style)
         }
@@ -290,6 +303,10 @@ final class WallpaperStore {
         if let cached = thumbnails[key] { return cached }
 
         var image: UIImage?
+        if case .custom(let name) = wallpaper {
+            image = UIImage(contentsOfFile: Self.customDirectory.appendingPathComponent(name).path)?
+                .preparingThumbnail(of: CGSize(width: size.width * 3, height: size.height * 3))
+        }
         if case .image(let name) = wallpaper,
            let url = Bundle.main.url(
                forResource: (name as NSString).deletingPathExtension,
@@ -355,6 +372,52 @@ final class WallpaperStore {
         let dimming: CGFloat = style == .dark ? 0.35 : 0.08
         veil.backgroundColor = UIColor.black.withAlphaComponent(dimming).cgColor
         layer.addSublayer(veil)
+    }
+
+    // MARK: - Imagen propia
+
+    /// Donde se guarda la copia de la imagen elegida.
+    static var customDirectory: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let directory = base.appendingPathComponent("Wallpapers", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    /// Pone de fondo una imagen cualquiera: la copia, reducida a 3840 px por el
+    /// lado largo —más no se ve en ningún monitor y sí se nota en memoria—, y
+    /// borra la que hubiera antes.
+    func setCustomImage(from url: URL) throws {
+        guard let original = UIImage(contentsOfFile: url.path) else {
+            throw FileError.failed("No se puede leer la imagen.")
+        }
+        let longest = max(original.size.width * original.scale, original.size.height * original.scale)
+        let factor = min(1, 3840 / max(longest, 1))
+        let target = CGSize(
+            width: original.size.width * original.scale * factor,
+            height: original.size.height * original.scale * factor
+        )
+        guard let resized = original.preparingThumbnail(of: target) ?? Optional(original),
+              let data = resized.jpegData(compressionQuality: 0.9)
+        else { throw FileError.failed("No se puede preparar la imagen.") }
+
+        let directory = Self.customDirectory
+        let name = UUID().uuidString + ".jpg"
+        try data.write(to: directory.appendingPathComponent(name), options: .atomic)
+
+        if case .custom(let previous) = current {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(previous))
+        }
+        thumbnails.removeAll()
+        current = .custom(name)
+    }
+
+    private func loadCustomImage(named name: String) -> UIImage? {
+        if let cachedImage, cachedImage.name == name { return cachedImage.image }
+        guard let image = UIImage(contentsOfFile: Self.customDirectory.appendingPathComponent(name).path)
+        else { return nil }
+        cachedImage = (name, image)
+        return image
     }
 
     private func loadImage(named name: String) -> UIImage? {
