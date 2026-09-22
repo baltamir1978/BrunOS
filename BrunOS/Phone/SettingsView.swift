@@ -36,6 +36,12 @@ struct SettingsView: View {
                 }
             }
             .onAppear(perform: loadProfile)
+            // El puntero moviéndose por los ajustes es prueba de que
+            // AssistiveTouch funciona, aunque iOS diga lo contrario: sin esto,
+            // abriendo los ajustes nada más arrancar salía «no detectado».
+            .onContinuousHover { _ in
+                services.assistiveTouch.isPointerWorking = true
+            }
         }
         .tint(.brunosAccent)
     }
@@ -221,7 +227,7 @@ struct SettingsView: View {
             // arreglan de forma muy distinta.
             LabeledContent(
                 "AssistiveTouch",
-                value: services.assistiveTouch.isRunning ? "activo" : "INACTIVO"
+                value: services.assistiveTouch.statusLabel
             )
             .font(.brunosMono(14))
 

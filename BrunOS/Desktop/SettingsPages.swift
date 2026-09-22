@@ -180,7 +180,7 @@ enum SettingsPages {
                 SettingsGroup(rows: [
                     SettingsRow("BrunOS", .value(AppInfo.version)),
                     SettingsRow("AssistiveTouch", .value(assistive.statusLabel)),
-                    SettingsRow("Ratón", .value(assistive.hasMouse ? "conectado" : "no detectado")),
+                    SettingsRow("Ratón", .value(assistive.mouseDetected ? "conectado" : "no detectado")),
                 ]),
                 SettingsGroup(
                     footer: "Los ajustes de cada panel están en la rueda de su propia barra: "

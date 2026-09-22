@@ -90,9 +90,16 @@ final class AssistiveTouchMonitor {
     /// cursor moviéndose delante. Si llegan eventos del ratón, está activo
     /// digan lo que digan.
     var statusLabel: String {
-        if isPointerWorking { return "activo" }
-        return isRunning ? "activo" : "no detectado"
+        isActive ? "activo" : "no detectado"
     }
+
+    /// Lo que se enseña como «AssistiveTouch activo», en todas partes. Ver
+    /// `statusLabel`: si el ratón mueve el puntero, está activo.
+    var isActive: Bool { isPointerWorking || isRunning }
+
+    /// Si hay ratón. Con AssistiveTouch, `GCMouse` a menudo no ve ninguno
+    /// aunque se esté usando: el puntero que se mueve cuenta igual.
+    var mouseDetected: Bool { hasMouse || isPointerWorking }
 
     /// Cuándo merece la pena dar la lata con el aviso.
     ///
@@ -116,6 +123,16 @@ final class AssistiveTouchMonitor {
             MainActor.assumeIsolated {
                 self?.isRunning = UIAccessibility.isAssistiveTouchRunning
             }
+        })
+
+        // Al volver a la app —por ejemplo, desde los Ajustes de iOS, donde se
+        // acaba de encender— la notificación de cambio no siempre llega.
+        observers.append(center.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
         })
 
         for name: Notification.Name in [.GCMouseDidConnect, .GCMouseDidDisconnect] {

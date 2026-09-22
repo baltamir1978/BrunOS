@@ -35,6 +35,10 @@ struct AssistiveTouchGuideView: View {
             toolsSection
             troubleshootingSection
         }
+        // El puntero moviéndose por aquí es prueba de que funciona.
+        .onContinuousHover { _ in
+            services.assistiveTouch.isPointerWorking = true
+        }
         .navigationTitle("AssistiveTouch")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -48,7 +52,7 @@ struct AssistiveTouchGuideView: View {
     // MARK: - Estado
 
     private var isConfigured: Bool {
-        services.assistiveTouch.isRunning
+        services.assistiveTouch.isActive
             && AssistiveTouchStep.allCases.allSatisfy { steps[$0] == true }
     }
 
@@ -56,10 +60,10 @@ struct AssistiveTouchGuideView: View {
         Section {
             HStack(spacing: 10) {
                 Circle()
-                    .fill(services.assistiveTouch.isRunning ? Color.brunosAccentAlt : Color.brunosAccent)
+                    .fill(services.assistiveTouch.isActive ? Color.brunosAccentAlt : Color.brunosAccent)
                     .frame(width: 10, height: 10)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(services.assistiveTouch.isRunning ? "Activo" : "Inactivo")
+                    Text(services.assistiveTouch.isActive ? "Activo" : "Inactivo")
                         .font(.brunosSans(16, weight: .semibold))
                     Text(isConfigured
                          ? "Configurado: se encenderá solo al abrir BrunOS."

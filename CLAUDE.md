@@ -52,7 +52,7 @@ Lo pidió Bruno el 22-sep-2026: **cada bloque que compile sin errores termina en
 subida a TestFlight (`./Tools/testflight.sh`) y README y memoria al día**, sin preguntar en cada
 paso. Antes del push, revisar el diff por si se cuela algo sensible: el repositorio es público.
 
-Última build subida: **0.1.0 (2609221525)**, 22-sep-2026, con el dock estilo macOS.
+Última build subida: ver `git log` y TestFlight; se sube una por bloque.
 
 ## Dónde está el resto
 
@@ -194,7 +194,13 @@ presentado (salvo el selector de carpetas, que se pide desde el monitor) y se re
 respondedor para el teclado.
 
 **AssistiveTouch salía «inactivo» estando activo**: `isAssistiveTouchRunning` no es fiable con
-AssistiveTouch puesto sólo para el puntero. Si llegan eventos del ratón, se da por activo.
+AssistiveTouch puesto sólo para el puntero, y `GCMouse` tampoco ve el ratón en ese caso. **Un solo
+criterio en todas partes**: `AssistiveTouchMonitor.isActive` y `mouseDetected`, que dan por bueno
+lo que diga iOS **o** que lleguen eventos del puntero. Nunca mirar `isRunning` o `hasMouse` a pelo
+en la interfaz. Los eventos se detectan también sobre la hoja de ajustes y el asistente
+(`onContinuousHover`): el puntero no pasa por la vista raíz mientras hay una hoja delante, y
+abriendo los ajustes nada más arrancar salía «no detectado». El estado se refresca al volver a
+la app.
 
 ### Los ajustes salían vacíos: dibujar debajo de la tarjeta
 
