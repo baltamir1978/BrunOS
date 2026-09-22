@@ -96,7 +96,7 @@ final class MouseRouter: MouseSourceDelegate {
         }
         // Que el ratón entregue eventos manda sobre lo que diga el sistema de
         // AssistiveTouch: si funciona, sobra el aviso.
-        AppServices.shared.assistiveTouch.isPointerWorking = true
+        AppServices.shared.assistiveTouch.notePointerEvent()
     }
 
     /// Los botones **pasan siempre, venga la fuente que venga**.

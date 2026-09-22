@@ -80,7 +80,40 @@ final class AssistiveTouchMonitor {
     /// Si el ratón está entregando eventos a la app, se sepa por qué o no.
     ///
     /// Lo pone `MouseRouter` en cuanto llega el primero.
-    var isPointerWorking = false
+    private(set) var isPointerWorking = false
+
+    /// Si el ratón ha funcionado alguna vez en esta sesión. Basta para saber
+    /// que AssistiveTouch está encendido aunque luego se desconecte el ratón.
+    private(set) var pointerEverWorked = false
+
+    @ObservationIgnored private var lastPointerEvent = Date.distantPast
+
+    /// Llega un evento del ratón.
+    ///
+    /// **Sólo se toca lo observado si cambia**: esto se llama en cada
+    /// movimiento, y asignar aunque sea el mismo valor avisa a la interfaz del
+    /// iPhone y la repinta a cada fotograma.
+    func notePointerEvent() {
+        lastPointerEvent = Date()
+        if !isPointerWorking { isPointerWorking = true }
+        if !pointerEverWorked { pointerEverWorked = true }
+    }
+
+    /// El puntero ha desaparecido, o eso parece.
+    ///
+    /// Al desconectar el ratón, el puntero de AssistiveTouch se va de la
+    /// pantalla y el «hover» termina. Pero también termina un instante con cada
+    /// clic, que para iOS es un toque. Así que se espera: si en tres segundos
+    /// no ha vuelto a llegar nada, el ratón ya no está. Antes nunca se
+    /// desmarcaba y «ratón conectado» se quedaba puesto para siempre.
+    func pointerMaybeGone() {
+        let mark = Date()
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, self.lastPointerEvent < mark, self.isPointerWorking else { return }
+            self.isPointerWorking = false
+        }
+    }
 
     /// Lo que se enseña en Ajustes.
     ///
@@ -95,7 +128,7 @@ final class AssistiveTouchMonitor {
 
     /// Lo que se enseña como «AssistiveTouch activo», en todas partes. Ver
     /// `statusLabel`: si el ratón mueve el puntero, está activo.
-    var isActive: Bool { isPointerWorking || isRunning }
+    var isActive: Bool { pointerEverWorked || isRunning }
 
     /// Si hay ratón. Con AssistiveTouch, `GCMouse` a menudo no ve ninguno
     /// aunque se esté usando: el puntero que se mueve cuenta igual.
@@ -139,6 +172,7 @@ final class AssistiveTouchMonitor {
             observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
                     self?.hasMouse = GCMouse.current != nil
+                    self?.pointerMaybeGone()
                 }
             })
         }

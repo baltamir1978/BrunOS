@@ -222,6 +222,7 @@ final class IndirectPointerSource: NSObject, MouseSource, UIGestureRecognizerDel
             emitTranslation(to: location)
         case .ended, .cancelled:
             lastLocation = nil
+            AppServices.shared.assistiveTouch.pointerMaybeGone()
         default:
             break
         }

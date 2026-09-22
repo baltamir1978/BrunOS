@@ -37,7 +37,7 @@ struct AssistiveTouchGuideView: View {
         }
         // El puntero moviéndose por aquí es prueba de que funciona.
         .onContinuousHover { _ in
-            services.assistiveTouch.isPointerWorking = true
+            services.assistiveTouch.notePointerEvent()
         }
         .navigationTitle("AssistiveTouch")
         .navigationBarTitleDisplayMode(.inline)

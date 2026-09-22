@@ -164,6 +164,10 @@ final class TrackpadUIView: UIView {
     private func releaseMouseButtonIfNeeded() {
         guard isMouseButton else { return }
         isMouseButton = false
+        // El clic es del ratón: cuenta como señal de vida. Con cada clic el
+        // «hover» termina un instante y, sin esto, un ratón quieto después de
+        // hacer clic se daba por desconectado a los tres segundos.
+        services.assistiveTouch.notePointerEvent()
         services.desktopViewController?.deliverPointer(.up(button: .left), modifiers: [])
     }
 

@@ -40,7 +40,7 @@ struct SettingsView: View {
             // AssistiveTouch funciona, aunque iOS diga lo contrario: sin esto,
             // abriendo los ajustes nada más arrancar salía «no detectado».
             .onContinuousHover { _ in
-                services.assistiveTouch.isPointerWorking = true
+                services.assistiveTouch.notePointerEvent()
             }
         }
         .tint(.brunosAccent)

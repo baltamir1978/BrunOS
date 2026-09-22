@@ -131,7 +131,7 @@ struct PhoneRootView: View {
                 )
                 statusChip(
                     "ratón",
-                    label: services.assistiveTouch.mouseDetected ? "conectado" : "sin ratón",
+                    label: services.assistiveTouch.mouseDetected ? "ratón conectado" : "sin ratón",
                     active: services.assistiveTouch.mouseDetected
                 )
             }

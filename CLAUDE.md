@@ -222,6 +222,14 @@ en la interfaz. Los eventos se detectan también sobre la hoja de ajustes y el a
 abriendo los ajustes nada más arrancar salía «no detectado». El estado se refresca al volver a
 la app.
 
+**«Ratón conectado» no se desmarcaba nunca**: `isPointerWorking` se ponía a `true` con el primer
+evento y ahí se quedaba. Ahora `pointerMaybeGone()` lo baja si, tres segundos después de que
+termine el «hover» del puntero (que es lo que pasa al desconectar el ratón), no ha llegado nada;
+los tres segundos son porque el hover también termina un instante con cada clic. AssistiveTouch
+activo usa otro dato, `pointerEverWorked`, que no se baja: desconectar el ratón no lo apaga. Y
+`notePointerEvent()` sólo asigna lo observado si cambia: se llama en cada movimiento, y asignar
+aunque fuera el mismo valor repintaba la interfaz del iPhone a cada fotograma.
+
 ### Los ajustes salían vacíos: dibujar debajo de la tarjeta
 
 Síntoma: en los ajustes del monitor sólo se veían la marca y el aspa. **Las filas se dibujaban
