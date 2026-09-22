@@ -183,6 +183,7 @@ extension PhoneRootViewController: MouseSourceDelegate {
 
     func mouseSource(_ source: any MouseSource, didMove delta: MouseDelta) {
         if let position = delta.position {
+            guard !services.pointer.isHoldingButton else { return }
             services.pointer.move(toNormalized: position)
             services.desktopViewController?.deliverPointer(.moved, modifiers: [])
         } else if delta.translation != .zero {

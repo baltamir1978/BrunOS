@@ -186,10 +186,14 @@ Arrastrar no funcionaba en ningún sitio. Con AssistiveTouch, el botón izquierd
 toque en la pantalla del iPhone** donde esté el puntero, y mantenerlo mientras se mueve es un dedo
 que se desliza. El trackpad a pantalla completa descartaba ese movimiento (para no mover el cursor
 el doble) y sólo el clic suelto llegaba, por el reconocedor de toques. Ahora, con ratón y en modo
-mando, `TrackpadUIView` trata ese toque como el ratón: al tocar, cursor a ese punto y botón
-pulsado; al mover, arrastre; al soltar, botón suelto. Funciona porque el cursor va en absoluto y
-el toque cae justo donde está. Un dedo de verdad, con ratón conectado, hace lo mismo: clic en ese
-punto del monitor.
+mando, `TrackpadUIView` trata ese toque como el ratón: al tocar, botón pulsado **donde ya está el
+cursor**; al mover, el cursor se desplaza lo mismo que el toque, escalado como el puntero; al
+soltar, botón suelto.
+
+**Lo que no hay que volver a hacer**: una primera versión colocaba el cursor en el punto del toque,
+suponiendo que caía justo bajo el puntero. No es así —Bruno lo vio en el iPhone—: cada clic hacía
+saltar el cursor y el arrastre era imposible. **La posición del toque de AssistiveTouch no es
+fiable; su desplazamiento, sí.**
 
 ### Al desconectar, el iPhone se quedaba en modo mando
 

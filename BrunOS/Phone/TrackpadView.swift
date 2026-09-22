@@ -86,26 +86,31 @@ final class TrackpadUIView: UIView {
     ///
     /// Antes ese toque se trataba como un dedo sobre el trackpad y se
     /// descartaba el movimiento, para no mover el cursor el doble: el clic
-    /// suelto funcionaba, pero **arrastrar no hacía nada**. Como el cursor del
-    /// monitor sigue en absoluto al puntero del iPhone (`IndirectPointerSource`),
-    /// ese toque cae exactamente donde está el cursor, y se puede tratar como
-    /// el ratón mismo: tocar es pulsar, mover es arrastrar y soltar es soltar.
+    /// suelto funcionaba, pero **arrastrar no hacía nada**. Ahora se trata
+    /// como el ratón mismo: tocar es pulsar, mover es arrastrar y soltar es
+    /// soltar.
+    ///
+    /// **El cursor no se coloca en el punto del toque**, sólo se desplaza lo
+    /// que se desplace el toque. Una primera versión lo llevaba al punto del
+    /// toque, suponiendo que caía justo bajo el puntero, y no es así: cada clic
+    /// hacía saltar el cursor y arrastrar era imposible. El desplazamiento se
+    /// escala como el del puntero, así que al soltar el cursor queda donde el
+    /// puntero del iPhone lo vuelve a poner.
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         let all = event?.allTouches ?? touches
         lastPoint = centroid(of: all)
         isMouseButton = isFullScreen && services.assistiveTouch.isPointerWorking && all.count == 1
-        guard isMouseButton, let touch = all.first else { return }
-        moveCursor(to: touch.location(in: self))
+        guard isMouseButton else { return }
+        services.pointer.isHoldingButton = true
         services.desktopViewController?.deliverPointer(.down(button: .left), modifiers: [])
     }
 
-    /// El cursor, al punto del toque, que es donde está el puntero del iPhone.
-    private func moveCursor(to point: CGPoint) {
-        guard bounds.width > 0, bounds.height > 0 else { return }
-        services.pointer.move(toNormalized: CGPoint(
-            x: min(max(point.x / bounds.width, 0), 1),
-            y: min(max(point.y / bounds.height, 0), 1)
-        ))
+    /// Cuánto se mueve el cursor del monitor por cada punto del iPhone: lo mismo
+    /// que con el puntero, cuyo recorrido es la pantalla entera.
+    private var phoneToDesktop: CGSize {
+        let desktop = services.pointer.bounds
+        guard bounds.width > 0, bounds.height > 0, desktop.width > 0 else { return CGSize(width: 1, height: 1) }
+        return CGSize(width: desktop.width / bounds.width, height: desktop.height / bounds.height)
     }
 
     override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
@@ -119,12 +124,17 @@ final class TrackpadUIView: UIView {
         let point = centroid(of: all)
         defer { lastPoint = point }
 
-        if isMouseButton, all.count == 1, let touch = all.first {
-            moveCursor(to: touch.location(in: self))
+        guard let previous = lastPoint else { return }
+
+        if isMouseButton, all.count == 1 {
+            let ratio = phoneToDesktop
+            services.pointer.move(toDesktopDelta: CGVector(
+                dx: (point.x - previous.x) * ratio.width,
+                dy: (point.y - previous.y) * ratio.height
+            ))
             services.desktopViewController?.deliverPointer(.moved, modifiers: [])
             return
         }
-        guard let previous = lastPoint else { return }
 
         let delta = CGVector(
             dx: (point.x - previous.x) * gain,
@@ -164,6 +174,7 @@ final class TrackpadUIView: UIView {
     private func releaseMouseButtonIfNeeded() {
         guard isMouseButton else { return }
         isMouseButton = false
+        services.pointer.isHoldingButton = false
         // El clic es del ratón: cuenta como señal de vida. Con cada clic el
         // «hover» termina un instante y, sin esto, un ratón quieto después de
         // hacer clic se daba por desconectado a los tres segundos.

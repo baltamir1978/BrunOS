@@ -222,6 +222,18 @@ final class PointerController {
         pendingPosition = position
     }
 
+    /// El botón del ratón está pulsado sobre el trackpad del iPhone. Mientras
+    /// tanto, la posición del puntero no se aplica: si iOS la siguiera
+    /// mandando, el cursor recibiría dos movimientos a la vez y daría saltos.
+    var isHoldingButton = false
+
+    /// Desplaza el cursor tal cual, sin sensibilidad ni aceleración: para
+    /// seguir un movimiento que ya viene escalado al escritorio.
+    func move(toDesktopDelta delta: CGVector) {
+        position = clamp(CGPoint(x: position.x + delta.dx, y: position.y + delta.dy))
+        pendingPosition = position
+    }
+
     /// Curva de aceleración: 1× parado y hasta 3,5× a toda velocidad.
     ///
     /// El umbral está en puntos por evento, no por segundo, porque los eventos
