@@ -87,7 +87,8 @@ la flecha mueve el cursor.
   los `target=_blank` también.
 - **Vídeo**: `allowsInlineMediaPlayback` (si no, el vídeo se va al reproductor del sistema en el
   iPhone, que está apagado), sin exigir gesto para reproducir (los clics sintéticos no cuentan
-  como gesto) y `isElementFullscreenEnabled`. **Plex y compañía sin probar.**
+  como gesto) y `isElementFullscreenEnabled`. **YouTube funciona en el iPhone** (lo confirmó Bruno
+  el 22-sep-2026); Plex, que va por el mismo camino, sin probar.
 
 ### Contraseñas: las de iOS, a través del iPhone (22-sep-2026)
 
