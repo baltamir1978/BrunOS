@@ -22,18 +22,20 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 
 | | Estado |
 | --- | --- |
-| **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | ✅ funciona |
-| **Ratón y teclado** Bluetooth, cursor propio y atajos de ventanas | ✅ funciona |
-| **Escritorio** en mosaico estilo i3, con 3 espacios de trabajo y dock | ✅ funciona |
-| **Mando en el iPhone**: trackpad, teclado, dictado y ajustes | ✅ funciona |
-| **Fondos de escritorio**, propios o los de macOS | ✅ funciona |
-| **Terminal SSH** por Tailscale o contraseña, con tmux, selección y `known_hosts` | 🚧 escrito, sin probar contra un servidor |
-| **Navegador** con pestañas y bloqueo de anuncios | 🚧 a medias |
-| **Gestor de ficheros**: iPhone, iCloud Drive, USB y SFTP | ⬜ sin empezar |
+| **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | ✅ |
+| **Ratón y teclado** Bluetooth, cursor propio y atajos de ventanas | ✅ |
+| **Escritorio** en mosaico estilo i3, con 3 espacios, dock y fondos | ✅ |
+| **Terminal SSH** por Tailscale o contraseña, con tmux, selección y `known_hosts` | ✅ |
+| **Navegador** con pestañas, bloqueo de anuncios y descargas | 🚧 escrito, a falta de rodaje |
+| **Ficheros**: iPhone, iCloud, USB y SFTP, con vista previa | 🚧 escrito, a falta de rodaje |
 
-Probado con un monitor de verdad: la pantalla externa, el escalado, el ratón, el teclado y el
-escritorio funcionan. **El terminal SSH está escrito entero pero no se ha ejecutado ni una
-conexión**, así que trátalo como no verificado.
+El escritorio, el ratón, el teclado y la conexión SSH están probados con un monitor y una máquina
+de verdad. El navegador y el gestor de ficheros están enteros pero recién hechos.
+
+**Con el monitor conectado, el iPhone se apaga** y queda como superficie táctil: todo —ajustes
+incluidos— se maneja desde el monitor. No es estético, es necesario: con AssistiveTouch, el botón
+izquierdo del ratón se convierte en un toque sobre la pantalla del teléfono, así que cualquier
+control que hubiera allí se llevaría los clics que iban al escritorio.
 
 ## Requisitos
 
