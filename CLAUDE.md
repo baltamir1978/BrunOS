@@ -321,14 +321,34 @@ movimiento más incómodo que hay.
 - **Elegir el fondo desde el gestor de ficheros** (el caso `Wallpaper.file` ya está previsto).
 - **Descargas en el navegador**, a una carpeta visible desde el gestor de ficheros.
 
-## Fase 4 — notas antes de empezar
+## Fase 4 — Ficheros
 
-- **Interfaz por decidir**: Finder o Total Commander de dos paneles. Sin decidir.
-- **Vista previa con la barra espaciadora**, como en macOS. **Es viable**: `QLPreviewController`
-  existe en iOS y cubre PDF, imágenes, GIF animado, vídeo y Office. Lo que hay que comprobar es que
-  se deje incrustar **dentro de un panel del escritorio** en vez de presentarse como modal, porque
-  en la pantalla externa no hay presentaciones modales que valgan. Si no se dejara, la alternativa
-  es un visor propio con `AVPlayerLayer` y `PDFKit`, que cubre casi todo salvo Office.
+**Empezada: local y vista previa.** Bruno eligió interfaz estilo Finder (barra lateral de
+ubicaciones más lista) en lugar de los dos paneles de Total Commander.
+
+- `FileProvider`: el protocolo que cumplirán por igual el iPhone, iCloud, el USB y SFTP. El panel
+  no sabe con cuál habla, que es lo que permitirá copiar de uno a otro sin casos especiales.
+- `LocalProvider`: el contenedor de la app, con la carpeta `Descargas` creada de antemano —una
+  carpeta que aparece sola al usar el navegador desconcierta más que ayuda.
+- `FilesPane`: **sin `UITableView` ni `UIButton`**, como todo lo de la pantalla externa. Flechas
+  para moverse, Intro para abrir, Retroceso para subir, espaciadora para la vista previa.
+- **Un clic selecciona, no abre.** El doble clic con un cursor sintético es poco fiable: depende de
+  que dos eventos lleguen lo bastante seguidos, y los nuestros pasan por AssistiveTouch.
+
+### La vista previa NO usa QuickLook
+
+Estaba previsto usar `QLPreviewController`, pero **está pensado para presentarse como pantalla
+modal y espera toques del sistema**; en la pantalla externa no hay ni una cosa ni la otra. Se
+escribió un visor propio (`QuickLookView`) que se dibuja como una vista más del escritorio y recibe
+el ratón por donde lo recibe todo lo demás.
+
+Cubre imágenes, **GIF animados** —hay que animarlos cuadro a cuadro con `ImageIO`, porque `UIImage`
+sólo se queda con el primero—, vídeo y audio con `AVPlayerLayer`, PDF con `PDFKit` y texto. Lo que
+no entiende lo dice, en vez de enseñar un rectángulo vacío. De los ficheros de texto se leen sólo
+los primeros 200 KB: un log de medio giga colgaría la interfaz al maquetarlo entero.
+
+**Pendiente**: iCloud, USB y SFTP; copiar, pegar, renombrar, borrar y crear carpeta; menú
+contextual; y arrastrar entre ubicaciones.
 
 ## Cómo se compila
 

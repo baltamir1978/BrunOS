@@ -184,6 +184,7 @@ final class DesktopViewController: UIViewController {
 
         settingsWindow?.frame = CGRect(origin: .zero, size: logicalSize)
         hostEditor?.frame = CGRect(origin: .zero, size: logicalSize)
+        quickLook?.frame = CGRect(origin: .zero, size: logicalSize)
         launcher?.frame = CGRect(origin: .zero, size: logicalSize)
 
         dock.frame = CGRect(
@@ -391,7 +392,7 @@ final class DesktopViewController: UIViewController {
         let pane: any Pane = switch kind {
         case .terminal: TerminalPane(frame: .zero)
         case .browser: BrowserPane(frame: .zero)
-        case .files: PlaceholderPane(kind: kind)
+        case .files: FilesPane(frame: .zero)
         }
 
         workspace.add(pane, id: id, focusedFrame: focusedFrame)
@@ -447,6 +448,20 @@ final class DesktopViewController: UIViewController {
         }
         canvas.addSubview(window)
         settingsWindow = window
+    }
+
+    private var quickLook: QuickLookView?
+
+    /// Vista previa con la barra espaciadora, como en el Finder.
+    func presentQuickLook(for item: FileItem) {
+        quickLook?.removeFromSuperview()
+        let view = QuickLookView(item: item, frame: CGRect(origin: .zero, size: logicalSize))
+        view.onDismiss = { [weak self] in
+            self?.quickLook?.removeFromSuperview()
+            self?.quickLook = nil
+        }
+        canvas.addSubview(view)
+        quickLook = view
     }
 
     private var hostEditor: HostEditorWindow?
@@ -555,7 +570,8 @@ final class DesktopViewController: UIViewController {
         let position = services.pointer.position
         let frames = currentFrames()
 
-        // Lo modal manda, y el editor va por encima de los ajustes.
+        // Lo modal manda, y la vista previa va por encima de todo.
+        if let quickLook, quickLook.handlePointer(kind, at: position) { return }
         if let hostEditor, hostEditor.handlePointer(kind, at: position) { return }
         if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
         if let launcher, launcher.handlePointer(kind, at: position) { return }
@@ -689,6 +705,7 @@ final class DesktopViewController: UIViewController {
 
     /// Entrega una tecla al panel con foco.
     func deliverKey(_ event: KeyEvent) {
+        if let quickLook, quickLook.handleKey(event) { return }
         if let hostEditor, hostEditor.handleKey(event) { return }
         if let settingsWindow, settingsWindow.handleKey(event) { return }
         if launcherHandlesKey(event) { return }

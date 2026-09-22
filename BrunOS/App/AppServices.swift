@@ -26,6 +26,7 @@ final class AppServices {
     let tailscale = TailscaleMonitor()
     let wallpaper = WallpaperStore()
     let blocker = ContentBlocker()
+    let files = FileService()
 
     /// El escritorio de la pantalla externa, si está conectada.
     weak var desktopViewController: DesktopViewController?
