@@ -517,6 +517,9 @@ final class BrowserTab: NSObject {
 extension BrowserTab: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if let url = webView.url {
+            AppServices.shared.history.record(url: url, title: webView.title)
+        }
         if isSuspended == false, suspendedScroll != .zero {
             webView.scrollView.setContentOffset(suspendedScroll, animated: false)
             suspendedScroll = .zero

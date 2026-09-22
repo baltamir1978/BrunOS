@@ -85,7 +85,9 @@ fiable. El terminal sigue oscuro en los dos modos.
 **Lo que obliga a cualquier vista nueva**: un `CGColor` no se entera del cambio. Lo que se pinte
 en `draw(_:)` se repinta solo (el escritorio hace `setNeedsDisplay` en todo el árbol), pero **lo
 que se asigne a una capa** —`borderColor`, `backgroundColor` de un `CALayer`— hay que volver a
-asignarlo en `DesktopViewController.applyTheme()`. Los paneles lo hacen ya por `setFocused`.
+asignarlo en `DesktopViewController.applyTheme()`. Los paneles lo hacen ya por `setFocused`, y
+**para un borde fijo basta `view.setThemedBorder(color)`**, que apunta el color dinámico y lo
+vuelve a resolver solo en cada cambio de modo.
 
 ### Ajustes: los globales en el dock, los de cada panel en su barra (22-sep-2026)
 
@@ -111,6 +113,13 @@ pensando ya en las ventanas flotantes: **rojo cierra, amarillo al dock, verde ma
 pantalla completa). Lo minimizado sale del mosaico pero sigue vivo —la sesión SSH no se corta— y
 vuelve a su sitio al pulsar su icono en el dock, entre el separador y los ajustes. Cmd+Intro
 sigue maximizando dentro del mosaico.
+
+### El lanzador (Cmd+P)
+
+Busca en todo a la vez: máquinas SSH, ubicaciones de Ficheros, marcadores, historial del navegador
+y acciones (panel nuevo, pantalla completa, ajustes). Lo escrito se ofrece además como dirección o
+como búsqueda web con el buscador elegido. El historial (`BrowserHistory`) guarda una entrada por
+dirección, como mucho 500, en Application Support; los marcadores se ponen con el botón derecho.
 
 ### Buscar (Cmd+F)
 
@@ -276,10 +285,6 @@ Pequeños, de fases anteriores:
   que pida la contraseña a iOS y la inyecte en la página, o un gestor propio en el Keychain que
   guarde al enviar el formulario (`webView(_:willSubmitForm:submissionHandler:)`, nuevo en iOS
   27, confirmado en el SDK).
-- **El lanzador (Cmd+P) sólo ofrece máquinas SSH.** Le faltan URLs (historial, marcadores) y
-  ubicaciones de ficheros.
-- Una ventana abierta **mientras** cambia el modo claro/oscuro se queda con el borde del modo
-  anterior hasta que se cierra. Los ajustes sí lo corrigen, porque es donde se cambia.
 
 Del gestor de ficheros (Fase 4):
 

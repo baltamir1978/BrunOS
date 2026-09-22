@@ -36,7 +36,7 @@ final class ContextMenu: UIView {
         card.backgroundColor = Tokens.Color.panelElevated
         card.layer.cornerRadius = 10
         card.layer.borderWidth = 1
-        card.layer.borderColor = Tokens.Color.border.desktopCGColor
+        card.setThemedBorder(Tokens.Color.border)
         card.layer.shadowColor = UIColor.black.cgColor
         card.layer.shadowOpacity = 0.4
         card.layer.shadowRadius = 16

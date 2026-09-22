@@ -174,3 +174,35 @@ extension UIImage {
             .applyingSymbolConfiguration(configuration)
     }
 }
+
+// MARK: - Bordes que siguen el modo
+
+extension UIView {
+
+    /// Las vistas con borde, cada una con su color dinámico.
+    ///
+    /// Débil por la vista: cuando se cierra una ventana, su entrada desaparece
+    /// sola y no hay que acordarse de quitarla.
+    @MainActor private static let themedBorders = NSMapTable<UIView, UIColor>.weakToStrongObjects()
+
+    /// Pone un borde que **se repinta solo al cambiar de modo**.
+    ///
+    /// Un `CGColor` es un color ya resuelto: el borde de una ventana abierta
+    /// mientras se pasaba de claro a oscuro se quedaba con el color del modo
+    /// anterior hasta cerrarla. Apuntando aquí el color dinámico,
+    /// `refreshThemedBorders()` lo vuelve a resolver en el cambio.
+    @MainActor
+    func setThemedBorder(_ color: UIColor) {
+        Self.themedBorders.setObject(color, forKey: self)
+        layer.borderColor = color.desktopCGColor
+    }
+
+    @MainActor
+    static func refreshThemedBorders() {
+        let enumerator = themedBorders.keyEnumerator()
+        while let view = enumerator.nextObject() as? UIView {
+            guard let color = themedBorders.object(forKey: view) else { continue }
+            view.layer.borderColor = color.desktopCGColor
+        }
+    }
+}

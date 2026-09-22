@@ -441,6 +441,16 @@ final class BrowserPane: UIView, Pane {
         entries.append(ContextMenu.Entry(title: "Recargar", symbol: "arrow.clockwise") {
             [weak self] in self?.reload()
         })
+        if let url = tab.webView.url, url.scheme == "http" || url.scheme == "https" {
+            let history = AppServices.shared.history
+            let saved = history.isBookmarked(url)
+            entries.append(ContextMenu.Entry(
+                title: saved ? "Quitar de marcadores" : "Añadir a marcadores",
+                symbol: saved ? "bookmark.slash" : "bookmark"
+            ) {
+                history.toggleBookmark(url: url, title: tab.title)
+            })
+        }
         if let host = tab.webView.url?.host() {
             let blocking = AppServices.shared.blocker.isEnabled(for: host)
             entries.append(ContextMenu.Entry(

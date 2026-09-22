@@ -1021,6 +1021,13 @@ final class FilesPane: UIView, Pane {
         }
     }
 
+    /// Enseña la raíz de un origen. Lo usa el lanzador.
+    func showProvider(at index: Int) {
+        services.files.select(index)
+        path = services.files.currentProvider.rootPath
+        reload()
+    }
+
     /// El dictado o pegar, con el filtro abierto, van a él.
     func insertText(_ text: String) {
         guard isFinding else { return }

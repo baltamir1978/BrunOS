@@ -7,20 +7,28 @@ import UIKit
 /// pasa el escritorio antes que al panel con foco, y los clics llegan por
 /// geometría desde el cursor.
 ///
-/// De momento lista máquinas SSH. En las fases siguientes se le añaden URLs y
-/// ubicaciones de ficheros, que es para lo que se hizo genérico.
+/// Busca en todo a la vez: máquinas SSH, marcadores e historial del navegador,
+/// ubicaciones de ficheros y acciones del escritorio. Y lo que se escribe, si no
+/// coincide con nada, se ofrece como dirección o como búsqueda web.
 @MainActor
 final class Launcher: UIView {
 
     struct Entry {
         var title: String
         var subtitle: String
+        var symbol: String = "circle"
         var action: () -> Void
     }
 
     var onDismiss: (() -> Void)?
 
+    /// Cuántas filas se enseñan como mucho. El historial puede tener cientos
+    /// de entradas: con el filtro, las primeras nueve bastan.
+    private static let maxRows = 9
+
     private let entries: [Entry]
+    /// Lo que se ofrece según lo escrito: abrir la dirección, buscarla.
+    private let dynamic: (String) -> [Entry]
     private var filtered: [Entry]
     private var query = ""
     private var selectedIndex = 0
@@ -30,9 +38,10 @@ final class Launcher: UIView {
     private let hintLabel = UILabel()
     private var rows: [LauncherRow] = []
 
-    init(entries: [Entry]) {
+    init(entries: [Entry], dynamic: @escaping (String) -> [Entry] = { _ in [] }) {
         self.entries = entries
-        self.filtered = entries
+        self.dynamic = dynamic
+        self.filtered = Array(entries.prefix(Self.maxRows))
         super.init(frame: .zero)
 
         // Oscurecer el escritorio: el lanzador es modal aunque no haya modales.
@@ -41,7 +50,7 @@ final class Launcher: UIView {
         card.backgroundColor = Tokens.Color.panelElevated
         card.layer.cornerRadius = 12
         card.layer.borderWidth = 1
-        card.layer.borderColor = Tokens.Color.accent.withAlphaComponent(0.5).desktopCGColor
+        card.setThemedBorder(Tokens.Color.accent.withAlphaComponent(0.5))
         card.layer.shadowColor = UIColor.black.cgColor
         card.layer.shadowOpacity = 0.5
         card.layer.shadowRadius = 24
@@ -54,7 +63,7 @@ final class Launcher: UIView {
 
         hintLabel.font = Tokens.sans(11)
         hintLabel.textColor = Tokens.Color.textSecondary
-        hintLabel.text = "Escribe para filtrar · ↑↓ para moverte · Intro para conectar · Esc para salir"
+        hintLabel.text = "Máquinas, webs, carpetas y acciones · ↑↓ para moverte · Intro para abrir · Esc para salir"
         card.addSubview(hintLabel)
 
         rebuildRows()
@@ -118,7 +127,7 @@ final class Launcher: UIView {
 
     private var queryText: NSAttributedString {
         let text = NSMutableAttributedString(
-            string: query.isEmpty ? "Conectar a…" : query,
+            string: query.isEmpty ? "Abrir…" : query,
             attributes: [
                 .font: Tokens.mono(18),
                 .foregroundColor: query.isEmpty ? Tokens.Color.textSecondary : Tokens.Color.text,
@@ -216,10 +225,13 @@ final class Launcher: UIView {
         // Filtro por partes: "ho la" encuentra "homelab" igual que "homelab".
         // Buscar sólo por prefijo obligaría a recordar cómo empieza cada nombre.
         let terms = query.lowercased().split(separator: " ").map(String.init)
-        filtered = entries.filter { entry in
+        let matches = entries.filter { entry in
             let haystack = (entry.title + " " + entry.subtitle).lowercased()
             return terms.allSatisfy { haystack.contains($0) }
         }
+        // Lo que coincide va primero; abrir o buscar lo escrito, detrás. Si no
+        // coincide nada, abrir o buscar es justo lo que se quiere.
+        filtered = Array((matches + (query.isEmpty ? [] : dynamic(query))).prefix(Self.maxRows))
         selectedIndex = 0
         rebuildRows()
     }
@@ -231,10 +243,14 @@ private final class LauncherRow: UIView {
 
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
+    private let iconView = UIImageView()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         layer.cornerRadius = 8
+
+        iconView.contentMode = .center
+        addSubview(iconView)
 
         titleLabel.font = Tokens.sans(15, weight: .medium)
         subtitleLabel.font = Tokens.mono(11)
@@ -252,6 +268,11 @@ private final class LauncherRow: UIView {
     func update(entry: Launcher.Entry, isSelected: Bool) {
         titleLabel.text = entry.title
         subtitleLabel.text = entry.subtitle
+        iconView.image = UIImage(
+            systemName: entry.symbol,
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+        )
+        iconView.tintColor = isSelected ? Tokens.Color.accent : Tokens.Color.textSecondary
         backgroundColor = isSelected ? Tokens.Color.accent.withAlphaComponent(0.2) : .clear
         titleLabel.textColor = isSelected ? Tokens.Color.accent : Tokens.Color.text
         layer.borderWidth = isSelected ? 1 : 0
@@ -260,7 +281,8 @@ private final class LauncherRow: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        titleLabel.frame = CGRect(x: 12, y: 5, width: bounds.width - 24, height: 19)
-        subtitleLabel.frame = CGRect(x: 12, y: 23, width: bounds.width - 24, height: 14)
+        iconView.frame = CGRect(x: 8, y: 0, width: 28, height: bounds.height)
+        titleLabel.frame = CGRect(x: 42, y: 5, width: bounds.width - 54, height: 19)
+        subtitleLabel.frame = CGRect(x: 42, y: 23, width: bounds.width - 54, height: 14)
     }
 }

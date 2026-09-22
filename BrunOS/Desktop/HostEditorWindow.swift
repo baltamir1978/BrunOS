@@ -74,7 +74,7 @@ final class HostEditorWindow: UIView {
         card.backgroundColor = Tokens.Color.panelElevated
         card.layer.cornerRadius = 14
         card.layer.borderWidth = 1
-        card.layer.borderColor = Tokens.Color.border.desktopCGColor
+        card.setThemedBorder(Tokens.Color.border)
         card.layer.shadowColor = UIColor.black.cgColor
         card.layer.shadowOpacity = 0.55
         card.layer.shadowRadius = 28

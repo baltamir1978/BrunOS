@@ -34,7 +34,7 @@ final class Dock: UIView {
         background.backgroundColor = Tokens.Color.panelElevated.withAlphaComponent(0.72)
         background.layer.cornerRadius = 16
         background.layer.borderWidth = 1
-        background.layer.borderColor = Tokens.Color.border.withAlphaComponent(0.8).desktopCGColor
+        background.setThemedBorder(Tokens.Color.border.withAlphaComponent(0.8))
         background.layer.shadowColor = UIColor.black.cgColor
         background.layer.shadowOpacity = 0.35
         background.layer.shadowRadius = 12
@@ -60,7 +60,7 @@ final class Dock: UIView {
 
     /// Vuelve a pintar el borde, que es un `CGColor` y no cambia solo de modo.
     func applyTheme() {
-        background.layer.borderColor = Tokens.Color.border.withAlphaComponent(0.8).desktopCGColor
+        background.setThemedBorder(Tokens.Color.border.withAlphaComponent(0.8))
     }
 
     // MARK: - Contenido

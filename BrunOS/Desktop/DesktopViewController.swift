@@ -293,6 +293,7 @@ final class DesktopViewController: UIViewController {
             }
         }
         dock.applyTheme()
+        UIView.refreshThemedBorders()
         services.wallpaper.invalidate()
         layoutCanvas()
     }
@@ -704,24 +705,75 @@ final class DesktopViewController: UIViewController {
         connectFocusedTerminal(to: host)
     }
 
-    /// Cmd+P: elegir a qué máquina conectarse.
-    ///
-    /// En la Fase 3 y la 4 se le añadirán URLs y ubicaciones; de momento son
-    /// los hosts, que es lo que hay.
+    /// Cmd+P: el lanzador, con todo lo que se puede abrir.
     func presentLauncher() {
         launcher?.removeFromSuperview()
 
-        let entries = services.hosts.hosts.map { host in
-            Launcher.Entry(
+        var entries: [Launcher.Entry] = []
+
+        for host in services.hosts.hosts {
+            entries.append(Launcher.Entry(
                 title: host.displayName,
-                subtitle: "\(host.username)@\(host.host) · \(host.authentication.label)"
+                subtitle: "SSH · \(host.username)@\(host.host)",
+                symbol: "terminal"
             ) { [weak self] in
                 self?.connectFocusedTerminal(to: host)
-            }
+            })
         }
-        guard !entries.isEmpty else { return }
 
-        let launcher = Launcher(entries: entries)
+        for (index, provider) in services.files.providers.enumerated() {
+            entries.append(Launcher.Entry(
+                title: provider.name,
+                subtitle: "Ficheros",
+                symbol: provider.symbol
+            ) { [weak self] in
+                self?.showFilesLocation(index)
+            })
+        }
+        entries.append(Launcher.Entry(title: "Descargas", subtitle: "Ficheros · iPhone", symbol: "arrow.down.circle") {
+            [weak self] in self?.revealInFiles(BrowserTab.downloadsDirectory)
+        })
+
+        let history = services.history
+        for page in history.bookmarks {
+            entries.append(webEntry(page, symbol: "bookmark"))
+        }
+        let bookmarked = Set(history.bookmarks.map(\.url))
+        for page in history.visits where !bookmarked.contains(page.url) {
+            entries.append(webEntry(page, symbol: "clock"))
+        }
+
+        entries += [
+            Launcher.Entry(title: "Nuevo terminal", subtitle: "Acción", symbol: "plus.rectangle") {
+                [weak self] in self?.newPane(.terminal)
+            },
+            Launcher.Entry(title: "Nuevo navegador", subtitle: "Acción", symbol: "plus.rectangle") {
+                [weak self] in self?.newPane(.browser)
+            },
+            Launcher.Entry(title: "Nuevo gestor de ficheros", subtitle: "Acción", symbol: "plus.rectangle") {
+                [weak self] in self?.newPane(.files)
+            },
+            Launcher.Entry(title: "Pantalla completa", subtitle: "Acción · Ctrl+Cmd+F", symbol: "arrow.up.left.and.arrow.down.right") {
+                [weak self] in self?.perform(.toggleFullScreen)
+            },
+            Launcher.Entry(title: "Ajustes", subtitle: "Acción", symbol: "gearshape") {
+                [weak self] in self?.presentSettings(.global)
+            },
+        ]
+
+        let launcher = Launcher(entries: entries) { [weak self] query in
+            guard let self else { return [] }
+            let text = query.trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty, let url = BrowserTab.url(from: text) else { return [] }
+            let isSearch = text.contains(" ") || !text.contains(".")
+            return [Launcher.Entry(
+                title: isSearch ? "Buscar «\(text)»" : "Abrir \(text)",
+                subtitle: isSearch ? "Web · \(SearchEngine.current.label)" : "Web",
+                symbol: isSearch ? "magnifyingglass" : "safari"
+            ) { [weak self] in
+                self?.openInBrowser(url)
+            }]
+        }
         launcher.onDismiss = { [weak self] in
             self?.launcher?.removeFromSuperview()
             self?.launcher = nil
@@ -729,6 +781,30 @@ final class DesktopViewController: UIViewController {
         canvas.addSubview(launcher)
         launcher.frame = CGRect(origin: .zero, size: logicalSize)
         self.launcher = launcher
+        applyContentsScale(to: launcher)
+    }
+
+    private func webEntry(_ page: BrowserHistory.Page, symbol: String) -> Launcher.Entry {
+        let host = URL(string: page.url)?.host() ?? page.url
+        return Launcher.Entry(title: page.title, subtitle: "Web · \(host)", symbol: symbol) { [weak self] in
+            guard let url = URL(string: page.url) else { return }
+            self?.openInBrowser(url)
+        }
+    }
+
+    /// Un panel nuevo en el espacio de su tipo, como si se abriera la app.
+    private func newPane(_ kind: PaneKind) {
+        services.desktop.activate(number: kind.preferredWorkspace)
+        addPane(kind: kind)
+    }
+
+    private func showFilesLocation(_ index: Int) {
+        services.desktop.activate(number: PaneKind.files.preferredWorkspace)
+        if !(services.desktop.active.focusedPane is FilesPane) {
+            addPane(kind: .files)
+        }
+        (services.desktop.active.focusedPane as? FilesPane)?.showProvider(at: index)
+        services.desktop.notifyChange()
     }
 
     private func connectFocusedTerminal(to host: SSHHost) {

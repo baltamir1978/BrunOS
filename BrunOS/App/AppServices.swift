@@ -27,6 +27,7 @@ final class AppServices {
     let wallpaper = WallpaperStore()
     let blocker = ContentBlocker()
     let files = FileService()
+    let history = BrowserHistory()
 
     /// El escritorio de la pantalla externa, si está conectada.
     weak var desktopViewController: DesktopViewController?
