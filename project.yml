@@ -52,6 +52,10 @@ targets:
       # busca por el prefijo del nombre, no por carpeta. No se versionan, así
       # que puede no haber ninguna, y entonces la app funciona sin bloquear.
       - path: BrunOS
+        # Las notas para Claude viven junto al código de cada carpeta, pero no
+        # van en la app: además, al llamarse todas igual, chocarían en el bundle.
+        excludes:
+          - "**/CLAUDE.md"
       # Los fondos van como carpeta, no aplanados, para poder pedirlos con
       # `subdirectory: "Wallpapers"` y no mezclarlos con el resto de recursos.
       - path: BrunOS/Resources/Wallpapers

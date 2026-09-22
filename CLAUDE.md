@@ -46,131 +46,20 @@ conviene no confundir "está escrito" con "funciona":
 - **Si el espacio lógico sale nítido** a todas las escalas: el lienzo se escala con un
   `CGAffineTransform` y, si el factor estuviera mal, se vería borroso o cortado.
 
-## Distribución
+## Dónde está el resto
 
-**La primera build se subió a App Store Connect desde Xcode el 21-sep-2026** (Archive → Distribute
-App), con `MARKETING_VERSION` 0.1.0 y build 1. Sólo TestFlight, como tester interno: los internos
-no pasan por la revisión de Apple.
+Lo de cada parte vive junto a su código y se carga sólo al trabajar allí:
 
-Lo que costó llegar ahí, por si se repite:
+- `BrunOS/Terminal/CLAUDE.md`: SSH, Citadel, `known_hosts`, keyboard-interactive, el tema del terminal.
+- `BrunOS/Browser/CLAUDE.md`: WebKit, el inyector de clics y teclas, descargas, el bloqueador y
+  sus restricciones.
+- `BrunOS/Files/CLAUDE.md`: orígenes de ficheros, marcadores de seguridad, la vista previa propia.
+- `BrunOS/Phone/CLAUDE.md`: el único puente a Objective-C (`installTap`).
+- Skill `testflight` (`.claude/skills/testflight/`): subir builds y los errores de distribución.
 
-- `IDEDistribution.DistributionAppRecordProviderError error 0` al distribuir significa, casi
-  siempre, que **la app no existe todavía en App Store Connect** con ese bundle id. No es un fallo
-  de compilación: el archivo se generó bien y falla el paso de subirlo.
-- El App ID hay que registrarlo antes en developer.apple.com como **Explicit**, no Wildcard, o App
-  Store Connect no lo ofrece.
-- `ITSAppUsesNonExemptEncryption = false` ya va en el `Info.plist`, así que App Store Connect **no
-  pregunta por el cumplimiento de cifrado** en cada subida. El valor es `false` porque BrunOS sólo
-  usa cifrado estándar del sistema —SSH por Citadel y HTTPS por WebKit— y eso entra en la exención;
-  no implementa criptografía propia.
-- Para instalar por **TestFlight no hace falta el Modo de desarrollador** del iPhone. Eso sólo es
-  necesario para instalar y depurar directamente desde Xcode.
+---
 
-`Tools/testflight.sh`, con la clave de la API de App Store Connect y el incremento automático de
-build, sigue **sin escribirse**: está previsto para el final de la Fase 4. Hasta entonces, las
-subidas van a mano desde Xcode.
-
-## Fase 2 — Terminal SSH
-
-**Terminada y funcionando: Bruno confirmó el 22-sep-2026 que la conexión SSH conecta de verdad**
-contra una máquina suya. Era la mayor incógnita del proyecto y está despejada.
-
-Lo que sigue sin probarse de esta fase: tmux y vim con ratón, la selección con arrastre, el
-`known_hosts` ante una clave que cambie, y la reconexión tras una caída real.
-
-Lo que hay:
-
-- `SSHHost` + `HostStore`: perfiles en JSON en Application Support. **Los secretos no entran ahí**,
-  van al Keychain con `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`: no se sincronizan con iCloud
-  y no se leen con el teléfono bloqueado.
-- `TailscaleAuthentication`: el método SSH `none`. **Citadel no lo expone** —sus constructores
-  llegan hasta `passwordBased` y las claves— pero sí expone `SSHAuthenticationMethod.custom(_:)`,
-  que acepta un delegado propio. Con eso basta y **no hizo falta bajar a SwiftNIO a pelo**, que era
-  el plan B del prompt.
-- `SSHSession`: conexión, PTY, `window-change` al redimensionar, keepalive de 30 s y comando
-  inicial. La reconexión es a mano, con Intro, desde el propio terminal.
-- `TerminalPane` + `TerminalTab` + `TerminalTabBar`: SwiftTerm con 10.000 líneas de scrollback
-  (las de serie son 500), traducción de teclas a secuencias de terminal, y pestañas por sesión.
-- `TailscaleMonitor`: busca una interfaz `utun` con dirección de `100.64.0.0/10` o
-  `fd7a:115c:a1e0::/48`. **Es un aviso y nunca bloquea**: no hay forma de preguntarle a Tailscale
-  por su estado y la deducción puede fallar.
-- `HostsView`: alta, edición y borrado de máquinas desde el iPhone.
-
-Trampas de esta fase:
-
-- **Ni Citadel ni NIO están migrados a la concurrencia estricta de Swift 6.** Hacen falta
-  importaciones `@preconcurrency`. Y `TTYStdinWriter` no es `Sendable`, así que **no puede salir de
-  la closure de `withPTY`**: `SSHSession` le manda órdenes por un `AsyncStream` y el writer se
-  queda dentro, que es lo que hace que compile sin trampas.
-- `TerminalViewDelegate` de SwiftTerm no está declarado `@MainActor` aunque siempre se llame desde
-  la interfaz: la conformidad se marca `@preconcurrency`.
-### SSH sin Tailscale, y el agujero de keyboard-interactive
-
-**SSH funciona sin Tailscale**: con el método «Contraseña» se conecta a cualquier máquina
-alcanzable desde la red del iPhone. Tailscale sólo aporta llegar a máquinas no expuestas y entrar
-sin contraseña. El aviso de «Tailscale no parece activo» **sólo sale si hay algún host configurado
-con ese método**, para no dar la lata a quien no lo use.
-
-Pero hay una limitación seria, comprobada en la librería y **no arreglable desde BrunOS**:
-
-**NIOSSH no implementa `keyboard-interactive`.** `NIOSSHAvailableUserAuthenticationMethods` sólo
-contempla `publicKey`, `password` y `hostBased`, y la cadena "keyboard-interactive" no aparece en
-ningún fichero de la librería. Importa porque hay servidores OpenSSH configurados con
-`KbdInteractiveAuthentication yes` y `PasswordAuthentication no`, y **contra ésos la contraseña no
-entra**. Las salidas son dos: usar clave pública, que Citadel sí admite (`ed25519`, `p256`, `rsa`;
-quedaron fuera de esta versión por decisión del prompt, pero el diseño está preparado), o parchear
-NIOSSH.
-
-### Lo que queda fuera de la Fase 2, y por qué
-
-- **Claves ed25519**: aplazadas a propósito, primero por el prompt y luego por Bruno. Citadel las
-  admite (`ed25519`, `p256`, `p384`, `p521`, `rsa`), así que es añadir un caso a
-  `SSHHost.Authentication` y guardar la clave en el Keychain.
-- **`keyboard-interactive`**: **no es posible con NIOSSH**, ver arriba.
-- **Banner de autenticación del servidor** (`SSH_MSG_USERAUTH_BANNER`): NIOSSH sólo lo contempla
-  **del lado servidor**, en `SSHServerConfiguration.banner`. Un cliente no tiene forma de leerlo.
-  El MOTD de después del login sí sale, porque llega por stdout como cualquier otra salida.
-- **Cmd+clic sobre una URL abre Safari**, no el navegador de BrunOS, que todavía no existe. Cuando
-  esté la Fase 3 hay que encaminarlo ahí, con Safari como alternativa.
-
-### Claves de host (known_hosts)
-
-**Ya está hecho**, en `KnownHosts.swift`. El cifrado de SSH impide que nadie escuche por el camino,
-pero no dice **con quién** se está hablando: eso lo dice la clave del servidor. Sin comprobarla,
-cualquiera que se meta en medio se presenta como tu máquina y le entregas la contraseña.
-
-Se sigue el modelo de OpenSSH, **confianza en el primer uso**: la primera vez se guarda la huella
-y a partir de ahí tiene que coincidir. Si cambia, **la conexión se corta** y se avisa en
-Ajustes › SSH › Claves conocidas, donde Bruno decide. No es infalible —si el primer encuentro ya
-estuviera interceptado, se guardaría la clave del atacante— pero es lo que hace `ssh` de siempre.
-
-La huella es **SHA-256 en base64 sin el `=` final**, que es el formato que enseña OpenSSH, para
-poder cotejarla a ojo contra `ssh-keyscan`.
-
-`SSHHostKeyValidator.custom(_:)` de Citadel es público, así que no hizo falta rodearlo. El
-validador es `Sendable` y sin estado mutable a propósito: NIO lo llama desde su event loop, no
-desde el actor principal.
-
-## Fase 3 — Navegador
-
-**Escrita. El bloqueador de anuncios está verificado funcionando** (114.213 reglas, 3 de 3 listas
-compiladas en el simulador). El resto —clics sintéticos, pestañas, descargas— **no se ha probado
-con una web de verdad**.
-
-- `ClickInjector.js`: sintetiza ratón sobre la página porque **el ratón no llega solo al
-  `WKWebView`**. Atraviesa shadow roots, incluidos los cerrados, gracias a
-  `allowAccessingClosedShadowRoots` del mundo de contenido propio (Safari 27). **Hay que conservar
-  la referencia al `WKContentWorld`**: los creados con `init(configuration:)` no se pueden
-  recuperar después.
-- `BrowserPane` + `BrowserChrome`: pestañas, atrás/adelante/recargar, barra de direcciones y el
-  escudo del bloqueador. Todo dibujado y resuelto por geometría, sin un solo `UIButton`, porque en
-  la pantalla externa no hay eventos del sistema.
-- Máximo 8 pestañas vivas; las demás se descargan guardando URL y scroll. Cada `WKWebView` es un
-  proceso de WebKit y pasado un punto iOS mata la app entera.
-- **Buscador seleccionable** en Ajustes (`SearchEngine`): Google por defecto, y DuckDuckGo, Bing,
-  Startpage y Ecosia. Antes estaba fijo en DuckDuckGo.
-- **Descargas** a `Documentos/Descargas`, sin pisar ficheros: se numeran. Con `UIFileSharingEnabled`
-  se ven también desde la app Archivos del iPhone.
+## Escritorio y pantalla externa
 
 ### El cursor invisible, y por qué afectaba a todo el escritorio
 
@@ -211,18 +100,6 @@ dibujar**, en el mismo cálculo, para que lo que se ve y lo que responde no se d
 La primera versión era una lista de filas que cambiaban de valor al pulsarlas: Bruno la llamó
 «un horror» y no dejaba cambiar casi nada. Las explicaciones de cada ajuste van en la nota de
 debajo de su grupo.
-
-### Terminal: lista de conexiones y tema propio
-
-El terminal **ya no se conecta solo** al abrirse: enseña `TerminalHomeView`, la lista de máquinas
-con su botón, y Cmd+T o el «+» de la barra vuelven a ella. La barra va siempre, con la rueda de
-ajustes.
-
-En modo claro, **el terminal pintaba texto casi negro sobre fondo negro**: el fondo era fijo y el
-texto era el color dinámico del escritorio. SwiftTerm convierte los `UIColor` al asignarlos y no
-se entera de los cambios, así que `TerminalTab.applyTheme` le pasa colores ya resueltos y una
-paleta ANSI clara propia (la de xterm no se lee sobre blanco). El modo sigue al escritorio por
-defecto y se puede fijar aparte (`TerminalTheme`).
 
 ### Pantalla completa
 
@@ -307,99 +184,6 @@ direcciones del navegador. Un rótulo con pinta de botón que no responde es peo
 Como en la pantalla externa no hay eventos del sistema, **cada vista expone un `hit(at:)`** que
 resuelve por geometría qué hay bajo el cursor, y el escritorio pregunta.
 
-### El fallo que dejó el bloqueador muerto
-
-Daba `WKErrorDomain 7` con **cualquier** lista, incluso con una regla canónica válida. La pista
-estaba en el `userInfo` del error, no en el `localizedDescription`, que siempre dice lo mismo:
-**"Rule list lookup failed"**. No era la compilación, era **la consulta de caché previa**: cuando
-una lista no está compilada todavía, `contentRuleList(forIdentifier:)` **lanza** en vez de devolver
-`nil`. Al estar en el mismo `do` que la compilación, ese fallo saltaba al `catch` y no se compilaba
-nunca. Ahora va en su propio `try?`.
-
-**Lección**: ante un error de WebKit, mirar siempre `(error as NSError).userInfo`.
-
-### Por qué las webs salían enormes
-
-Tres cosas, y la tercera era la de verdad:
-
-1. Faltaba el **user-agent de Safari de macOS**. `preferredContentMode = .desktop` pide la versión
-   de escritorio pero **no cambia el user-agent**.
-2. Aunque el user-agent sea de Mac, los sitios miran `navigator.maxTouchPoints` y `ontouchstart`,
-   y si los ven sirven su interfaz táctil, con todo más grande. Se anulan con un script: en BrunOS
-   el puntero **es** un ratón, así que no se engaña a nadie.
-3. **El viewport valía 980 px.** Cuando una página no declara `meta viewport` —lo normal en una web
-   de escritorio, y es el caso de la portada de Google— WebKit en iOS le asigna **980 px por
-   defecto** y estira el resultado hasta el ancho real de la vista. En un panel de 1690 puntos eso
-   es **1,72× de aumento sobre todo**. Se nota sólo en las portadas y no en las páginas sencillas,
-   porque aquéllas sí suelen declarar su viewport.
-
-Se corrige añadiendo `meta viewport` con `width=device-width` **sólo si la página no traía uno**:
-pisárselo a un sitio que ya se adapta sería romperlo. Comprobado con un programa de prueba contra
-google.com: `window.innerWidth` pasa de 980 a 1690.
-
-Con el viewport bien, el zoom por defecto vuelve a 1: ya no hay nada que compensar.
-
-### Intro no buscaba en Google: los eventos sintéticos no hacen nada solos (22-sep-2026)
-
-Un evento creado con `dispatchEvent` **no es de confianza, y el navegador no ejecuta su acción
-por defecto**: un Intro sintético no envía el formulario, un Retroceso no borra, una flecha no
-mueve el cursor de texto. La página sí recibe el evento. Por eso `__brunos.key` en
-`ClickInjector.js` dispara `keydown`/`keypress`/`keyup` y, **si la página no lo ha cancelado**,
-hace a mano lo que haría el navegador: `requestSubmit()` del formulario, borrar, mover el cursor,
-Tab al siguiente campo, espaciadora para bajar la página.
-
-Trampa: **el buscador de Google es un `textarea` con `role=combobox`**. Intro en un `textarea`
-mete un salto de línea, así que los que se comportan como caja de una línea (combobox,
-`aria-autocomplete`, `rows=1`) se tratan como un `input`.
-
-El texto se escribe con `execCommand('insertText')`, que genera `beforeinput` e `input` de verdad
-y lo entienden React y compañía. **Comprobado con un programa de prueba en macOS** (un
-`WKWebView` real con el inyector): Intro en google.com navega a `/search?q=…`, Retroceso borra y
-la flecha mueve el cursor.
-
-### Descargas, pestañas y el botón derecho del navegador
-
-- **Las descargas no funcionaban** por dos cosas: faltaba
-  `decidePolicyFor navigationAction` con `shouldPerformDownload` (los `<a download>` y los `blob:`
-  navegaban en vez de descargar), y el aviso `onDownloadChange` no lo escuchaba nadie. Ahora
-  también se descarga lo que llega con `Content-Disposition: attachment`, y sale un aviso abajo
-  del panel que abre la carpeta en Ficheros. Comprobado en la misma prueba de macOS.
-- **Todas las pestañas compartían `WKWebViewConfiguration`**, y con ella el
-  `WKUserContentController`: cada pestaña nueva volvía a meter los scripts, así que con cinco
-  pestañas el inyector se cargaba cinco veces por página. Ahora cada una tiene la suya.
-- **El botón derecho** sólo le llegaba a la página como `contextmenu`: el menú del sistema no sale
-  nunca. BrunOS pone el suyo (abrir en pestaña nueva, descargar, copiar, guardar imagen, buscar la
-  selección, bloquear en el sitio). Cmd+clic y el botón central abren el enlace en otra pestaña, y
-  los `target=_blank` también.
-- **Vídeo**: `allowsInlineMediaPlayback` (si no, el vídeo se va al reproductor del sistema en el
-  iPhone, que está apagado), sin exigir gesto para reproducir (los clics sintéticos no cuentan
-  como gesto) y `isElementFullscreenEnabled`. **Plex y compañía sin probar.**
-
-### Bloqueador editable
-
-`Tools/fetch-blocklists.sh` genera ahora **una lista por fuente** (`blocklist-easylist-NN`,
-`blocklist-easyprivacy-NN`) y un `manifest-blocklists.json` con cuántas reglas lleva cada una, para
-poder apagarlas por separado sin leer megas de JSON al arrancar. Encima van **reglas propias**,
-compiladas aparte en `brunos-user-rules`: dominios bloqueados y elementos ocultos con la sintaxis
-de AdBlock (`dominio##selector`). El formato se comprobó compilándolo con WebKit en macOS.
-
-### El contador de bloqueados: quitado
-
-`WKContentRuleList` **no informa de cuántas peticiones detiene** — el filtrado ocurre dentro de
-WebKit y no hay callback. Se podría enseñar una estimación contando peticiones desde la app, pero
-sería un número inventado con pinta de dato. Se enseña sólo si el bloqueador está activo para el
-sitio, que eso sí se sabe.
-
-### Restricciones de WebKit para las reglas
-
-Costaron un rato, y cuando algo no le gusta rechaza **la lista entera** sin decir qué regla era:
-
-- `url-filter` tiene que ser **ASCII puro**.
-- **`if-domain` y `unless-domain` no pueden ir juntos** en el mismo trigger.
-- Los dominios, en minúsculas.
-- `resource-type` sólo admite una lista cerrada de valores.
-- Las reglas con `ignore-previous-rules` van **después** de los bloqueos.
-
 ## Fondo del escritorio y dock
 
 **El fondo del iPhone no se puede leer.** No hay API pública, comprobado en el SDK de iOS 27: iOS
@@ -458,55 +242,7 @@ Apuntados por Bruno para el final:
 - **`Tools/testflight.sh`**: subir con la clave de la API de App Store Connect e incremento
   automático de build. Hasta entonces, las subidas van a mano desde Xcode.
 
-## Fase 4 — Ficheros
-
-**Empezada: local y vista previa.** Bruno eligió interfaz estilo Finder (barra lateral de
-ubicaciones más lista) en lugar de los dos paneles de Total Commander.
-
-- `FileProvider`: el protocolo que cumplirán por igual el iPhone, iCloud, el USB y SFTP. El panel
-  no sabe con cuál habla, que es lo que permitirá copiar de uno a otro sin casos especiales.
-- `LocalProvider`: el contenedor de la app, con la carpeta `Descargas` creada de antemano —una
-  carpeta que aparece sola al usar el navegador desconcierta más que ayuda.
-- `FilesPane`: **sin `UITableView` ni `UIButton`**, como todo lo de la pantalla externa. Flechas
-  para moverse, Intro para abrir, Retroceso para subir, espaciadora para la vista previa.
-- **Ubicaciones del iPhone**: iOS no deja recorrer el teléfono entero. Cualquier carpeta que se
-  vea en la app Archivos (En mi iPhone, las de otras apps, iCloud, USB) se añade una vez con el
-  selector del sistema, que **sólo puede salir en la pantalla del iPhone**.
-- **Tres vistas**: lista, iconos pequeños e iconos grandes, con el selector en la cabecera o desde
-  el clic derecho. Se recuerda la elegida. En iconos, las flechas se mueven en rejilla y las
-  imágenes **locales** llevan miniatura (por SFTP habría que descargar cada foto entera).
-- **Un clic selecciona, no abre.** El doble clic con un cursor sintético es poco fiable: depende de
-  que dos eventos lleguen lo bastante seguidos, y los nuestros pasan por AssistiveTouch.
-
-### La vista previa NO usa QuickLook
-
-Estaba previsto usar `QLPreviewController`, pero **está pensado para presentarse como pantalla
-modal y espera toques del sistema**; en la pantalla externa no hay ni una cosa ni la otra. Se
-escribió un visor propio (`QuickLookView`) que se dibuja como una vista más del escritorio y recibe
-el ratón por donde lo recibe todo lo demás.
-
-Cubre imágenes, **GIF animados** —hay que animarlos cuadro a cuadro con `ImageIO`, porque `UIImage`
-sólo se queda con el primero—, vídeo y audio con `AVPlayerLayer`, PDF con `PDFKit` y texto. Lo que
-no entiende lo dice, en vez de enseñar un rectángulo vacío. De los ficheros de texto se leen sólo
-los primeros 200 KB: un log de medio giga colgaría la interfaz al maquetarlo entero.
-
-### Orígenes
-
-- `LocalProvider`: el contenedor de la app, con `Descargas`.
-- `ExternalFolderProvider`: iCloud, carpetas de Archivos y el USB. **En iOS las tres son lo mismo**:
-  no hay API de «montar un USB», hay carpetas a las que el usuario da permiso con el selector en
-  modo carpeta. **El marcador de seguridad no es opcional**: sin él, el permiso se pierde al cerrar
-  la app. Y cada acceso va entre `startAccessingSecurityScopedResource()` y su pareja; olvidar el
-  cierre agota los permisos del sistema y acaban fallando todos.
-- `SFTPProvider`: reutiliza los perfiles y la autenticación de la Fase 2, incluido `known_hosts`.
-  Las máquinas SSH **aparecen solas** en la barra lateral: si ya están configuradas para el
-  terminal, no tiene sentido darlas de alta otra vez.
-
-Copiar y pegar funciona igual dentro de un origen que entre dos distintos, **local ↔ SFTP
-incluido**: se lee de uno y se escribe en el otro. Copiar carpetas enteras todavía no está: pide
-recorrerlas y una barra de progreso de verdad.
-
-### El bloqueo de arranque del singleton
+## El bloqueo de arranque del singleton
 
 La app dejó de arrancar, sin mensaje: el log se cortaba y se quedaba colgada. Causa:
 `FileService.init()` llamaba a `rebuild()`, que mira `AppServices.shared` para sacar las máquinas
@@ -625,26 +361,6 @@ Todo esto se verificó leyendo las cabeceras de `iPhoneOS27.0.sdk`, no de memori
 - **`Equatable` sintetizado sólo funciona en el fichero que declara el tipo.** Conformar desde
   otro fichero obliga a escribir el `==` a mano; es más limpio declararlo en su sitio.
 
-## El único puente a Objective-C del proyecto
-
-`AVAudioNode.installTap(onBus:bufferSize:format:block:)` quedó obsoleta en iOS 27 en favor de
-`installTapOnBus:bufferSize:format:error:block:`. **Esa sustituta no se puede llamar desde Swift**
-en el SDK 27: el `error:` va en medio de la firma, Swift lo convierte en `throws`, y `throws` no
-cuenta para distinguir sobrecargas. Las dos acaban con el mismo nombre y el mismo tipo, y la
-resolución se queda con la obsoleta. Comprobado compilando contra `iphoneos27.0`: pasarle `error:`
-da *"extra arguments at positions #4, #5"*.
-
-**Desde Objective-C no hay ambigüedad**, y eso sí está comprobado compilando un `.m` de prueba. De
-ahí `BrunOS/Phone/BrunOSAudioTap.{h,m}` y el bridging header en `BrunOS/App/`, que es **lo único
-de Objective-C que hay en BrunOS**. Reexpone el método con el `NSError **` al final, que es donde
-Swift sí lo convierte en `throws`.
-
-Se gana algo más que quitar un aviso: **el error deja de perderse**. Con la API vieja, un tap que
-no se instalaba fallaba en silencio.
-
-Si algún día Apple arregla la importación, se borran los dos ficheros y la línea
-`SWIFT_OBJC_BRIDGING_HEADER` de `project.yml`, y se llama a la API directamente.
-
 ## Cadena de suministro: Citadel fijado a la 0.11
 
 **Citadel 0.12.1 no usa el `swift-nio-ssh` de Apple.** Arrastra
@@ -665,23 +381,6 @@ con un responsable identificable. Comprobado en `Package.resolved`: `swift-nio-s
 ---
 
 ## Estructura
-
-```
-BrunOS/
-  App/         AppDelegate, PhoneSceneDelegate, ExternalSceneDelegate, Info.plist generado
-  Display/     ExternalDisplayManager, DisplayProfile, DesktopTheme (claro/oscuro), Wallpaper
-  Input/       PointerController, MouseSource, KeyboardRouter, atajos, AssistiveTouchMonitor
-  Desktop/     DesktopViewController, TilingLayout, Workspace, TopBar, Dock, Launcher, y las
-               ventanas del monitor: SettingsWindow, HostEditorWindow, PromptWindow,
-               ContextMenu, todas sobre CardView
-  Terminal/    TerminalPane, TerminalTab, SSHSession, HostStore, KnownHosts, TailscaleMonitor
-  Browser/     BrowserPane, BrowserTab, BrowserChrome, ContentBlocker, SearchEngine, ClickInjector.js
-  Files/       FilesPane, FileService, LocalProvider, ExternalFolderProvider, SFTPProvider,
-               QuickLookView
-  Phone/       PhoneRootViewController (UIKit, registra el accesorio) + vistas SwiftUI
-  Design/      Tokens: colores, tipografías, métricas
-  Resources/   Fonts (versionadas, OFL), Blocklists (generadas, NO versionadas), Assets
-```
 
 `PhoneRootViewController` es UIKit **a propósito**: `registerSceneAccessory(_:)` es un método de
 `UIViewController`. La interfaz de dentro sí es SwiftUI, embebida con `UIHostingController`.
