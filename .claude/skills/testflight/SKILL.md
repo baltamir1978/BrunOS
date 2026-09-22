@@ -26,14 +26,14 @@ Lo que costó llegar ahí, por si se repite:
 ### `Tools/testflight.sh` (22-sep-2026)
 
 Archiva, firma y sube sin abrir Xcode: `./Tools/testflight.sh`, o `--dry-run` para ver lo que
-haría. **Sin probar contra App Store Connect**: la primera subida real la tiene que hacer Bruno con
-su clave.
+haría. **Probado: subió la 0.1.0 (2609221511) el 22-sep-2026.** Lo común a todas las apps (dónde
+está la clave, cómo reutilizar el script) está en `/Users/bruno/Proyectos/CLAUDE.md`.
 
 - **Credenciales fuera del repositorio**, que es público: `ASC_KEY_ID` y `ASC_ISSUER_ID` en el
-  entorno o en `~/.config/brunos/testflight.env`; el `.p8` en
+  entorno o en `~/.config/appstoreconnect/testflight.env` (común a todas las apps); el `.p8` en
   `~/.appstoreconnect/private_keys/AuthKey_<ID>.p8`, que es donde lo deja Apple, o donde diga
   `ASC_KEY_PATH`. La clave se crea en App Store Connect › Users and Access › Integrations, con
-  rol App Manager.
+  acceso de Administrador.
 - **Número de build = fecha y hora** (`AAMMDDHHMM`, se pasa como `CURRENT_PROJECT_VERSION`):
   siempre crece y no hay contador que guardar. La versión visible sigue en `project.yml`.
 - **Se niega a subir sin listas de bloqueo**: no se versionan, y una build sin ellas funciona

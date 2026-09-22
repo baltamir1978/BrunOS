@@ -7,9 +7,9 @@
 # CREDENCIALES: NUNCA EN EL REPOSITORIO, QUE ES PÚBLICO.
 #
 # Hace falta una clave de la API de App Store Connect (Users and Access ›
-# Integrations › App Store Connect API, con rol App Manager). Se leen de
-# variables de entorno o, si existe, de ~/.config/brunos/testflight.env, que
-# está fuera del repositorio:
+# Integrations › App Store Connect API, con acceso de Administrador). Se leen de
+# variables de entorno o, si existe, de ~/.config/appstoreconnect/testflight.env,
+# que está fuera del repositorio y es común a todas las apps de la cuenta:
 #
 #   ASC_KEY_ID=ABC123DEFG
 #   ASC_ISSUER_ID=00000000-0000-0000-0000-000000000000
@@ -32,7 +32,7 @@ DRY_RUN=0
 say() { printf '==> %s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-CONFIG="$HOME/.config/brunos/testflight.env"
+CONFIG="$HOME/.config/appstoreconnect/testflight.env"
 if [ -f "$CONFIG" ]; then
   # shellcheck disable=SC1090
   source "$CONFIG"

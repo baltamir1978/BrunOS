@@ -278,8 +278,6 @@ movimiento más incómodo que hay.
 
 ## Pendientes
 
-- **Primera subida con `Tools/testflight.sh`**: está escrito y pasa su simulación, pero falta
-  probarlo con la clave de la API de verdad (ver la skill `testflight`).
 
 ## El bloqueo de arranque del singleton
 
