@@ -14,12 +14,18 @@ import UIKit
 final class SettingsWindow: UIView {
 
     var onDismiss: (() -> Void)?
+    /// Abrir el editor de máquinas. Lo resuelve el escritorio, que es quien
+    /// sabe poner ventanas encima.
+    var onEditHost: ((SSHHost?) -> Void)?
 
     /// Una fila: su rótulo, lo que vale ahora y qué hacer al pulsarla.
     private struct Row {
         var title: String
         var value: String
         var isHeader = false
+        /// Una segunda acción a la derecha del valor, si la fila la tiene.
+        var secondary: String?
+        var secondaryAction: (() -> Void)?
         var action: (() -> Void)?
     }
 
@@ -29,6 +35,7 @@ final class SettingsWindow: UIView {
     private let closeLabel = UILabel()
     private var rows: [Row] = []
     private var rowFrames: [CGRect] = []
+    private var secondaryFrames: [Int: CGRect] = [:]
     private var hoveredIndex: Int?
     private var closeFrame: CGRect = .zero
 
@@ -120,26 +127,28 @@ final class SettingsWindow: UIView {
 
         rows.append(Row(title: "SSH", value: "", isHeader: true))
         if services.hosts.hosts.isEmpty {
-            rows.append(Row(title: "Máquinas", value: "ninguna configurada"))
+            rows.append(Row(title: "Sin máquinas todavía", value: ""))
         } else {
             for host in services.hosts.hosts {
-                rows.append(Row(title: host.displayName, value: "conectar") { [weak self] in
+                // Pulsar conecta, que es lo que se hace noventa y nueve veces
+                // de cada cien; para editar está el lápiz de al lado.
+                rows.append(Row(
+                    title: host.displayName,
+                    value: "conectar",
+                    secondary: "editar",
+                    secondaryAction: { [weak self] in self?.onEditHost?(host) }
+                ) { [weak self] in
                     self?.connect(to: host)
                 })
             }
         }
+        rows.append(Row(title: "Añadir máquina", value: "+") { [weak self] in
+            self?.onEditHost?(nil)
+        })
         rows.append(Row(
             title: "Tailscale",
             value: services.tailscale.isLikelyUp ? "parece activo" : "no detectado"
         ))
-
-        rows.append(Row(title: "", value: "", isHeader: true))
-        // Crear o editar máquinas pide teclear cómodo y ver el Keychain: eso
-        // se queda en el iPhone, y desde aquí sólo se avisa de dónde está.
-        rows.append(Row(title: "Añadir o editar máquinas", value: "en el iPhone") { [weak self] in
-            NotificationCenter.default.post(name: .brunosShowSettings, object: nil)
-            self?.onDismiss?()
-        })
 
         self.rows = rows
         setNeedsLayout()
@@ -287,6 +296,26 @@ final class SettingsWindow: UIView {
                 ]
             )
 
+            var right = frame.maxX - 12
+
+            if let secondary = row.secondary {
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: Tokens.sans(12),
+                    .foregroundColor: Tokens.Color.textSecondary,
+                ]
+                let text = secondary as NSString
+                let size = text.size(withAttributes: attributes)
+                let position = CGPoint(x: right - size.width, y: frame.midY - size.height / 2)
+                text.draw(at: position, withAttributes: attributes)
+                secondaryFrames[index] = CGRect(
+                    x: position.x - card.frame.minX - 6,
+                    y: frame.minY - card.frame.minY,
+                    width: size.width + 12,
+                    height: frame.height
+                )
+                right = position.x - 14
+            }
+
             let valueAttributes: [NSAttributedString.Key: Any] = [
                 .font: Tokens.mono(12),
                 .foregroundColor: row.action == nil
@@ -296,7 +325,7 @@ final class SettingsWindow: UIView {
             let value = row.value as NSString
             let size = value.size(withAttributes: valueAttributes)
             value.draw(
-                at: CGPoint(x: frame.maxX - size.width - 12, y: frame.midY - size.height / 2),
+                at: CGPoint(x: right - size.width, y: frame.midY - size.height / 2),
                 withAttributes: valueAttributes
             )
         }
@@ -326,7 +355,11 @@ final class SettingsWindow: UIView {
                 setNeedsDisplay()
             }
         case .down:
-            if let index, let action = rows[index].action {
+            // Lo secundario se mira primero: cae dentro de la fila y, si no,
+            // lo taparía siempre la acción principal.
+            if let index, let frame = secondaryFrames[index], frame.contains(inCard) {
+                rows[index].secondaryAction?()
+            } else if let index, let action = rows[index].action {
                 action()
             }
         default:

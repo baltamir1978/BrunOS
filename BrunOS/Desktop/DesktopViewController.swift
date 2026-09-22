@@ -183,6 +183,7 @@ final class DesktopViewController: UIViewController {
         )
 
         settingsWindow?.frame = CGRect(origin: .zero, size: logicalSize)
+        hostEditor?.frame = CGRect(origin: .zero, size: logicalSize)
         launcher?.frame = CGRect(origin: .zero, size: logicalSize)
 
         dock.frame = CGRect(
@@ -441,8 +442,33 @@ final class DesktopViewController: UIViewController {
             self?.settingsWindow?.removeFromSuperview()
             self?.settingsWindow = nil
         }
+        window.onEditHost = { [weak self] host in
+            self?.presentHostEditor(for: host)
+        }
         canvas.addSubview(window)
         settingsWindow = window
+    }
+
+    private var hostEditor: HostEditorWindow?
+
+    /// Alta y edición de máquinas, también en el monitor.
+    ///
+    /// Antes vivían en el iPhone, pero el teléfono se apaga con pantalla
+    /// externa: teclear allí obliga a dejar de mirar el monitor.
+    func presentHostEditor(for host: SSHHost?) {
+        hostEditor?.removeFromSuperview()
+
+        let editor = HostEditorWindow(
+            host: host,
+            frame: CGRect(origin: .zero, size: logicalSize)
+        )
+        editor.onDismiss = { [weak self] in
+            self?.hostEditor?.removeFromSuperview()
+            self?.hostEditor = nil
+            self?.settingsWindow?.refresh()
+        }
+        canvas.addSubview(editor)
+        hostEditor = editor
     }
 
     /// Conecta el terminal con foco a una máquina. Lo usan los ajustes.
@@ -529,7 +555,8 @@ final class DesktopViewController: UIViewController {
         let position = services.pointer.position
         let frames = currentFrames()
 
-        // Lo modal manda: mientras esté abierto, se lo queda todo.
+        // Lo modal manda, y el editor va por encima de los ajustes.
+        if let hostEditor, hostEditor.handlePointer(kind, at: position) { return }
         if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
         if let launcher, launcher.handlePointer(kind, at: position) { return }
 
@@ -662,6 +689,7 @@ final class DesktopViewController: UIViewController {
 
     /// Entrega una tecla al panel con foco.
     func deliverKey(_ event: KeyEvent) {
+        if let hostEditor, hostEditor.handleKey(event) { return }
         if let settingsWindow, settingsWindow.handleKey(event) { return }
         if launcherHandlesKey(event) { return }
         services.desktop.active.focusedPane?.handleKey(event)

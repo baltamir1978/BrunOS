@@ -215,9 +215,16 @@ más que tocar. De ahí `RemoteModeView`: con pantalla externa conectada el tel�
 como superficie táctil y nada más, con un aviso que se va solo a los seis segundos y que **no
 acepta toques**, porque si no sería otra cosa robándole el clic al trackpad.
 
-**Consecuencia obligada: los ajustes se mudan al monitor** (`SettingsWindow`). Si el iPhone está
-apagado, los ajustes no pueden vivir allí. Se quedan en el teléfono sólo el alta y la edición de
-máquinas SSH, que piden teclear cómodo, y desde el monitor hay una fila que los abre.
+**Consecuencia obligada: los ajustes se mudan al monitor** (`SettingsWindow`), y con ellos el alta
+y la edición de máquinas SSH (`HostEditorWindow`). Si el iPhone está apagado, nada de esto puede
+vivir allí.
+
+El editor de máquinas lleva **campos de texto propios**, no `UITextField`: en la pantalla externa
+no hay eventos del sistema ni first responder que valga, así que el teclado llega por el
+`KeyboardRouter` y se reparte a mano entre los campos, con Tab para saltar de uno a otro. Es el
+mismo mecanismo que la barra de direcciones del navegador.
+
+La interfaz del iPhone sigue entera **sin monitor conectado**, que es cuando tiene sentido.
 
 Los ajustes del monitor **no llevan deslizadores**: con un cursor propio, arrastrar uno es
 incómodo, así que las filas van pasando por los valores útiles al pulsarlas.
