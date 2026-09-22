@@ -39,3 +39,13 @@ está la clave, cómo reutilizar el script) está en `/Users/bruno/Proyectos/CLA
 - **Se niega a subir sin listas de bloqueo**: no se versionan, y una build sin ellas funciona
   pero no bloquea nada, que es fácil no notar hasta tenerla en el iPhone.
 - Exporta con `destination: upload`, que sube directamente: sin altool ni Transporter.
+
+### Límite diario de subidas
+
+`error: exportArchive Upload limit reached. The upload limit for your application has been
+reached. Please wait 1 day and try again.` Salió el 22-sep-2026 tras unas ocho subidas en el mismo
+día. Apple no publica el número. **No hay nada que arreglar**: se espera al día siguiente. El
+archivo compilado se queda en `build/testflight/`, pero el script vuelve a compilar al lanzarlo,
+así que basta con repetir `./Tools/testflight.sh`.
+
+Para no llegar a él: no subir en cada cambio suelto, sino agrupar arreglos seguidos en una build.
