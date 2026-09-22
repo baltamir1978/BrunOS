@@ -147,6 +147,53 @@ poder cotejarla a ojo contra `ssh-keyscan`.
 validador es `Sendable` y sin estado mutable a propósito: NIO lo llama desde su event loop, no
 desde el actor principal.
 
+## Fase 3 — Navegador
+
+**Escrita. El bloqueador de anuncios está verificado funcionando** (114.213 reglas, 3 de 3 listas
+compiladas en el simulador). El resto —clics sintéticos, pestañas, descargas— **no se ha probado
+con una web de verdad**.
+
+- `ClickInjector.js`: sintetiza ratón sobre la página porque **el ratón no llega solo al
+  `WKWebView`**. Atraviesa shadow roots, incluidos los cerrados, gracias a
+  `allowAccessingClosedShadowRoots` del mundo de contenido propio (Safari 27). **Hay que conservar
+  la referencia al `WKContentWorld`**: los creados con `init(configuration:)` no se pueden
+  recuperar después.
+- `BrowserPane` + `BrowserChrome`: pestañas, atrás/adelante/recargar, barra de direcciones y el
+  escudo del bloqueador. Todo dibujado y resuelto por geometría, sin un solo `UIButton`, porque en
+  la pantalla externa no hay eventos del sistema.
+- Máximo 8 pestañas vivas; las demás se descargan guardando URL y scroll. Cada `WKWebView` es un
+  proceso de WebKit y pasado un punto iOS mata la app entera.
+- **Descargas** a `Documentos/Descargas`, sin pisar ficheros: se numeran. Con `UIFileSharingEnabled`
+  se ven también desde la app Archivos del iPhone.
+
+### El fallo que dejó el bloqueador muerto
+
+Daba `WKErrorDomain 7` con **cualquier** lista, incluso con una regla canónica válida. La pista
+estaba en el `userInfo` del error, no en el `localizedDescription`, que siempre dice lo mismo:
+**"Rule list lookup failed"**. No era la compilación, era **la consulta de caché previa**: cuando
+una lista no está compilada todavía, `contentRuleList(forIdentifier:)` **lanza** en vez de devolver
+`nil`. Al estar en el mismo `do` que la compilación, ese fallo saltaba al `catch` y no se compilaba
+nunca. Ahora va en su propio `try?`.
+
+**Lección**: ante un error de WebKit, mirar siempre `(error as NSError).userInfo`.
+
+### El contador de bloqueados: quitado
+
+`WKContentRuleList` **no informa de cuántas peticiones detiene** — el filtrado ocurre dentro de
+WebKit y no hay callback. Se podría enseñar una estimación contando peticiones desde la app, pero
+sería un número inventado con pinta de dato. Se enseña sólo si el bloqueador está activo para el
+sitio, que eso sí se sabe.
+
+### Restricciones de WebKit para las reglas
+
+Costaron un rato, y cuando algo no le gusta rechaza **la lista entera** sin decir qué regla era:
+
+- `url-filter` tiene que ser **ASCII puro**.
+- **`if-domain` y `unless-domain` no pueden ir juntos** en el mismo trigger.
+- Los dominios, en minúsculas.
+- `resource-type` sólo admite una lista cerrada de valores.
+- Las reglas con `ignore-previous-rules` van **después** de los bloqueos.
+
 ## Fondo del escritorio y dock
 
 **El fondo del iPhone no se puede leer.** No hay API pública, comprobado en el SDK de iOS 27: iOS

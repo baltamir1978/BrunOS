@@ -20,6 +20,7 @@ struct SettingsView: View {
             Form {
                 displaySection
                 hostsSection
+                browserSection
                 mouseSection
                 assistiveTouchSection
                 aboutSection
@@ -130,6 +131,43 @@ struct SettingsView: View {
                 value: services.tailscale.isLikelyUp ? "parece activo" : "no detectado"
             )
             .font(.brunosMono(14))
+        }
+    }
+
+    // MARK: - Navegador
+
+    private var browserSection: some View {
+        Section {
+            Toggle("Bloquear anuncios", isOn: Binding(
+                get: { services.blocker.isEnabled },
+                set: { services.blocker.isEnabled = $0 }
+            ))
+
+            LabeledContent(
+                "Listas",
+                value: services.blocker.isReady
+                    ? "\(services.blocker.compiledLists.count) cargadas"
+                    : "sin cargar"
+            )
+            .font(.brunosMono(14))
+
+            if !services.blocker.exceptions.isEmpty {
+                LabeledContent("Sitios excluidos", value: "\(services.blocker.exceptions.count)")
+                    .font(.brunosMono(14))
+            }
+
+            if let error = services.blocker.lastError {
+                Text(error)
+                    .font(.brunosSans(12))
+                    .foregroundStyle(Color.brunosAccent)
+            }
+        } header: {
+            Text("Navegador")
+        } footer: {
+            Text("Las listas son EasyList y EasyPrivacy, y **no vienen incluidas**: tienen "
+                 + "licencia propia. Se generan con `Tools/fetch-blocklists.sh` en el Mac.\n\n"
+                 + "No hay contador de bloqueados: WebKit no dice cuántas peticiones detiene, "
+                 + "y enseñar un número inventado sería peor que no enseñar ninguno.")
         }
     }
 

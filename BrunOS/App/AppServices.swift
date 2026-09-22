@@ -25,6 +25,7 @@ final class AppServices {
     let knownHosts = KnownHostsStore()
     let tailscale = TailscaleMonitor()
     let wallpaper = WallpaperStore()
+    let blocker = ContentBlocker()
 
     /// El escritorio de la pantalla externa, si está conectada.
     weak var desktopViewController: DesktopViewController?
@@ -35,6 +36,7 @@ final class AppServices {
         mouse.start()
         assistiveTouch.start()
         tailscale.start()
+        Task { await blocker.prepare() }
     }
 
     /// Gestiona la vuelta desde Atajos por `brunos://`.

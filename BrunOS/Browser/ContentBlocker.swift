@@ -1,4 +1,5 @@
 import Observation
+import OSLog
 import WebKit
 
 /// Bloqueo de anuncios y rastreadores con `WKContentRuleList`.
@@ -77,11 +78,20 @@ final class ContentBlocker {
         var compiled: [WKContentRuleList] = []
         for file in files {
             let identifier = file.deletingPathExtension().lastPathComponent
+            // **La consulta de caché va en su propio `try?`, y no es un
+            // detalle.** Cuando la lista todavía no está compilada,
+            // `contentRuleList(forIdentifier:)` **lanza** en vez de devolver
+            // nil, con un "Rule list lookup failed". Metiéndola en el mismo
+            // `do` que la compilación, ese fallo saltaba al `catch` y la lista
+            // no se compilaba nunca: el bloqueador no llegó a funcionar ni una
+            // vez, y el error que se veía hacía pensar que las reglas estaban
+            // mal escritas.
+            if let cached = try? await store.contentRuleList(forIdentifier: identifier) {
+                compiled.append(cached)
+                continue
+            }
+
             do {
-                if let cached = try await store.contentRuleList(forIdentifier: identifier) {
-                    compiled.append(cached)
-                    continue
-                }
                 let source = try String(contentsOf: file, encoding: .utf8)
                 if let list = try await store.compileContentRuleList(
                     forIdentifier: identifier,
@@ -90,12 +100,22 @@ final class ContentBlocker {
                     compiled.append(list)
                 }
             } catch {
+                // WebKit mete el motivo real en el userInfo; el
+                // localizedDescription es siempre el mismo texto inútil.
+                let details = (error as NSError).userInfo
+                    .map { "\($0.key)=\($0.value)" }
+                    .joined(separator: " · ")
                 lastError = "No se pudo compilar \(identifier): \(error.localizedDescription)"
+                Log.browser.error("\(self.lastError ?? "") · \(details)")
             }
         }
 
         compiledLists = compiled
         isReady = !compiled.isEmpty
+        Log.browser.info("""
+            Bloqueador listo: \(compiled.count) de \(files.count) listas compiladas\
+            \(self.lastError.map { " · " + $0 } ?? "")
+            """)
         await apply()
     }
 

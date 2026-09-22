@@ -22,4 +22,6 @@ enum Log {
     static let desktop = Logger(subsystem: subsystem, category: "desktop")
     /// Entrada: ratón, teclado y AssistiveTouch.
     static let input = Logger(subsystem: subsystem, category: "input")
+    /// Navegador: bloqueador de anuncios, pestañas y descargas.
+    static let browser = Logger(subsystem: subsystem, category: "browser")
 }

@@ -286,34 +286,63 @@ final class DesktopViewController: UIViewController {
             addPane(kind: kind)
 
         case .newTab:
-            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
-            openTerminalSession(in: terminal)
+            switch workspace.focusedPane {
+            case let terminal as TerminalPane: openTerminalSession(in: terminal)
+            case let browser as BrowserPane: browser.newTab()
+            default: return false
+            }
 
         case .closeTab:
-            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
-            terminal.closeActiveTab()
+            switch workspace.focusedPane {
+            case let terminal as TerminalPane: terminal.closeActiveTab()
+            case let browser as BrowserPane: browser.closeActiveTab()
+            default: return false
+            }
 
         case .copy:
-            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
-            terminal.copySelection()
+            switch workspace.focusedPane {
+            case let terminal as TerminalPane: terminal.copySelection()
+            case let browser as BrowserPane: browser.copySelection()
+            default: return false
+            }
 
         case .paste:
-            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
-            terminal.paste()
+            switch workspace.focusedPane {
+            case let terminal as TerminalPane: terminal.paste()
+            case let browser as BrowserPane: browser.paste()
+            default: return false
+            }
 
         case .launcher:
             presentLauncher()
 
+        case .addressBar:
+            guard let browser = workspace.focusedPane as? BrowserPane else { return false }
+            browser.focusAddressBar()
+
+        case .reload:
+            guard let browser = workspace.focusedPane as? BrowserPane else { return false }
+            browser.reload()
+
         case .zoomIn, .zoomOut, .zoomReset:
-            guard let terminal = workspace.focusedPane as? TerminalPane else { return false }
-            switch command {
-            case .zoomIn: terminal.changeFontSize(by: 1)
-            case .zoomOut: terminal.changeFontSize(by: -1)
-            default: terminal.resetFontSize()
+            switch workspace.focusedPane {
+            case let terminal as TerminalPane:
+                switch command {
+                case .zoomIn: terminal.changeFontSize(by: 1)
+                case .zoomOut: terminal.changeFontSize(by: -1)
+                default: terminal.resetFontSize()
+                }
+            case let browser as BrowserPane:
+                switch command {
+                case .zoomIn: browser.changeZoom(by: 0.1)
+                case .zoomOut: browser.changeZoom(by: -0.1)
+                default: browser.resetZoom()
+                }
+            default: return false
             }
 
-        // Éstas llegarán a su sitio cuando exista el navegador.
-        case .addressBar, .reload, .find:
+        // Buscar en la página llega cuando haya barra de búsqueda.
+        case .find:
             Log.desktop.debug("Orden aún sin destino: \(String(describing: command))")
             return false
         }
@@ -349,7 +378,8 @@ final class DesktopViewController: UIViewController {
 
         let pane: any Pane = switch kind {
         case .terminal: TerminalPane(frame: .zero)
-        case .browser, .files: PlaceholderPane(kind: kind)
+        case .browser: BrowserPane(frame: .zero)
+        case .files: PlaceholderPane(kind: kind)
         }
 
         workspace.add(pane, id: id, focusedFrame: focusedFrame)
@@ -357,6 +387,8 @@ final class DesktopViewController: UIViewController {
 
         if let terminal = pane as? TerminalPane {
             openTerminalSession(in: terminal)
+        } else if let browser = pane as? BrowserPane {
+            browser.newTab()
         }
     }
 

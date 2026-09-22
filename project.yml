@@ -48,9 +48,10 @@ targets:
     type: application
     platform: iOS
     sources:
+      # Las listas de bloqueo se copian planas al bundle: ContentBlocker las
+      # busca por el prefijo del nombre, no por carpeta. No se versionan, así
+      # que puede no haber ninguna, y entonces la app funciona sin bloquear.
       - path: BrunOS
-        excludes:
-          - "Resources/Blocklists/*.json"
       # Los fondos van como carpeta, no aplanados, para poder pedirlos con
       # `subdirectory: "Wallpapers"` y no mezclarlos con el resto de recursos.
       - path: BrunOS/Resources/Wallpapers
@@ -118,6 +119,16 @@ targets:
         # sólo lo aplica Xcode cuando genera el Info.plist él, y aquí hay uno
         # explícito, así que se ignoraba sin avisar de nada.
         UIApplicationSupportsIndirectInputEvents: true
+
+        # Para que lo descargado en el navegador se vea también desde la app
+        # Archivos del iPhone, no sólo desde el gestor de BrunOS.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+
+        # Videollamadas desde el navegador.
+        NSCameraUsageDescription: >-
+          Algunas webs piden la cámara para videollamadas. BrunOS sólo se la
+          cede a la página que la pida y cuando tú lo autorices.
 
         ITSAppUsesNonExemptEncryption: false
 

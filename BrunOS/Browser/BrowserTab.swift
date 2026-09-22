@@ -38,7 +38,15 @@ final class BrowserTab: NSObject {
     /// Para no ahogar la página con `mousemove` a cada fotograma.
     private var lastHoverTime: Date = .distantPast
 
+    /// Zoom de la página. Cmd + / − / 0.
+    var pageZoom: CGFloat = 1 {
+        didSet { webView.pageZoom = pageZoom }
+    }
+
     var onChange: (@MainActor () -> Void)?
+
+    enum DownloadState { case started, finished, failed }
+    var onDownloadChange: (@MainActor (String, DownloadState) -> Void)?
 
     init(configuration: WKWebViewConfiguration) {
         // Mundo propio con acceso a shadow roots cerrados, nuevo en Safari 27.
@@ -60,6 +68,11 @@ final class BrowserTab: NSObject {
 
         webView.navigationDelegate = self
         webView.uiDelegate = self
+
+        AppServices.shared.blocker.install(
+            into: configuration.userContentController,
+            host: nil
+        )
 
         observeProperties()
         installInjector()
@@ -92,6 +105,43 @@ final class BrowserTab: NSObject {
             return URL(string: trimmed)
         }
         return URL(string: "https://" + trimmed)
+    }
+
+    /// Página de inicio.
+    ///
+    /// Una en blanco no dice ni dónde estás ni qué puedes hacer. Ésta enseña la
+    /// marca y los atajos, que es lo que hace falta recordar al principio.
+    func loadStartPage() {
+        let html = """
+            <!DOCTYPE html><html><head><meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <style>
+              :root { color-scheme: dark; }
+              body {
+                margin: 0; height: 100vh; display: flex; flex-direction: column;
+                align-items: center; justify-content: center; gap: 28px;
+                background: #0B0D10; color: #9AA1AB;
+                font-family: -apple-system, system-ui, sans-serif;
+              }
+              h1 { margin: 0; font-family: ui-monospace, monospace; font-size: 42px;
+                   font-weight: 800; color: #E6E3DC; letter-spacing: -1px; }
+              h1 span { color: #E8A33D; }
+              table { border-collapse: collapse; font-size: 13px; }
+              td { padding: 5px 14px; }
+              td:first-child { text-align: right; color: #E6E3DC;
+                               font-family: ui-monospace, monospace; }
+            </style></head><body>
+              <h1>brunOS<span>_</span></h1>
+              <table>
+                <tr><td>Cmd+L</td><td>escribir una dirección</td></tr>
+                <tr><td>Cmd+T</td><td>pestaña nueva</td></tr>
+                <tr><td>Cmd+W</td><td>cerrar la pestaña</td></tr>
+                <tr><td>Cmd+R</td><td>recargar</td></tr>
+                <tr><td>Cmd + / −</td><td>zoom</td></tr>
+              </table>
+            </body></html>
+            """
+        webView.loadHTMLString(html, baseURL: nil)
     }
 
     func goBack() { webView.goBack() }
@@ -152,6 +202,52 @@ final class BrowserTab: NSObject {
 
     func scroll(at point: CGPoint, delta: CGVector) {
         run("window.__brunos.wheel(\(point.x), \(point.y), \(-delta.dx), \(-delta.dy));")
+    }
+
+    /// Manda una tecla a la página.
+    ///
+    /// Las teclas normales se insertan como texto en el elemento con foco; las
+    /// de control se sintetizan como eventos, porque Intro en un formulario o
+    /// Tab entre campos no son "escribir un carácter".
+    func sendKey(_ key: UIKey) {
+        switch key.keyCode {
+        case .keyboardReturnOrEnter: dispatchKey("Enter")
+        case .keyboardTab: dispatchKey("Tab")
+        case .keyboardEscape: dispatchKey("Escape")
+        case .keyboardDeleteOrBackspace: dispatchKey("Backspace")
+        case .keyboardUpArrow: dispatchKey("ArrowUp")
+        case .keyboardDownArrow: dispatchKey("ArrowDown")
+        case .keyboardLeftArrow: dispatchKey("ArrowLeft")
+        case .keyboardRightArrow: dispatchKey("ArrowRight")
+        default:
+            let characters = key.characters
+            guard !characters.isEmpty else { return }
+            insertText(characters)
+        }
+    }
+
+    private func dispatchKey(_ name: String) {
+        run("""
+            (function () {
+                const target = document.activeElement || document.body;
+                for (const type of ['keydown', 'keyup']) {
+                    target.dispatchEvent(new KeyboardEvent(type, {
+                        key: '\(name)', code: '\(name)',
+                        bubbles: true, cancelable: true, composed: true
+                    }));
+                }
+            })();
+            """)
+    }
+
+    /// Copia lo que haya seleccionado en la página.
+    func copySelection() {
+        webView.evaluateJavaScript("window.getSelection().toString();", in: nil, in: world) { result in
+            guard case .success(let value) = result,
+                  let text = value as? String, !text.isEmpty
+            else { return }
+            UIPasteboard.general.string = text
+        }
     }
 
     func insertText(_ text: String) {
@@ -263,6 +359,82 @@ extension BrowserTab: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
         refresh()
+    }
+
+    /// Lo que el navegador no sabe enseñar, se descarga.
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationResponse: WKNavigationResponse
+    ) async -> WKNavigationResponsePolicy {
+        navigationResponse.canShowMIMEType ? .allow : .download
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        navigationAction: WKNavigationAction,
+        didBecome download: WKDownload
+    ) {
+        download.delegate = self
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        navigationResponse: WKNavigationResponse,
+        didBecome download: WKDownload
+    ) {
+        download.delegate = self
+    }
+}
+
+// MARK: - Descargas
+
+extension BrowserTab: WKDownloadDelegate {
+
+    /// Dónde cae lo que se descarga.
+    ///
+    /// En `Documentos/Descargas`, dentro del contenedor de la app, que es donde
+    /// el gestor de ficheros de la Fase 4 va a poder verlo. Con la carpeta
+    /// expuesta por `UIFileSharingEnabled`, también se ve desde la app Archivos
+    /// del iPhone.
+    static var downloadsDirectory: URL {
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let directory = documents.appendingPathComponent("Descargas", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    func download(
+        _ download: WKDownload,
+        decideDestinationUsing response: URLResponse,
+        suggestedFilename: String
+    ) async -> URL? {
+        var url = Self.downloadsDirectory.appendingPathComponent(suggestedFilename)
+
+        // Nunca se pisa un fichero ya descargado: se numera, como hace
+        // cualquier navegador.
+        var counter = 2
+        let base = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+        while FileManager.default.fileExists(atPath: url.path) {
+            let name = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
+            url = Self.downloadsDirectory.appendingPathComponent(name)
+            counter += 1
+        }
+
+        onDownloadChange?(suggestedFilename, .started)
+        return url
+    }
+
+    func downloadDidFinish(_ download: WKDownload) {
+        onDownloadChange?(download.originalRequest?.url?.lastPathComponent ?? "", .finished)
+    }
+
+    func download(
+        _ download: WKDownload,
+        didFailWithError error: any Error,
+        resumeData: Data?
+    ) {
+        onDownloadChange?(error.localizedDescription, .failed)
     }
 }
 

@@ -33,13 +33,31 @@ sources, dest = sys.argv[1:-1], sys.argv[-1]
 # trocea. Cada trozo se compila por separado y se aplican todos a la vez.
 CHUNK = 40_000
 
+# WebKit es muy quisquilloso con estas reglas y, cuando algo no le gusta,
+# rechaza la lista ENTERA con un escueto WKErrorDomain 7 sin decir qué regla
+# era. De ahí que aquí se descarte con generosidad: más vale bloquear un poco
+# menos que quedarse sin bloquear nada.
+#
+# Las restricciones que costaron el primer intento:
+#   - `url-filter` tiene que ser ASCII puro.
+#   - `if-domain` y `unless-domain` NO pueden ir juntos en el mismo trigger.
+#   - los dominios van en minúsculas.
+#   - `resource-type` sólo admite una lista cerrada de valores.
+
+RESOURCE_TYPES = {
+    'script': 'script', 'image': 'image', 'stylesheet': 'style-sheet',
+    'font': 'font', 'media': 'media', 'popup': 'popup',
+    'document': 'document', 'subdocument': 'document',
+    'xmlhttprequest': 'fetch', 'websocket': 'websocket', 'ping': 'ping',
+}
+
 def convert(line):
     line = line.strip()
     if not line or line.startswith('!') or line.startswith('['):
         return None
-    # Reglas cosméticas: WebKit las admite con css-display-none, pero la
-    # sintaxis de selectores de EasyList no se traduce en general. Fuera.
-    if '##' in line or '#@#' in line or '#?#' in line:
+    # Reglas cosméticas: la sintaxis de selectores de EasyList no se traduce
+    # en general a css-display-none. Fuera.
+    if '##' in line or '#@#' in line or '#?#' in line or '#$#' in line:
         return None
 
     exception = line.startswith('@@')
@@ -55,38 +73,43 @@ def convert(line):
                 options['domain'] = option[len('domain='):]
             elif option in ('third-party', '~third-party'):
                 options['third-party'] = option
-            elif option in ('script', 'image', 'stylesheet', 'font', 'media',
-                            'popup', 'document', 'subdocument', 'xmlhttprequest'):
+            elif option in RESOURCE_TYPES:
                 options.setdefault('types', []).append(option)
-            elif option.startswith(('~', 'redirect', 'rewrite', 'csp', 'removeparam')):
-                # Opciones que WebKit no sabe expresar: descartar la regla
-                # entera es más honrado que traducirla a medias.
+            elif option in ('match-case', 'all', 'other'):
+                pass
+            else:
+                # Cualquier opción que no se sepa traducir tumba la regla:
+                # traducirla a medias cambiaría lo que hace.
                 return None
 
-    if not line or line.startswith('/') and line.endswith('/'):
-        return None  # expresiones regulares en crudo, fuera
+    if not line:
+        return None
+    # Expresiones regulares en crudo: no se intentan.
+    if line.startswith('/') and line.endswith('/'):
+        return None
+    # WebKit exige ASCII. Las reglas con dominios internacionales se van.
+    if not line.isascii():
+        return None
 
-    # || al principio significa "este dominio y subdominios".
     anchored_domain = line.startswith('||')
     if anchored_domain:
         line = line[2:]
     line = line.lstrip('|').rstrip('|')
+    if not line:
+        return None
 
     pattern = re.escape(line)
     pattern = pattern.replace(r'\*', '.*').replace(r'\^', r'[/:?=&]')
     if anchored_domain:
         pattern = r'^https?://([^/]+\.)?' + pattern
 
+    if not pattern.isascii():
+        return None
+
     trigger = {'url-filter': pattern}
 
     if 'types' in options:
-        mapping = {
-            'script': 'script', 'image': 'image', 'stylesheet': 'style-sheet',
-            'font': 'font', 'media': 'media', 'popup': 'popup',
-            'document': 'document', 'subdocument': 'document',
-            'xmlhttprequest': 'raw',
-        }
-        kinds = sorted({mapping[t] for t in options['types'] if t in mapping})
+        kinds = sorted({RESOURCE_TYPES[t] for t in options['types']})
         if kinds:
             trigger['resource-type'] = kinds
 
@@ -98,13 +121,18 @@ def convert(line):
     if 'domain' in options:
         included, excluded = [], []
         for domain in options['domain'].split('|'):
+            domain = domain.strip().lower()
+            if not domain or not domain.isascii():
+                continue
             if domain.startswith('~'):
                 excluded.append('*' + domain[1:])
-            elif domain:
+            else:
                 included.append('*' + domain)
+        # **Nunca los dos a la vez**: WebKit rechaza la lista entera si un
+        # trigger lleva `if-domain` y `unless-domain` juntos.
         if included:
             trigger['if-domain'] = included
-        if excluded:
+        elif excluded:
             trigger['unless-domain'] = excluded
 
     action = {'type': 'ignore-previous-rules'} if exception else {'type': 'block'}
