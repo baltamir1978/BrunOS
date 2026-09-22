@@ -103,12 +103,13 @@ final class BrowserChrome: UIView {
         // está en la barra superior del escritorio y aquí sólo robaría sitio.
         let showTabs = titles.count > 1
         if showTabs {
+            let gap: CGFloat = 3
             let tabWidth = min(150, (bounds.width * 0.42) / CGFloat(titles.count))
-            let tabsWidth = tabWidth * CGFloat(titles.count)
+            let tabsWidth = tabWidth * CGFloat(titles.count) + gap * CGFloat(titles.count - 1)
             let start = blockerFrame.minX - tabsWidth - 6
             tabFrames = titles.indices.map { index in
                 CGRect(
-                    x: start + CGFloat(index) * tabWidth, y: 4,
+                    x: start + CGFloat(index) * (tabWidth + gap), y: 4,
                     width: tabWidth, height: Self.height - 8
                 )
             }
@@ -177,12 +178,32 @@ final class BrowserChrome: UIView {
         for (index, frame) in tabFrames.enumerated() {
             let isActive = index == activeIndex
 
-            // Cápsulas, como las pestañas de Safari.
-            if isActive {
-                let path = UIBezierPath(roundedRect: frame, cornerRadius: 7)
-                context.setFillColor(Tokens.Color.panel.desktopCGColor)
-                context.addPath(path.cgPath)
-                context.fillPath()
+            // **Con relieve, no planas.** Sin fondo ni borde no se sabía dónde
+            // empezaba una pestaña y acababa la siguiente: parecían una lista
+            // de palabras sueltas.
+            let path = UIBezierPath(roundedRect: frame, cornerRadius: 7)
+            context.setFillColor(
+                (isActive ? Tokens.Color.panel : Tokens.Color.background.withAlphaComponent(0.45))
+                    .desktopCGColor
+            )
+            context.addPath(path.cgPath)
+            context.fillPath()
+
+            context.setStrokeColor(
+                (isActive ? Tokens.Color.accent.withAlphaComponent(0.55) : Tokens.Color.border)
+                    .desktopCGColor
+            )
+            context.setLineWidth(1)
+            context.addPath(path.cgPath)
+            context.strokePath()
+
+            // Separador entre pestañas contiguas inactivas, como en Safari.
+            if index > 0, !isActive, index - 1 != activeIndex {
+                context.setFillColor(Tokens.Color.border.desktopCGColor)
+                context.fill(CGRect(
+                    x: frame.minX - 1, y: frame.minY + 5,
+                    width: 1, height: frame.height - 10
+                ))
             }
 
             let attributes: [NSAttributedString.Key: Any] = [

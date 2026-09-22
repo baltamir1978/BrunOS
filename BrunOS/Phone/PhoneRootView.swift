@@ -18,44 +18,44 @@ struct PhoneRootView: View {
     }
 
     var body: some View {
+        Group {
+            if isRemoteMode {
+                // Con monitor conectado, el iPhone se apaga y queda de mando.
+                // Ver `RemoteModeView` para el porqué, que no es estético.
+                RemoteModeView()
+            } else {
+                phoneInterface
+            }
+        }
+        // El aviso va aquí arriba y no dentro de la interfaz del teléfono:
+        // desde el monitor se pueden pedir los ajustes del iPhone —para dar de
+        // alta una máquina, que pide teclear cómodo— y en modo mando esa
+        // interfaz no está montada.
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .brunosShowSettings)) { _ in
+            showingSettings = true
+        }
+        .tint(.brunosAccent)
+    }
+
+    private var phoneInterface: some View {
         NavigationStack {
             ZStack {
                 Color.brunosBackground.ignoresSafeArea()
-
-                // Con monitor conectado, **toda la pantalla del iPhone es
-                // trackpad**, y lo demás va encima.
-                //
-                // No es un capricho de diseño, resuelve un problema concreto:
-                // con AssistiveTouch, el botón izquierdo del ratón no llega a
-                // la app como evento de ratón, sino que el sistema lo convierte
-                // en un toque donde esté el puntero. Sólo el derecho llega como
-                // botón. Si el trackpad no ocupa todo, hacer clic izquierdo
-                // fuera de él no hace nada, que es justo lo que pasaba.
-                if isRemoteMode {
-                    TrackpadView(isFullScreen: true)
-                        .ignoresSafeArea()
-                        .accessibilityLabel("Trackpad")
-                }
 
                 VStack(spacing: 16) {
                     header
                     if services.assistiveTouch.shouldWarn {
                         AssistiveTouchBanner()
                     }
-                    if isRemoteMode {
-                        Spacer(minLength: 0)
-                    } else {
-                        TrackpadView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .accessibilityLabel("Trackpad")
-                    }
+                    TrackpadView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityLabel("Trackpad")
                     buttons
                 }
                 .padding(16)
-                // En modo mando la cabecera y los botones flotan sobre el
-                // trackpad, así que no pueden tragarse los toques que no caigan
-                // justo encima de ellos.
-                .allowsHitTesting(true)
 
                 if isDimmed {
                     dimOverlay
@@ -68,14 +68,7 @@ struct PhoneRootView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .brunosShowSettings)) { _ in
-                showingSettings = true
-            }
         }
-        .tint(.brunosAccent)
     }
 
     // MARK: - Cabecera

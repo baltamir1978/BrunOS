@@ -203,6 +203,25 @@ Había además un bucle latente en el lanzador: `addPane(.terminal)` llamaba a
 los informes de fallo (`devicectl` no puede montar la imagen de desarrollo). Estos dos se
 encontraron leyendo el código.
 
+### El iPhone se apaga cuando hay monitor, y por qué
+
+**El diagnóstico lo dio Bruno**: el dock fallaba porque, con AssistiveTouch, el botón izquierdo no
+llega a la app como botón — iOS lo convierte en un **toque en la pantalla del teléfono**. Si en ese
+punto había un botón de la interfaz del iPhone, se pulsaba ése y el escritorio del monitor ni se
+enteraba. Funcionaba o no según dónde hubiera quedado el puntero.
+
+La única forma de que el clic llegue **siempre** al sitio correcto es que en el iPhone no haya nada
+más que tocar. De ahí `RemoteModeView`: con pantalla externa conectada el teléfono queda en negro,
+como superficie táctil y nada más, con un aviso que se va solo a los seis segundos y que **no
+acepta toques**, porque si no sería otra cosa robándole el clic al trackpad.
+
+**Consecuencia obligada: los ajustes se mudan al monitor** (`SettingsWindow`). Si el iPhone está
+apagado, los ajustes no pueden vivir allí. Se quedan en el teléfono sólo el alta y la edición de
+máquinas SSH, que piden teclear cómodo, y desde el monitor hay una fila que los abre.
+
+Los ajustes del monitor **no llevan deslizadores**: con un cursor propio, arrastrar uno es
+incómodo, así que las filas van pasando por los valores útiles al pulsarlas.
+
 ### Todo lo que se ve tiene que poder pulsarse
 
 Principio que pidió Bruno y que se aplicó a todo: el dock, la barra superior (la marca abre el

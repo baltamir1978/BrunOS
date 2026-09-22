@@ -41,11 +41,8 @@ final class DesktopViewController: UIViewController {
         canvas.addSubview(topBar)
         canvas.addSubview(dock)
 
-        dock.onSettings = {
-            // Los ajustes siguen viviendo en el iPhone, pero se abren desde
-            // aquí: con el trackpad a pantalla completa, ir a buscarlos al
-            // teléfono obliga a dejar de mirar el monitor.
-            NotificationCenter.default.post(name: .brunosShowSettings, object: nil)
+        dock.onSettings = { [weak self] in
+            self?.presentSettings()
         }
 
         emptyLabel.attributedText = TopBar.brandText(size: 44)
@@ -184,6 +181,9 @@ final class DesktopViewController: UIViewController {
             width: logicalSize.width,
             height: logicalSize.height
         )
+
+        settingsWindow?.frame = CGRect(origin: .zero, size: logicalSize)
+        launcher?.frame = CGRect(origin: .zero, size: logicalSize)
 
         dock.frame = CGRect(
             x: 0,
@@ -427,6 +427,28 @@ final class DesktopViewController: UIViewController {
     // MARK: - Lanzador
 
     private var launcher: Launcher?
+    private var settingsWindow: SettingsWindow?
+
+    /// Ajustes, en el monitor.
+    ///
+    /// Tienen que estar aquí porque el iPhone, con pantalla externa, es sólo
+    /// superficie táctil: si allí hubiera controles, el clic izquierdo acabaría
+    /// pulsándolos en vez de llegar al escritorio.
+    func presentSettings() {
+        guard settingsWindow == nil else { return }
+        let window = SettingsWindow(frame: CGRect(origin: .zero, size: logicalSize))
+        window.onDismiss = { [weak self] in
+            self?.settingsWindow?.removeFromSuperview()
+            self?.settingsWindow = nil
+        }
+        canvas.addSubview(window)
+        settingsWindow = window
+    }
+
+    /// Conecta el terminal con foco a una máquina. Lo usan los ajustes.
+    func connectTerminal(to host: SSHHost) {
+        connectFocusedTerminal(to: host)
+    }
 
     /// Cmd+P: elegir a qué máquina conectarse.
     ///
@@ -507,7 +529,8 @@ final class DesktopViewController: UIViewController {
         let position = services.pointer.position
         let frames = currentFrames()
 
-        // El lanzador es modal: mientras esté, se lo queda todo.
+        // Lo modal manda: mientras esté abierto, se lo queda todo.
+        if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
         if let launcher, launcher.handlePointer(kind, at: position) { return }
 
         if handleDock(kind, at: position) { return }
@@ -639,6 +662,7 @@ final class DesktopViewController: UIViewController {
 
     /// Entrega una tecla al panel con foco.
     func deliverKey(_ event: KeyEvent) {
+        if let settingsWindow, settingsWindow.handleKey(event) { return }
         if launcherHandlesKey(event) { return }
         services.desktop.active.focusedPane?.handleKey(event)
     }
