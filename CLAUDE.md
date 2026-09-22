@@ -280,12 +280,6 @@ movimiento más incómodo que hay.
 
 - **Primera subida con `Tools/testflight.sh`**: está escrito y pasa su simulación, pero falta
   probarlo con la clave de la API de verdad (ver la skill `testflight`).
-- **Autorrelleno de contraseñas**, lo último por decisión de Bruno. El de Safari no está al
-  alcance de una app (el llavero de Contraseñas sólo se ofrece en el teclado del sistema sobre un
-  campo nativo, y en el monitor no hay ni una cosa ni la otra). Dos caminos posibles, sin decidir:
-  un campo nativo en el iPhone que pida la contraseña a iOS y la inyecte en la página, o un
-  gestor propio en el Keychain que guarde al enviar el formulario
-  (`webView(_:willSubmitForm:submissionHandler:)`, nuevo en iOS 27, confirmado en el SDK).
 
 ## El bloqueo de arranque del singleton
 

@@ -89,6 +89,30 @@ la flecha mueve el cursor.
   iPhone, que está apagado), sin exigir gesto para reproducir (los clics sintéticos no cuentan
   como gesto) y `isElementFullscreenEnabled`. **Plex y compañía sin probar.**
 
+### Contraseñas: las de iOS, a través del iPhone (22-sep-2026)
+
+Bruno eligió las contraseñas de iOS, las de Safari, en vez de un gestor propio. El autorrelleno de
+iOS sólo se ofrece en el teclado del sistema, sobre un campo nativo y con el dedo, así que hay un
+puente (`PasswordBridge`): al pinchar en la página un campo de usuario o de contraseña, se abre en
+el iPhone `PasswordAutoFillView`, dos campos con `textContentType` de usuario y contraseña, donde
+iOS pone la llave de Contraseñas. Lo elegido se pasa a la página con `__brunos.fillLogin` y **no se
+guarda en ningún sitio**.
+
+- El autorrelleno escribe la contraseña de golpe y a mano va letra a letra: un salto de más de un
+  carácter se manda solo, sin pulsar Rellenar.
+- Mientras la hoja está abierta, el teclado físico escribe en ella (es el primer respondedor), así
+  que Esc tiene que cerrarla desde la propia hoja. Al cerrarse se devuelve el teclado al
+  controlador raíz.
+- Si se cancela, en esa web no se vuelve a ofrecer hasta que se cargue otra página.
+- **Comprobado en un `WKWebView` de macOS**: se detectan los campos, también el de usuario sin
+  `autocomplete`, y se rellenan con comillas incluidas. **Sin probar en el iPhone**, que es donde
+  tiene que salir la llave de Contraseñas.
+
+**Trampa que salió aquí y afectaba a más cosas**: con `allowAccessingClosedShadowRoots`, buscar
+qué hay bajo el cursor se metía también en el shadow root **interno** de un `<input>` y devolvía su
+`div`. No se reconocían los campos de texto (tampoco el «Pegar» del botón derecho). Ahora
+`deepElementFromPoint` no entra en los controles nativos.
+
 ### Bloqueador editable
 
 `Tools/fetch-blocklists.sh` genera ahora **una lista por fuente** (`blocklist-easylist-NN`,

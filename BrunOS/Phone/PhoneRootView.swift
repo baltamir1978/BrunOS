@@ -36,6 +36,14 @@ struct PhoneRootView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
+        // Una web del monitor pide una contraseña: se abre aunque el iPhone
+        // esté de mando, porque es justo lo que hay que tocar con el dedo.
+        .sheet(item: Binding(
+            get: { services.passwords.request },
+            set: { if $0 == nil, services.passwords.isAsking { services.passwords.cancel() } }
+        )) { request in
+            PasswordAutoFillView(request: request)
+        }
         .fileImporter(
             isPresented: $showingFolderPicker,
             allowedContentTypes: [.folder],
