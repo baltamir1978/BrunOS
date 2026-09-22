@@ -278,8 +278,8 @@ movimiento más incómodo que hay.
 
 ## Pendientes
 
-- **`Tools/testflight.sh`**: subir con la clave de la API de App Store Connect e incremento
-  automático de build. Hasta entonces, las subidas van a mano desde Xcode.
+- **Primera subida con `Tools/testflight.sh`**: está escrito y pasa su simulación, pero falta
+  probarlo con la clave de la API de verdad (ver la skill `testflight`).
 - **Autorrelleno de contraseñas**, lo último por decisión de Bruno. El de Safari no está al
   alcance de una app (el llavero de Contraseñas sólo se ofrece en el teclado del sistema sobre un
   campo nativo, y en el monitor no hay ni una cosa ni la otra). Dos caminos posibles, sin decidir:

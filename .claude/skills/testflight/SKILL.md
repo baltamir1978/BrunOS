@@ -23,6 +23,19 @@ Lo que costó llegar ahí, por si se repite:
 - Para instalar por **TestFlight no hace falta el Modo de desarrollador** del iPhone. Eso sólo es
   necesario para instalar y depurar directamente desde Xcode.
 
-`Tools/testflight.sh`, con la clave de la API de App Store Connect y el incremento automático de
-build, sigue **sin escribirse**: está previsto para el final de la Fase 4. Hasta entonces, las
-subidas van a mano desde Xcode.
+### `Tools/testflight.sh` (22-sep-2026)
+
+Archiva, firma y sube sin abrir Xcode: `./Tools/testflight.sh`, o `--dry-run` para ver lo que
+haría. **Sin probar contra App Store Connect**: la primera subida real la tiene que hacer Bruno con
+su clave.
+
+- **Credenciales fuera del repositorio**, que es público: `ASC_KEY_ID` y `ASC_ISSUER_ID` en el
+  entorno o en `~/.config/brunos/testflight.env`; el `.p8` en
+  `~/.appstoreconnect/private_keys/AuthKey_<ID>.p8`, que es donde lo deja Apple, o donde diga
+  `ASC_KEY_PATH`. La clave se crea en App Store Connect › Users and Access › Integrations, con
+  rol App Manager.
+- **Número de build = fecha y hora** (`AAMMDDHHMM`, se pasa como `CURRENT_PROJECT_VERSION`):
+  siempre crece y no hay contador que guardar. La versión visible sigue en `project.yml`.
+- **Se niega a subir sin listas de bloqueo**: no se versionan, y una build sin ellas funciona
+  pero no bloquea nada, que es fácil no notar hasta tenerla en el iPhone.
+- Exporta con `destination: upload`, que sube directamente: sin altool ni Transporter.
