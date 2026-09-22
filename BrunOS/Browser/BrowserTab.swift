@@ -47,9 +47,14 @@ final class BrowserTab: NSObject {
     }
 
     var onChange: (@MainActor () -> Void)?
+    /// Abrir algo en una pestaña nueva: lo resuelve el panel.
+    var onOpenInNewTab: (@MainActor (URL) -> Void)?
 
-    enum DownloadState { case started, finished, failed }
+    enum DownloadState { case started, finished(URL), failed }
     var onDownloadChange: (@MainActor (String, DownloadState) -> Void)?
+
+    /// Dónde va a parar cada descarga, para poder decir luego cuál terminó.
+    private var destinations: [ObjectIdentifier: URL] = [:]
 
     init(configuration: WKWebViewConfiguration) {
         // Mundo propio con acceso a shadow roots cerrados, nuevo en Safari 27.
@@ -202,19 +207,25 @@ final class BrowserTab: NSObject {
             <!DOCTYPE html><html><head><meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <style>
-              :root { color-scheme: dark; }
+              /* Los mismos colores que Tokens, en claro y en oscuro: la
+                 página sigue el modo del escritorio como cualquier web. */
+              :root { color-scheme: light dark;
+                      --bg: #F6F4F0; --text: #16191D; --muted: #5C636D; --accent: #A96B06; }
+              @media (prefers-color-scheme: dark) {
+                :root { --bg: #0B0D10; --text: #E6E3DC; --muted: #9AA1AB; --accent: #E8A33D; }
+              }
               body {
                 margin: 0; height: 100vh; display: flex; flex-direction: column;
                 align-items: center; justify-content: center; gap: 28px;
-                background: #0B0D10; color: #9AA1AB;
+                background: var(--bg); color: var(--muted);
                 font-family: -apple-system, system-ui, sans-serif;
               }
               h1 { margin: 0; font-family: ui-monospace, monospace; font-size: 42px;
-                   font-weight: 800; color: #E6E3DC; letter-spacing: -1px; }
-              h1 span { color: #E8A33D; }
+                   font-weight: 800; color: var(--text); letter-spacing: -1px; }
+              h1 span { color: var(--accent); }
               table { border-collapse: collapse; font-size: 13px; }
               td { padding: 5px 14px; }
-              td:first-child { text-align: right; color: #E6E3DC;
+              td:first-child { text-align: right; color: var(--text);
                                font-family: ui-monospace, monospace; }
             </style></head><body>
               <h1>brunOS<span>_</span></h1>
@@ -224,6 +235,7 @@ final class BrowserTab: NSObject {
                 <tr><td>Cmd+W</td><td>cerrar la pestaña</td></tr>
                 <tr><td>Cmd+R</td><td>recargar</td></tr>
                 <tr><td>Cmd + / −</td><td>zoom</td></tr>
+                <tr><td>clic derecho</td><td>abrir en pestaña nueva, descargar, copiar</td></tr>
               </table>
             </body></html>
             """
@@ -292,38 +304,66 @@ final class BrowserTab: NSObject {
 
     /// Manda una tecla a la página.
     ///
-    /// Las teclas normales se insertan como texto en el elemento con foco; las
-    /// de control se sintetizan como eventos, porque Intro en un formulario o
-    /// Tab entre campos no son "escribir un carácter".
+    /// Todo pasa por `__brunos.key`, que dispara `keydown`, `keypress` y
+    /// `keyup` y, si la página no lo cancela, **hace a mano lo que haría el
+    /// navegador**: un evento sintético no envía formularios ni borra nada por
+    /// sí solo, y por eso Intro no buscaba en Google. Ver `ClickInjector.js`.
     func sendKey(_ key: UIKey) {
-        switch key.keyCode {
-        case .keyboardReturnOrEnter: dispatchKey("Enter")
-        case .keyboardTab: dispatchKey("Tab")
-        case .keyboardEscape: dispatchKey("Escape")
-        case .keyboardDeleteOrBackspace: dispatchKey("Backspace")
-        case .keyboardUpArrow: dispatchKey("ArrowUp")
-        case .keyboardDownArrow: dispatchKey("ArrowDown")
-        case .keyboardLeftArrow: dispatchKey("ArrowLeft")
-        case .keyboardRightArrow: dispatchKey("ArrowRight")
-        default:
-            let characters = key.characters
-            guard !characters.isEmpty else { return }
+        let name: String? = switch key.keyCode {
+        case .keyboardReturnOrEnter, .keypadEnter: "Enter"
+        case .keyboardTab: "Tab"
+        case .keyboardEscape: "Escape"
+        case .keyboardDeleteOrBackspace: "Backspace"
+        case .keyboardDeleteForward: "Delete"
+        case .keyboardUpArrow: "ArrowUp"
+        case .keyboardDownArrow: "ArrowDown"
+        case .keyboardLeftArrow: "ArrowLeft"
+        case .keyboardRightArrow: "ArrowRight"
+        case .keyboardPageUp: "PageUp"
+        case .keyboardPageDown: "PageDown"
+        case .keyboardHome: "Home"
+        case .keyboardEnd: "End"
+        default: nil
+        }
+
+        let modifiers = Self.modifiersLiteral(key.modifierFlags)
+        if let name {
+            run("window.__brunos.key('\(name)', \(modifiers), null);")
+            return
+        }
+
+        let characters = key.characters
+        guard !characters.isEmpty else { return }
+        // Un carácter suelto va como tecla, para que lo vean los atajos de la
+        // página (la espaciadora de un vídeo, la «k» de YouTube). Lo que llega
+        // de golpe, como una composición de acentos, se escribe tal cual.
+        if characters.count == 1 {
+            let literal = Self.jsString(characters)
+            run("window.__brunos.key(\(literal), \(modifiers), \(literal));")
+        } else {
             insertText(characters)
         }
     }
 
-    private func dispatchKey(_ name: String) {
-        run("""
-            (function () {
-                const target = document.activeElement || document.body;
-                for (const type of ['keydown', 'keyup']) {
-                    target.dispatchEvent(new KeyboardEvent(type, {
-                        key: '\(name)', code: '\(name)',
-                        bubbles: true, cancelable: true, composed: true
-                    }));
-                }
-            })();
-            """)
+    private static func modifiersLiteral(_ flags: UIKeyModifierFlags) -> String {
+        """
+        {ctrl: \(flags.contains(.control)), alt: \(flags.contains(.alternate)), \
+        shift: \(flags.contains(.shift)), meta: \(flags.contains(.command))}
+        """
+    }
+
+    /// Un texto cualquiera como literal de JavaScript, bien escapado.
+    ///
+    /// Se pasa por JSON en vez de escapar a mano: así no se escapa ni una
+    /// comilla, ni un salto de línea, ni un separador de línea Unicode, que
+    /// rompe un literal de JavaScript aunque en JSON sea válido... salvo que
+    /// se escape también, que es lo que se hace.
+    static func jsString(_ text: String) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: [text])) ?? Data("[\"\"]".utf8)
+        let array = String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
+            .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+        return String(array.dropFirst().dropLast())
     }
 
     /// Copia lo que haya seleccionado en la página.
@@ -337,11 +377,7 @@ final class BrowserTab: NSObject {
     }
 
     func insertText(_ text: String) {
-        let escaped = text
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-        run("window.__brunos.insertText(\"\(escaped)\");")
+        run("window.__brunos.insertText(\(Self.jsString(text)));")
     }
 
     /// Lo que hay bajo el cursor.
@@ -352,6 +388,7 @@ final class BrowserTab: NSObject {
         var tag: String
         var link: String?
         var image: String?
+        var selection: String?
         var isEditable: Bool
         var cursor: String
     }
@@ -374,6 +411,7 @@ final class BrowserTab: NSObject {
                     tag: dictionary["tag"] as? String ?? "",
                     link: dictionary["link"] as? String,
                     image: dictionary["image"] as? String,
+                    selection: dictionary["selection"] as? String,
                     isEditable: dictionary["editable"] as? Bool ?? false,
                     cursor: dictionary["cursor"] as? String ?? "auto"
                 ))
@@ -447,12 +485,32 @@ extension BrowserTab: WKNavigationDelegate {
         refresh()
     }
 
-    /// Lo que el navegador no sabe enseñar, se descarga.
+    /// Los enlaces con atributo `download`, y los `blob:` que generan las webs
+    /// para bajar algo que han montado ellas, se descargan.
+    ///
+    /// **Faltaba, y era la mitad de las descargas.** Sin esto, WebKit trata un
+    /// `<a download>` como una navegación normal y el fichero se abre en la
+    /// pestaña, si es que sabe abrirlo, o no pasa nada.
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction
+    ) async -> WKNavigationActionPolicy {
+        navigationAction.shouldPerformDownload ? .download : .allow
+    }
+
+    /// Lo que el navegador no sabe enseñar, se descarga. Y lo que el servidor
+    /// manda como adjunto, también, aunque sepa enseñarlo: un PDF con
+    /// `Content-Disposition: attachment` se ha pedido para guardarlo.
     func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationResponse: WKNavigationResponse
     ) async -> WKNavigationResponsePolicy {
-        navigationResponse.canShowMIMEType ? .allow : .download
+        if let http = navigationResponse.response as? HTTPURLResponse,
+           let disposition = http.value(forHTTPHeaderField: "Content-Disposition"),
+           disposition.lowercased().hasPrefix("attachment") {
+            return .download
+        }
+        return navigationResponse.canShowMIMEType ? .allow : .download
     }
 
     func webView(
@@ -507,12 +565,14 @@ extension BrowserTab: WKDownloadDelegate {
             counter += 1
         }
 
-        onDownloadChange?(suggestedFilename, .started)
+        destinations[ObjectIdentifier(download)] = url
+        onDownloadChange?(url.lastPathComponent, .started)
         return url
     }
 
     func downloadDidFinish(_ download: WKDownload) {
-        onDownloadChange?(download.originalRequest?.url?.lastPathComponent ?? "", .finished)
+        guard let url = destinations.removeValue(forKey: ObjectIdentifier(download)) else { return }
+        onDownloadChange?(url.lastPathComponent, .finished(url))
     }
 
     func download(
@@ -520,13 +580,22 @@ extension BrowserTab: WKDownloadDelegate {
         didFailWithError error: any Error,
         resumeData: Data?
     ) {
+        destinations.removeValue(forKey: ObjectIdentifier(download))
         onDownloadChange?(error.localizedDescription, .failed)
+    }
+
+    /// Descarga una URL a propósito: «Descargar enlace» y «Guardar imagen».
+    func download(_ url: URL) {
+        webView.startDownload(using: URLRequest(url: url)) { [weak self] download in
+            download.delegate = self
+        }
     }
 }
 
 extension BrowserTab: WKUIDelegate {
 
-    /// Las ventanas emergentes se cargan en la misma pestaña.
+    /// Los enlaces con `target=_blank` y las ventanas emergentes van a una
+    /// pestaña nueva, como en cualquier navegador.
     ///
     /// Devolver un `WKWebView` nuevo obligaría a gestionar una jerarquía de
     /// ventanas que en un escritorio en mosaico no pinta nada.
@@ -537,7 +606,11 @@ extension BrowserTab: WKUIDelegate {
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
         if let url = navigationAction.request.url {
-            webView.load(URLRequest(url: url))
+            if let onOpenInNewTab {
+                onOpenInNewTab(url)
+            } else {
+                webView.load(URLRequest(url: url))
+            }
         }
         return nil
     }

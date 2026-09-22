@@ -7,8 +7,8 @@ import UIKit
 /// seguía en negro, y todo lo que no era el terminal se veía apagado. Ahora
 /// sigue al iPhone por defecto, y se puede fijar a mano en Ajustes.
 ///
-/// El terminal se queda oscuro en los dos modos, que es lo que espera cualquiera
-/// que use una consola (`Tokens.Color.terminalBackground`).
+/// El terminal tiene su propio ajuste (`TerminalTheme`), que por defecto sigue
+/// a éste.
 enum DesktopAppearance: String, CaseIterable, Sendable {
     case system
     case light

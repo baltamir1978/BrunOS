@@ -218,8 +218,10 @@ function describe(x, y) {
 
     const tag = target.tagName ? target.tagName.toLowerCase() : '';
     const editable = tag === 'input' || tag === 'textarea' || target.isContentEditable;
+    const selection = String(window.getSelection() || '').trim();
 
     return {
+        selection: selection.length > 0 ? selection.slice(0, 500) : null,
         tag: tag,
         link: link,
         image: tag === 'img' ? target.src : null,
@@ -231,10 +233,12 @@ function describe(x, y) {
 
 /// Escribe texto en el elemento con foco.
 ///
-/// Se dispara `input` a mano porque asignar `.value` no lo genera solo, y sin
-/// ese evento React y compañía no se enteran de nada.
+/// Primero con `execCommand('insertText')`, que es lo que hace el propio
+/// navegador al teclear: genera `beforeinput` e `input` de verdad, respeta el
+/// deshacer y lo entienden React y compañía, que vigilan el valor a su manera.
+/// Si el campo no lo admite, se escribe el valor a mano y se avisa con `input`.
 function insertText(text) {
-    const active = document.activeElement;
+    const active = deepActiveElement();
     if (!active) return false;
 
     if (active.isContentEditable) {
@@ -242,17 +246,265 @@ function insertText(text) {
         return true;
     }
 
-    const tag = active.tagName ? active.tagName.toLowerCase() : '';
-    if (tag === 'input' || tag === 'textarea') {
-        const start = active.selectionStart ?? active.value.length;
-        const end = active.selectionEnd ?? active.value.length;
-        active.value = active.value.slice(0, start) + text + active.value.slice(end);
-        const caret = start + text.length;
-        active.setSelectionRange(caret, caret);
-        active.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-        return true;
+    if (!isTextField(active)) return false;
+
+    if (document.execCommand('insertText', false, text)) return true;
+
+    const start = active.selectionStart ?? active.value.length;
+    const end = active.selectionEnd ?? active.value.length;
+    active.value = active.value.slice(0, start) + text + active.value.slice(end);
+    const caret = start + text.length;
+    try { active.setSelectionRange(caret, caret); } catch (error) {}
+    active.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    return true;
+}
+
+/// El elemento con foco, también dentro de un shadow root.
+function deepActiveElement() {
+    let active = document.activeElement;
+    let guard = 0;
+    while (active && active.shadowRoot && active.shadowRoot.activeElement && guard++ < 20) {
+        active = active.shadowRoot.activeElement;
     }
-    return false;
+    return active;
+}
+
+const TEXT_INPUT_TYPES = ['text', 'search', 'email', 'url', 'tel', 'password', 'number', ''];
+
+function isTextField(element) {
+    if (!element || !element.tagName) return false;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'textarea') return true;
+    return tag === 'input' && TEXT_INPUT_TYPES.includes((element.getAttribute('type') || '').toLowerCase());
+}
+
+function isEditable(element) {
+    return isTextField(element) || (element && element.isContentEditable);
+}
+
+/// Un `textarea` que en realidad es una caja de búsqueda de una línea.
+///
+/// **Google lo hace así**: su buscador es un `textarea` con rol de combobox.
+/// Intro ahí tiene que buscar, no meter un salto de línea.
+function behavesAsSingleLine(element) {
+    if (!element || element.tagName.toLowerCase() !== 'textarea') return false;
+    return element.getAttribute('role') === 'combobox'
+        || element.hasAttribute('aria-autocomplete')
+        || element.getAttribute('rows') === '1';
+}
+
+// Códigos heredados. Mucha web sigue mirando `keyCode` en vez de `key`.
+const KEY_CODES = {
+    Enter: 13, Tab: 9, Escape: 27, Backspace: 8, Delete: 46, ' ': 32,
+    ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40,
+    PageUp: 33, PageDown: 34, Home: 36, End: 35,
+};
+
+function keyCodeFor(key) {
+    if (key in KEY_CODES) return KEY_CODES[key];
+    if (key.length === 1) return key.toUpperCase().charCodeAt(0);
+    return 0;
+}
+
+function codeFor(key) {
+    if (key === ' ') return 'Space';
+    if (/^[a-z]$/i.test(key)) return 'Key' + key.toUpperCase();
+    if (/^[0-9]$/.test(key)) return 'Digit' + key;
+    return key;
+}
+
+function keyEvent(type, key, modifiers) {
+    const keyCode = keyCodeFor(key);
+    return new KeyboardEvent(type, {
+        key: key,
+        code: codeFor(key),
+        keyCode: keyCode,
+        which: keyCode,
+        charCode: type === 'keypress' ? keyCode : 0,
+        ctrlKey: !!(modifiers && modifiers.ctrl),
+        altKey: !!(modifiers && modifiers.alt),
+        shiftKey: !!(modifiers && modifiers.shift),
+        metaKey: !!(modifiers && modifiers.meta),
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+    });
+}
+
+/// Una tecla completa: `keydown`, `keypress` si toca, la acción y `keyup`.
+///
+/// **POR QUÉ HAY QUE HACER LA ACCIÓN A MANO.** Un evento sintético, por
+/// definición, no es de confianza, y el navegador **no ejecuta su acción por
+/// defecto**: un Intro sintético no envía el formulario y un Retroceso
+/// sintético no borra nada. La página sí recibe el evento, así que si ella se
+/// encarga —y lo cancela con `preventDefault`— no se hace nada más. Si no, se
+/// hace aquí lo que habría hecho el navegador.
+///
+/// `text` es el carácter que se escribe, si la tecla escribe alguno.
+function key(name, modifiers, text) {
+    const target = deepActiveElement() || document.body;
+
+    const down = keyEvent('keydown', name, modifiers);
+    target.dispatchEvent(down);
+    let prevented = down.defaultPrevented;
+
+    // `keypress` sólo existe para lo que escribe, e Intro cuenta.
+    if (!prevented && (text || name === 'Enter')) {
+        const press = keyEvent('keypress', name, modifiers);
+        target.dispatchEvent(press);
+        prevented = press.defaultPrevented;
+    }
+
+    if (!prevented) {
+        defaultAction(name, target, modifiers, text);
+    }
+
+    target.dispatchEvent(keyEvent('keyup', name, modifiers));
+    return true;
+}
+
+function defaultAction(name, target, modifiers, text) {
+    const shift = !!(modifiers && modifiers.shift);
+    const editable = isEditable(target);
+
+    if (text) {
+        if (editable) {
+            insertText(text);
+        } else if (text === ' ') {
+            // La espaciadora fuera de un campo baja una pantalla.
+            window.scrollBy(0, (shift ? -1 : 1) * window.innerHeight * 0.85);
+        }
+        return;
+    }
+
+    switch (name) {
+    case 'Enter':
+        return enter(target, shift);
+
+    case 'Backspace':
+    case 'Delete':
+        if (!editable) return;
+        if (!document.execCommand(name === 'Delete' ? 'forwardDelete' : 'delete')) {
+            deleteByHand(target, name === 'Delete');
+        }
+        return;
+
+    case 'ArrowLeft':
+    case 'ArrowRight':
+        if (isTextField(target)) {
+            moveCaret(target, name === 'ArrowLeft' ? -1 : 1, shift);
+        } else if (target.isContentEditable) {
+            window.getSelection().modify(shift ? 'extend' : 'move',
+                name === 'ArrowLeft' ? 'backward' : 'forward', 'character');
+        } else {
+            window.scrollBy(name === 'ArrowLeft' ? -60 : 60, 0);
+        }
+        return;
+
+    case 'ArrowUp':
+    case 'ArrowDown':
+        if (target.isContentEditable) {
+            window.getSelection().modify(shift ? 'extend' : 'move',
+                name === 'ArrowUp' ? 'backward' : 'forward', 'line');
+        } else if (!editable) {
+            window.scrollBy(0, name === 'ArrowUp' ? -60 : 60);
+        }
+        return;
+
+    case 'PageUp':
+    case 'PageDown':
+        window.scrollBy(0, (name === 'PageUp' ? -1 : 1) * window.innerHeight * 0.85);
+        return;
+
+    case 'Home':
+    case 'End':
+        if (editable) return;
+        window.scrollTo(0, name === 'Home' ? 0 : document.documentElement.scrollHeight);
+        return;
+
+    case 'Tab':
+        return moveFocus(target, shift ? -1 : 1);
+    }
+}
+
+/// Lo que haría Intro en cada sitio.
+function enter(target, shift) {
+    const tag = target.tagName ? target.tagName.toLowerCase() : '';
+
+    if (tag === 'textarea' && (shift || !behavesAsSingleLine(target))) {
+        insertText('\n');
+        return;
+    }
+    if (target.isContentEditable) {
+        document.execCommand(shift ? 'insertLineBreak' : 'insertParagraph');
+        return;
+    }
+    if (isTextField(target)) {
+        const form = target.form || target.closest('form');
+        if (!form) return;
+        // `requestSubmit` pasa por la validación y por los `submit` de la
+        // página, como un envío de verdad; `submit` a pelo se los salta.
+        try {
+            form.requestSubmit();
+        } catch (error) {
+            form.submit();
+        }
+        return;
+    }
+    // Un enlace o un botón con foco se pulsan con Intro.
+    if (tag === 'a' || tag === 'button' || target.getAttribute('role') === 'button') {
+        target.click();
+    }
+}
+
+function deleteByHand(field, forward) {
+    if (!isTextField(field)) return;
+    let start = field.selectionStart ?? field.value.length;
+    let end = field.selectionEnd ?? field.value.length;
+    if (start === end) {
+        if (forward) end = Math.min(field.value.length, end + 1);
+        else start = Math.max(0, start - 1);
+    }
+    field.value = field.value.slice(0, start) + field.value.slice(end);
+    try { field.setSelectionRange(start, start); } catch (error) {}
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+}
+
+function moveCaret(field, delta, extend) {
+    try {
+        const start = field.selectionStart ?? 0;
+        const end = field.selectionEnd ?? 0;
+        if (extend) {
+            field.setSelectionRange(start, Math.max(0, Math.min(field.value.length, end + delta)));
+            return;
+        }
+        // Con texto seleccionado, la flecha colapsa hacia ese lado, como en
+        // cualquier campo; sin selección, mueve un carácter.
+        const position = start !== end
+            ? (delta < 0 ? start : end)
+            : Math.max(0, Math.min(field.value.length, start + delta));
+        field.setSelectionRange(position, position);
+    } catch (error) {
+        // Los `input type=email` y `number` no admiten selección.
+    }
+}
+
+/// Tab: al siguiente elemento que acepte foco, en orden de documento.
+function moveFocus(current, direction) {
+    const selector = 'a[href], button, input, select, textarea, [tabindex], [contenteditable="true"]';
+    const all = Array.from(document.querySelectorAll(selector)).filter(element =>
+        !element.disabled
+        && element.tabIndex >= 0
+        && element.offsetParent !== null
+    );
+    if (all.length === 0) return;
+    const index = all.indexOf(current);
+    const next = all[(index + direction + all.length) % all.length];
+    next.focus();
+    if (isTextField(next)) {
+        try { next.select(); } catch (error) {}
+    }
 }
 
 // Lo que Swift puede llamar.
@@ -262,4 +514,5 @@ window.__brunos = {
     wheel: wheel,
     describe: describe,
     insertText: insertText,
+    key: key,
 };

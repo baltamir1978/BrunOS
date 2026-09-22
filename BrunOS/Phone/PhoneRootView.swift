@@ -48,7 +48,17 @@ struct PhoneRootView: View {
             showingFolderPicker = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .brunosShowSettings)) { _ in
+            // Con monitor, los ajustes están en el monitor: abrirlos aquí
+            // taparía la superficie táctil y el ratón dejaría de funcionar.
+            guard !isRemoteMode else { return }
             showingSettings = true
+        }
+        // **Al conectar el monitor, fuera todo lo que haya abierto.** Con los
+        // ajustes del iPhone delante, el clic que AssistiveTouch convierte en
+        // toque caía sobre ellos en vez de llegar al escritorio, y el ratón
+        // parecía muerto en la pantalla externa.
+        .onChange(of: isRemoteMode) { _, remote in
+            if remote { showingSettings = false }
         }
         .tint(.brunosAccent)
     }

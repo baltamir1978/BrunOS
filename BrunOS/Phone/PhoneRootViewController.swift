@@ -37,6 +37,13 @@ final class PhoneRootViewController: UIViewController {
         services.mouse.delegate = self
         services.start()
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(externalDisplayChanged),
+            name: ExternalDisplayManager.didChangeNotification,
+            object: nil
+        )
+
         // Aquí se declara el contenido de la pantalla externa. El sistema decide
         // cuándo presentarlo; la app tiene que funcionar igual sin monitor.
         services.externalDisplay.register(from: self)
@@ -45,6 +52,29 @@ final class PhoneRootViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         becomeFirstResponder()
+    }
+
+    /// Al conectar el monitor, el iPhone vuelve a su pantalla de mando.
+    ///
+    /// SwiftUI cierra su hoja de ajustes por su cuenta (ver `PhoneRootView`),
+    /// pero puede haber algo más presentado encima —el asistente de
+    /// AssistiveTouch, un selector— y cualquier cosa ahí se queda con los
+    /// toques. Lo único que se respeta es el selector de carpetas: si está
+    /// abierto es porque se ha pedido desde el propio monitor.
+    ///
+    /// Y hay que recuperar el primer respondedor, que se lo había llevado la
+    /// hoja: sin él, el teclado físico no llega a ninguna parte.
+    @objc private func externalDisplayChanged() {
+        guard services.externalDisplay.currentProfile != nil else { return }
+        guard let presented = presentedViewController,
+              !(presented is UIDocumentPickerViewController)
+        else {
+            becomeFirstResponder()
+            return
+        }
+        dismiss(animated: true) { [weak self] in
+            self?.becomeFirstResponder()
+        }
     }
 
     // MARK: - Cadena de responders

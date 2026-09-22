@@ -88,10 +88,10 @@ private struct GradientPreview: View {
     let gradient: Wallpaper.Gradient
 
     var body: some View {
-        let glow = gradient.glow
+        let glow = gradient.glow(for: DesktopTheme.style)
         ZStack {
             LinearGradient(
-                colors: gradient.colors.map(Color.init),
+                colors: gradient.colors(for: DesktopTheme.style).map(Color.init),
                 startPoint: .top,
                 endPoint: .bottom
             )

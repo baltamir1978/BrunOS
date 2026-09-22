@@ -12,6 +12,7 @@ enum DesktopCommand: Equatable {
     case moveFocus(TilingLayout.Direction)
     case movePane(TilingLayout.Direction)
     case toggleMaximize
+    case toggleFullScreen
     case newTab
     case closeTab
     case newPane
@@ -32,6 +33,7 @@ enum DesktopCommand: Equatable {
         case .moveFocus: "Mover el foco"
         case .movePane: "Mover el panel"
         case .toggleMaximize: "Maximizar o restaurar"
+        case .toggleFullScreen: "Pantalla completa"
         case .newTab: "Nueva pestaña o sesión"
         case .closeTab: "Cerrar pestaña o sesión"
         case .newPane: "Nuevo panel"
@@ -95,6 +97,9 @@ enum Shortcuts {
 
         entries += [
             Entry(input: "\r", modifiers: .command, command: .toggleMaximize, title: "Maximizar"),
+            // Como en macOS. Va antes que Cmd+F, que es buscar.
+            Entry(input: "f", modifiers: [.command, .control], command: .toggleFullScreen,
+                  title: "Pantalla completa"),
             Entry(input: "t", modifiers: .command, command: .newTab, title: "Nueva pestaña"),
             Entry(input: "w", modifiers: .command, command: .closeTab, title: "Cerrar pestaña"),
             Entry(input: "n", modifiers: .command, command: .newPane, title: "Nuevo panel"),

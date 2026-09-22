@@ -61,7 +61,7 @@ final class PlaceholderPane: UIView, Pane {
         super.init(frame: .zero)
 
         backgroundColor = kind == .terminal
-            ? Tokens.Color.terminalBackground
+            ? TerminalTheme.background(for: TerminalTheme.style)
             : Tokens.Color.panel
         layer.cornerRadius = Tokens.Metric.paneCornerRadius
         layer.borderWidth = Tokens.Metric.focusBorderWidth

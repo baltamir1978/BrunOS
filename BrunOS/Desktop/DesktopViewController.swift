@@ -43,7 +43,7 @@ final class DesktopViewController: UIViewController {
         canvas.addSubview(dock)
 
         dock.onSettings = { [weak self] in
-            self?.presentSettings()
+            self?.presentSettings(.global)
         }
 
         emptyLabel.attributedText = TopBar.brandText(size: 44)
@@ -178,8 +178,9 @@ final class DesktopViewController: UIViewController {
         isLayingOut = true
         defer { isLayingOut = false }
 
+        let fullScreen = services.desktop.isFullScreen
         topBar.frame = CGRect(
-            x: 0, y: 0,
+            x: 0, y: fullScreen && !topBarRevealed ? -Tokens.Metric.topBarHeight : 0,
             width: logicalSize.width,
             height: Tokens.Metric.topBarHeight
         )
@@ -195,12 +196,17 @@ final class DesktopViewController: UIViewController {
         prompt?.frame = CGRect(origin: .zero, size: logicalSize)
         launcher?.frame = CGRect(origin: .zero, size: logicalSize)
 
+        let dockHidden = fullScreen && !dockRevealed
         dock.frame = CGRect(
             x: 0,
-            y: logicalSize.height - Dock.height - Dock.bottomMargin,
+            y: logicalSize.height - (dockHidden ? -Dock.bottomMargin : Dock.height + Dock.bottomMargin),
             width: logicalSize.width,
             height: Dock.height
         )
+        // Los paneles se ponen debajo de las barras: con pantalla completa,
+        // el dock y la barra salen por encima de lo que haya.
+        canvas.bringSubviewToFront(topBar)
+        canvas.bringSubviewToFront(dock)
         dock.update(desktop: services.desktop)
 
         // El fondo va sin animación: si no, al cambiar de escala se ve la
@@ -291,20 +297,9 @@ final class DesktopViewController: UIViewController {
         }
     }
 
-    /// Se añadió o cambió una máquina en el iPhone.
-    ///
-    /// Si algún panel de terminal está esperando —se creó cuando todavía no
-    /// había ninguna configurada— se conecta ahora. Antes había que cerrar la
-    /// app y volver a abrirla, porque el panel se quedaba con el aviso puesto
-    /// para siempre.
+    /// Se añadió o cambió una máquina. La lista de conexiones del terminal se
+    /// entera sola; aquí sólo se repinta el resto.
     @objc private func hostsChanged() {
-        guard let host = services.hosts.hosts.first else { return }
-        for workspace in services.desktop.workspaces {
-            for (_, pane) in workspace.panes {
-                guard let terminal = pane as? TerminalPane, terminal.isWaitingForHost else { continue }
-                terminal.openSession(to: host)
-            }
-        }
         services.desktop.notifyChange()
     }
 
@@ -336,6 +331,11 @@ final class DesktopViewController: UIViewController {
 
         case .toggleMaximize:
             workspace.toggleMaximize()
+
+        case .toggleFullScreen:
+            dockRevealed = false
+            topBarRevealed = false
+            services.desktop.isFullScreen.toggle()
 
         case .newPane:
             let kind = (workspace.focusedPane as? PlaceholderPane)?.kind
@@ -453,22 +453,12 @@ final class DesktopViewController: UIViewController {
         }
     }
 
-    /// Abre una sesión en un panel de terminal.
+    /// Una sesión nueva en un panel de terminal: la lista de conexiones.
     ///
-    /// Con un solo host se conecta directamente, que es el caso normal. Con
-    /// varios abre el lanzador para elegir, en vez de decidir por su cuenta.
+    /// **Ya no conecta por su cuenta.** Antes, con una sola máquina, entraba
+    /// directamente, y había que cerrar lo que se había abierto sin pedirlo.
     func openTerminalSession(in pane: TerminalPane) {
-        let hosts = services.hosts.hosts
-        guard !hosts.isEmpty else {
-            pane.showMessage("No hay ninguna máquina configurada.\n"
-                             + "Añádela en el iPhone: Ajustes › SSH › Hosts.")
-            return
-        }
-        if hosts.count == 1 {
-            pane.openSession(to: hosts[0])
-        } else {
-            presentLauncher()
-        }
+        pane.showHome()
     }
 
     // MARK: - Lanzador
@@ -476,23 +466,32 @@ final class DesktopViewController: UIViewController {
     private var launcher: Launcher?
     private var settingsWindow: SettingsWindow?
 
-    /// Ajustes, en el monitor.
+    /// Ajustes, en el monitor: los globales o los de un tipo de panel.
     ///
     /// Tienen que estar aquí porque el iPhone, con pantalla externa, es sólo
     /// superficie táctil: si allí hubiera controles, el clic izquierdo acabaría
     /// pulsándolos en vez de llegar al escritorio.
-    func presentSettings() {
-        guard settingsWindow == nil else { return }
-        let window = SettingsWindow(frame: CGRect(origin: .zero, size: logicalSize))
+    func presentSettings(_ scope: SettingsScope, page: Int = 0) {
+        settingsWindow?.removeFromSuperview()
+        let content = SettingsPages.window(for: scope)
+        let window = SettingsWindow(
+            title: content.title,
+            symbol: content.symbol,
+            pages: content.pages,
+            page: page,
+            frame: CGRect(origin: .zero, size: logicalSize)
+        )
         window.onDismiss = { [weak self] in
-            self?.settingsWindow?.removeFromSuperview()
-            self?.settingsWindow = nil
-        }
-        window.onEditHost = { [weak self] host in
-            self?.presentHostEditor(for: host)
+            self?.dismissSettings()
         }
         canvas.addSubview(window)
         settingsWindow = window
+        applyContentsScale(to: window)
+    }
+
+    func dismissSettings() {
+        settingsWindow?.removeFromSuperview()
+        settingsWindow = nil
     }
 
     private var quickLook: QuickLookView?
@@ -569,6 +568,21 @@ final class DesktopViewController: UIViewController {
         }
         canvas.addSubview(window)
         prompt = window
+    }
+
+    /// Enseña un fichero o una carpeta del iPhone en el gestor de ficheros.
+    func revealInFiles(_ url: URL) {
+        var isDirectory: ObjCBool = false
+        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+        let directory = isDirectory.boolValue ? url.path : url.deletingLastPathComponent().path
+        let name = isDirectory.boolValue ? nil : url.lastPathComponent
+
+        services.desktop.activate(number: PaneKind.files.preferredWorkspace)
+        if !(services.desktop.active.focusedPane is FilesPane) {
+            addPane(kind: .files)
+        }
+        (services.desktop.active.focusedPane as? FilesPane)?.show(localDirectory: directory, selecting: name)
+        services.desktop.notifyChange()
     }
 
     /// Abre un fichero local en el navegador.
@@ -661,6 +675,9 @@ final class DesktopViewController: UIViewController {
     /// Dónde se reparten los paneles: entre la barra y el dock.
     private var tileArea: CGRect {
         let gap = Tokens.Metric.tileGap
+        if services.desktop.isFullScreen {
+            return CGRect(origin: .zero, size: logicalSize).insetBy(dx: gap / 2, dy: gap / 2)
+        }
         let top = Tokens.Metric.topBarHeight + gap
         let bottom = Dock.height + Dock.bottomMargin + gap
         return CGRect(
@@ -696,19 +713,36 @@ final class DesktopViewController: UIViewController {
         if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
         if let launcher, launcher.handlePointer(kind, at: position) { return }
 
-        if handleDock(kind, at: position) { return }
-        if handleTopBar(kind, at: position) { return }
+        if case .moved = kind, services.desktop.isFullScreen {
+            updateFullScreenReveal(at: position)
+        }
+        if !services.desktop.isFullScreen || dockRevealed, handleDock(kind, at: position) { return }
+        if !services.desktop.isFullScreen || topBarRevealed, handleTopBar(kind, at: position) { return }
         if handleDivider(kind, at: position, frames: frames) { return }
 
         guard let hit = frames.first(where: { $0.value.contains(position) }) else { return }
 
         let workspace = services.desktop.active
 
-        if case .down(let button) = kind, button == .right,
-           let files = workspace.pane(hit.key) as? FilesPane {
+        if case .down(let button) = kind, button == .right {
             let local = CGPoint(x: position.x - hit.value.minX, y: position.y - hit.value.minY)
-            presentContextMenu(files.contextMenuEntries(at: local), at: position)
-            return
+            if workspace.focused != hit.key {
+                workspace.setFocus(hit.key)
+                services.desktop.notifyChange()
+            }
+            if let files = workspace.pane(hit.key) as? FilesPane {
+                presentContextMenu(files.contextMenuEntries(at: local), at: position)
+                return
+            }
+            if let browser = workspace.pane(hit.key) as? BrowserPane {
+                // Hay que preguntarle a la página qué hay bajo el cursor, y
+                // eso es asíncrono: el menú sale en cuanto contesta.
+                Task { [weak self] in
+                    let entries = await browser.contextMenuEntries(at: local)
+                    self?.presentContextMenu(entries, at: position)
+                }
+                return
+            }
         }
 
         if case .down = kind, workspace.focused != hit.key {
@@ -724,6 +758,29 @@ final class DesktopViewController: UIViewController {
             ),
             modifiers: modifiers
         ))
+    }
+
+    // MARK: - Pantalla completa
+
+    /// El dock asoma al llevar el cursor al borde de abajo, y la barra al de
+    /// arriba, como en macOS. Se esconden al alejarse.
+    private var dockRevealed = false
+    private var topBarRevealed = false
+
+    private func updateFullScreenReveal(at position: CGPoint) {
+        let edge: CGFloat = 3
+        let wantsDock = dockRevealed
+            ? position.y > logicalSize.height - Dock.height - Dock.bottomMargin - 24
+            : position.y >= logicalSize.height - edge
+        let wantsTopBar = topBarRevealed
+            ? position.y < Tokens.Metric.topBarHeight + 16
+            : position.y <= edge
+        guard wantsDock != dockRevealed || wantsTopBar != topBarRevealed else { return }
+        dockRevealed = wantsDock
+        topBarRevealed = wantsTopBar
+        UIView.animate(withDuration: 0.18, delay: 0, options: [.curveEaseOut, .beginFromCurrentState]) {
+            self.layoutCanvas()
+        }
     }
 
     /// Clics en el dock. Devuelve `true` si consumió el evento.
@@ -754,7 +811,7 @@ final class DesktopViewController: UIViewController {
         case .brand:
             presentLauncher()
         case .display:
-            NotificationCenter.default.post(name: .brunosShowSettings, object: nil)
+            presentSettings(.global, page: 1)
         case .none:
             break
         }

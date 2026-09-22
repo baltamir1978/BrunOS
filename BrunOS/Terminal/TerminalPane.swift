@@ -11,28 +11,27 @@ final class TerminalPane: UIView, Pane {
 
     private let tabBar = TerminalTabBar()
     private let content = UIView()
+    private let home = TerminalHomeView()
     private var tabs: [TerminalTab] = []
     private var activeIndex = 0
-
-    /// El panel está enseñando el aviso de "no hay máquinas" y espera que
-    /// alguien configure una.
-    private(set) var isWaitingForHost = false
+    /// Se está viendo la lista de conexiones en vez de una sesión.
+    private(set) var isShowingHome = true
 
     var title: String {
-        guard let tab = activeTab else { return "Terminal" }
+        guard !isShowingHome, let tab = activeTab else { return "Terminal" }
         return tab.title
     }
 
     var view: UIView { self }
 
     private var activeTab: TerminalTab? {
-        tabs.indices.contains(activeIndex) ? tabs[activeIndex] : nil
+        guard !isShowingHome else { return nil }
+        return tabs.indices.contains(activeIndex) ? tabs[activeIndex] : nil
     }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
 
-        backgroundColor = Tokens.Color.terminalBackground
         layer.cornerRadius = Tokens.Metric.paneCornerRadius
         layer.borderWidth = Tokens.Metric.focusBorderWidth
         layer.borderColor = Tokens.Color.border.desktopCGColor
@@ -40,13 +39,42 @@ final class TerminalPane: UIView, Pane {
 
         addSubview(tabBar)
         addSubview(content)
+        content.addSubview(home)
 
-        tabBar.onSelect = { [weak self] index in
-            self?.activate(index)
+        home.onConnect = { [weak self] host in
+            self?.openSession(to: host)
         }
-        tabBar.onClose = { [weak self] index in
-            self?.closeTab(at: index)
+
+        applyTheme()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(themeChanged),
+            name: TerminalTheme.didChangeNotification, object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(themeChanged),
+            name: DesktopTheme.didChangeNotification, object: nil
+        )
+        refreshBar()
+    }
+
+    // MARK: - Tema
+
+    @objc private func themeChanged() {
+        applyTheme()
+    }
+
+    /// El panel entero se pone en el modo del terminal, que puede no ser el
+    /// del escritorio: así la barra, la lista de conexiones y el aviso de
+    /// reconexión salen a juego con la consola.
+    private func applyTheme() {
+        let style = TerminalTheme.style
+        overrideUserInterfaceStyle = style
+        backgroundColor = TerminalTheme.background(for: style)
+        for tab in tabs {
+            tab.applyTheme(style)
         }
+        tabBar.setNeedsDisplay()
+        home.setNeedsDisplay()
     }
 
     @available(*, unavailable)
@@ -59,20 +87,26 @@ final class TerminalPane: UIView, Pane {
     override func layoutSubviews() {
         super.layoutSubviews()
 
-        // La barra de pestañas se esconde cuando sólo hay una: en un panel que
-        // suele tener una sola sesión, roba alto sin aportar nada.
-        let barHeight: CGFloat = tabs.count > 1 ? 26 : 0
+        let barHeight = TerminalTabBar.height
         tabBar.frame = CGRect(x: 0, y: 0, width: bounds.width, height: barHeight)
-        tabBar.isHidden = barHeight == 0
         content.frame = CGRect(
             x: 0,
             y: barHeight,
             width: bounds.width,
             height: max(0, bounds.height - barHeight)
         )
+        home.frame = content.bounds
         for tab in tabs {
             tab.terminalView.frame = content.bounds
         }
+    }
+
+    private func refreshBar() {
+        tabBar.update(
+            titles: tabs.map(\.title),
+            active: tabs.isEmpty ? nil : activeIndex,
+            showsHome: isShowingHome
+        )
     }
 
     // MARK: - Pestañas
@@ -80,18 +114,12 @@ final class TerminalPane: UIView, Pane {
     /// Abre una sesión contra un host y le pasa el foco.
     @discardableResult
     func openSession(to host: SSHHost) -> TerminalTab {
-        // Si estaba el aviso puesto, se va: ya hay con qué conectar.
-        if isWaitingForHost {
-            isWaitingForHost = false
-            tabs.forEach { $0.terminalView.removeFromSuperview() }
-            tabs.removeAll()
-        }
-
         let tab = TerminalTab(host: host)
         tab.onTitleChange = { [weak self] in
-            self?.tabBar.update(titles: self?.tabs.map(\.title) ?? [], active: self?.activeIndex ?? 0)
+            self?.refreshBar()
             AppServices.shared.desktop.notifyChange()
         }
+        tab.applyTheme(TerminalTheme.style)
         tabs.append(tab)
         content.addSubview(tab.terminalView)
         activate(tabs.count - 1)
@@ -100,43 +128,53 @@ final class TerminalPane: UIView, Pane {
         return tab
     }
 
+    /// Enseña la lista de conexiones. Cmd+T y el «+» de la barra.
+    func showHome() {
+        isShowingHome = true
+        home.reload()
+        updateVisibility()
+        refreshBar()
+        AppServices.shared.desktop.notifyChange()
+    }
+
     func closeTab(at index: Int) {
         guard tabs.indices.contains(index) else { return }
         let tab = tabs.remove(at: index)
         tab.disconnect()
         tab.terminalView.removeFromSuperview()
-        activate(min(activeIndex, tabs.count - 1))
+        if tabs.isEmpty {
+            showHome()
+        } else {
+            activate(min(index, tabs.count - 1))
+        }
         setNeedsLayout()
         AppServices.shared.desktop.notifyChange()
     }
 
-    /// Escribe un aviso en el panel cuando todavía no hay ninguna sesión.
-    ///
-    /// Se pinta en un terminal de verdad y no en una etiqueta suelta para que
-    /// el panel se vea siempre igual: un escritorio donde cada estado tiene su
-    /// propia pinta acaba pareciendo roto.
-    func showMessage(_ message: String) {
-        isWaitingForHost = true
-        let tab = TerminalTab(host: SSHHost(name: "BrunOS", host: "local", username: "-"))
-        tabs.append(tab)
-        content.addSubview(tab.terminalView)
-        activate(tabs.count - 1)
-        setNeedsLayout()
-        tab.showNotice(message)
-    }
-
-    /// Cierra la pestaña activa. Lo llama Cmd+W.
+    /// Cierra la pestaña activa. Lo llama Cmd+W. Con la lista de conexiones
+    /// delante, la cierra y vuelve a la última sesión, si la hay.
     func closeActiveTab() {
+        if isShowingHome {
+            guard !tabs.isEmpty else { return }
+            activate(activeIndex)
+            return
+        }
         closeTab(at: activeIndex)
     }
 
     private func activate(_ index: Int) {
-        activeIndex = max(0, index)
-        for (position, tab) in tabs.enumerated() {
-            tab.terminalView.isHidden = position != activeIndex
-        }
-        tabBar.update(titles: tabs.map(\.title), active: activeIndex)
+        activeIndex = max(0, min(index, tabs.count - 1))
+        isShowingHome = tabs.isEmpty
+        updateVisibility()
+        refreshBar()
         AppServices.shared.desktop.notifyChange()
+    }
+
+    private func updateVisibility() {
+        home.isHidden = !isShowingHome
+        for (position, tab) in tabs.enumerated() {
+            tab.terminalView.isHidden = isShowingHome || position != activeIndex
+        }
     }
 
     // MARK: - Pane
@@ -150,6 +188,10 @@ final class TerminalPane: UIView, Pane {
     }
 
     func handleKey(_ event: KeyEvent) {
+        if isShowingHome {
+            home.handleKey(event)
+            return
+        }
         guard event.phase == .down, let tab = activeTab else { return }
         tab.sendKey(event.key)
     }
@@ -159,15 +201,29 @@ final class TerminalPane: UIView, Pane {
     }
 
     func handlePointer(_ event: PointerEvent) {
-        guard let tab = activeTab else { return }
-
-        // Un clic en la barra de pestañas cambia de sesión.
-        if !tabBar.isHidden, tabBar.frame.contains(event.location) {
-            if case .down = event.kind, let index = tabBar.indexOfTab(at: event.location) {
-                activate(index)
+        if tabBar.frame.contains(event.location) {
+            tabBar.hover(at: event.location)
+            guard case .down(let button) = event.kind, button == .left else { return }
+            switch tabBar.target(at: event.location) {
+            case .tab(let index): activate(index)
+            case .close(let index): closeTab(at: index)
+            case .newTab: showHome()
+            case .settings: AppServices.shared.desktopViewController?.presentSettings(.terminal)
+            case nil: break
             }
             return
         }
+        tabBar.hover(at: nil)
+
+        if isShowingHome {
+            home.handlePointer(PointerEvent(
+                kind: event.kind,
+                location: CGPoint(x: event.location.x, y: event.location.y - content.frame.minY),
+                modifiers: event.modifiers
+            ))
+            return
+        }
+        guard let tab = activeTab else { return }
 
         tab.handlePointer(
             event.kind,

@@ -85,6 +85,11 @@ final class DesktopModel {
 
     private(set) var activeIndex = 0
 
+    /// Sin dock ni barra superior: los paneles se llevan la pantalla entera.
+    var isFullScreen = false {
+        didSet { if isFullScreen != oldValue { notifyChange() } }
+    }
+
     var active: Workspace { workspaces[activeIndex] }
 
     /// Cambia de espacio. `number` es 1, 2 o 3, como en los atajos Cmd+1/2/3.

@@ -18,6 +18,9 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 mkdir -p "$DEST"
+# Los trozos de una generación anterior se borran: si ahora salen menos, los
+# que sobraran se seguirían compilando.
+rm -f "$DEST"/blocklist-*.json "$DEST"/manifest-blocklists.json
 
 echo "==> Descargando listas"
 curl -fsSL "https://easylist.to/easylist/easylist.txt" -o "$TMP/easylist.txt"
@@ -25,7 +28,7 @@ curl -fsSL "https://easylist.to/easylist/easyprivacy.txt" -o "$TMP/easyprivacy.t
 
 echo "==> Convirtiendo"
 python3 - "$TMP/easylist.txt" "$TMP/easyprivacy.txt" "$DEST" <<'PY'
-import json, re, sys
+import json, os, re, sys
 
 sources, dest = sys.argv[1:-1], sys.argv[-1]
 
@@ -138,8 +141,14 @@ def convert(line):
     action = {'type': 'ignore-previous-rules'} if exception else {'type': 'block'}
     return {'trigger': trigger, 'action': action}
 
-rules, seen = [], set()
+# Cada fuente va en sus propios ficheros, `blocklist-<fuente>-NN.json`, para
+# que en Ajustes se pueda apagar una sin la otra: quitar los rastreadores y
+# dejar los anuncios, o al revés. El manifiesto dice cuántas reglas lleva cada
+# una, que contarlas en la app obligaría a leer megas de JSON al arrancar.
+manifest, total = {}, 0
 for source in sources:
+    name = os.path.splitext(os.path.basename(source))[0]
+    rules, seen = [], set()
     with open(source, encoding='utf-8', errors='ignore') as handle:
         for line in handle:
             rule = convert(line)
@@ -151,18 +160,24 @@ for source in sources:
             seen.add(key)
             rules.append(rule)
 
-# Las excepciones tienen que ir después de los bloqueos: WebKit aplica las
-# reglas en orden y `ignore-previous-rules` sólo anula lo anterior.
-rules.sort(key=lambda r: r['action']['type'] == 'ignore-previous-rules')
+    # Las excepciones tienen que ir después de los bloqueos: WebKit aplica
+    # las reglas en orden y `ignore-previous-rules` sólo anula lo anterior.
+    rules.sort(key=lambda r: r['action']['type'] == 'ignore-previous-rules')
 
-for index in range(0, len(rules), CHUNK):
-    chunk = rules[index:index + CHUNK]
-    path = f"{dest}/blocklist-{index // CHUNK:02d}.json"
-    with open(path, 'w', encoding='utf-8') as handle:
-        json.dump(chunk, handle, separators=(',', ':'))
-    print(f"    {path}: {len(chunk)} reglas")
+    for index in range(0, len(rules), CHUNK):
+        chunk = rules[index:index + CHUNK]
+        path = f"{dest}/blocklist-{name}-{index // CHUNK:02d}.json"
+        with open(path, 'w', encoding='utf-8') as handle:
+            json.dump(chunk, handle, separators=(',', ':'))
+        print(f"    {path}: {len(chunk)} reglas")
 
-print(f"==> {len(rules)} reglas en total")
+    manifest[name] = len(rules)
+    total += len(rules)
+
+with open(f"{dest}/manifest-blocklists.json", 'w', encoding='utf-8') as handle:
+    json.dump(manifest, handle)
+
+print(f"==> {total} reglas en total")
 PY
 
 echo

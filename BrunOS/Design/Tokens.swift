@@ -30,8 +30,8 @@ enum Tokens {
         static let accent = dynamic(dark: 0xE8A33D, light: 0xA96B06)
         /// Turquesa: estados correctos, bloqueador activo, barra de tmux.
         static let accentAlt = dynamic(dark: 0x4FB3A3, light: 0x2A7A6C)
-        /// Una consola es oscura en cualquier modo.
-        static let terminalBackground = UIColor(hex: 0x0F1114)
+        /// Rojo de lo que no tiene vuelta atrás: borrar, olvidar una clave.
+        static let danger = dynamic(dark: 0xE05C4B, light: 0xC0392B)
 
         private static func dynamic(dark: UInt32, light: UInt32) -> UIColor {
             UIColor { traits in

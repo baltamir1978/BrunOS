@@ -19,7 +19,7 @@ final class ExternalFolderProvider: FileProvider, @unchecked Sendable {
     let symbol: String
     let rootPath: String
 
-    private let bookmark: Data
+    let bookmark: Data
 
     init?(bookmark: Data) {
         var isStale = false
@@ -161,6 +161,11 @@ final class ExternalFolderStore {
         // lateral de duplicados.
         guard !bookmarks.contains(bookmark) else { return }
         bookmarks.append(bookmark)
+        save()
+    }
+
+    func remove(bookmark: Data) {
+        bookmarks.removeAll { $0 == bookmark }
         save()
     }
 

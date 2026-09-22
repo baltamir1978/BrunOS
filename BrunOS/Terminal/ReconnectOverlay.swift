@@ -22,7 +22,7 @@ final class ReconnectOverlay: UIView {
 
         // Translúcido: debajo sigue estando lo que hubiera en el terminal, y
         // muchas veces ahí está la pista de por qué se cayó.
-        backgroundColor = Tokens.Color.terminalBackground.withAlphaComponent(0.82)
+        backgroundColor = TerminalTheme.background(for: TerminalTheme.style).withAlphaComponent(0.82)
 
         messageLabel.font = Tokens.sans(14)
         messageLabel.textColor = Tokens.Color.text

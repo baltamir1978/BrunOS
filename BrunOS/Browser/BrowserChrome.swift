@@ -26,6 +26,7 @@ final class BrowserChrome: UIView {
         case reload
         case address
         case blocker
+        case settings
         case none
     }
 
@@ -47,6 +48,7 @@ final class BrowserChrome: UIView {
     private var reloadFrame: CGRect = .zero
     private var addressFrame: CGRect = .zero
     private var blockerFrame: CGRect = .zero
+    private var settingsFrame: CGRect = .zero
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -96,7 +98,8 @@ final class BrowserChrome: UIView {
         forwardFrame = CGRect(x: backFrame.maxX + 1, y: y, width: size, height: size)
         reloadFrame = CGRect(x: forwardFrame.maxX + 1, y: y, width: size, height: size)
 
-        newTabFrame = CGRect(x: bounds.width - size - 4, y: y, width: size, height: size)
+        settingsFrame = CGRect(x: bounds.width - size - 4, y: y, width: size, height: size)
+        newTabFrame = CGRect(x: settingsFrame.minX - size, y: y, width: size, height: size)
         blockerFrame = CGRect(x: newTabFrame.minX - size, y: y, width: size, height: size)
 
         // Las pestañas sólo aparecen con más de una: con una sola, su título ya
@@ -144,6 +147,7 @@ final class BrowserChrome: UIView {
             return .tab(index)
         }
         if newTabFrame.contains(point) { return .newTab }
+        if settingsFrame.contains(point) { return .settings }
         if backFrame.contains(point) { return .back }
         if forwardFrame.contains(point) { return .forward }
         if reloadFrame.contains(point) { return .reload }
@@ -168,6 +172,7 @@ final class BrowserChrome: UIView {
             color: blockerOn ? Tokens.Color.accentAlt : Tokens.Color.textSecondary
         )
         drawSymbol("plus", in: newTabFrame, color: Tokens.Color.textSecondary)
+        drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.textSecondary)
 
         context.setFillColor(Tokens.Color.border.desktopCGColor)
         context.fill(CGRect(x: 0, y: bounds.maxY - 1, width: bounds.width, height: 1))

@@ -36,8 +36,10 @@ enum Wallpaper: Codable, Equatable, Sendable {
     /// encima**, que es lo que da el aire de los fondos de Apple. Un degradado
     /// plano de dos colores se nota plano enseguida en un monitor grande.
     ///
-    /// Todos son oscuros a propósito: encima van paneles con texto, y un fondo
-    /// claro deja el escritorio ilegible.
+    /// **Cada uno tiene versión clara y oscura**, como los fondos dinámicos de
+    /// macOS. Al principio eran todos oscuros, y con el escritorio en modo
+    /// claro el monitor seguía viéndose negro por detrás de los paneles. Las
+    /// versiones claras van lavadas a propósito: encima hay texto.
     enum Gradient: String, Codable, CaseIterable, Sendable {
         case goldenGate
         case ember
@@ -58,26 +60,32 @@ enum Wallpaper: Codable, Equatable, Sendable {
         }
 
         /// Degradado de base, de arriba abajo.
-        var colors: [UIColor] {
+        func colors(for style: UIUserInterfaceStyle) -> [UIColor] {
+            let hex: [UInt32] = style == .dark ? darkColors : lightColors
+            return hex.map { UIColor(hex: $0) }
+        }
+
+        private var darkColors: [UInt32] {
             switch self {
-            case .goldenGate:
-                // Atardecer: cielo alto azulado, bruma cálida y agua oscura.
-                [
-                    UIColor(hex: 0x1B1220),
-                    UIColor(hex: 0x3A1E1C),
-                    UIColor(hex: 0x6B3415),
-                    UIColor(hex: 0x24140E),
-                ]
-            case .ember:
-                [UIColor(hex: 0x1A1109), UIColor(hex: 0x2E1B0B), UIColor(hex: 0x0B0D10)]
-            case .abyss:
-                [UIColor(hex: 0x05070D), UIColor(hex: 0x0B1524), UIColor(hex: 0x081019)]
-            case .slate:
-                [UIColor(hex: 0x14171B), UIColor(hex: 0x1D2228), UIColor(hex: 0x0E1114)]
-            case .moss:
-                [UIColor(hex: 0x0A140F), UIColor(hex: 0x12241C), UIColor(hex: 0x0A0F0C)]
-            case .dusk:
-                [UIColor(hex: 0x120B1A), UIColor(hex: 0x1F1330), UIColor(hex: 0x0C0812)]
+            // Atardecer: cielo alto azulado, bruma cálida y agua oscura.
+            case .goldenGate: [0x1B1220, 0x3A1E1C, 0x6B3415, 0x24140E]
+            case .ember: [0x1A1109, 0x2E1B0B, 0x0B0D10]
+            case .abyss: [0x05070D, 0x0B1524, 0x081019]
+            case .slate: [0x14171B, 0x1D2228, 0x0E1114]
+            case .moss: [0x0A140F, 0x12241C, 0x0A0F0C]
+            case .dusk: [0x120B1A, 0x1F1330, 0x0C0812]
+            }
+        }
+
+        private var lightColors: [UInt32] {
+            switch self {
+            // El mismo atardecer a media tarde: cielo pálido y bruma melocotón.
+            case .goldenGate: [0xE9E4EA, 0xF3D9C4, 0xEFB88F, 0xF3DDCB]
+            case .ember: [0xFBF3E6, 0xF6E2C4, 0xF4EEE6]
+            case .abyss: [0xE6EEF7, 0xD4E2F1, 0xEDF2F8]
+            case .slate: [0xEEF0F2, 0xE2E6EA, 0xF3F4F6]
+            case .moss: [0xE8F2EC, 0xD6EADF, 0xEFF5F1]
+            case .dusk: [0xF0EAF6, 0xE2D6F0, 0xF4F0F8]
             }
         }
 
@@ -85,14 +93,15 @@ enum Wallpaper: Codable, Equatable, Sendable {
         ///
         /// En Golden Gate va bajo y a la izquierda, como un sol a punto de
         /// meterse; en los demás es una luz suave que rompe la uniformidad.
-        var glow: (color: UIColor, center: CGPoint, radius: CGFloat) {
-            switch self {
-            case .goldenGate: (UIColor(hex: 0xE8853D), CGPoint(x: 0.24, y: 0.72), 0.62)
-            case .ember: (UIColor(hex: 0xE8A33D), CGPoint(x: 0.5, y: 0.85), 0.55)
-            case .abyss: (UIColor(hex: 0x2E6C9E), CGPoint(x: 0.72, y: 0.25), 0.60)
-            case .slate: (UIColor(hex: 0x4A5763), CGPoint(x: 0.5, y: 0.4), 0.70)
-            case .moss: (UIColor(hex: 0x4FB3A3), CGPoint(x: 0.3, y: 0.7), 0.50)
-            case .dusk: (UIColor(hex: 0x8A5CC4), CGPoint(x: 0.7, y: 0.6), 0.55)
+        func glow(for style: UIUserInterfaceStyle) -> (color: UIColor, center: CGPoint, radius: CGFloat) {
+            let light = style != .dark
+            return switch self {
+            case .goldenGate: (UIColor(hex: light ? 0xFF9A52 : 0xE8853D), CGPoint(x: 0.24, y: 0.72), 0.62)
+            case .ember: (UIColor(hex: light ? 0xF5B94F : 0xE8A33D), CGPoint(x: 0.5, y: 0.85), 0.55)
+            case .abyss: (UIColor(hex: light ? 0x7FB0DE : 0x2E6C9E), CGPoint(x: 0.72, y: 0.25), 0.60)
+            case .slate: (UIColor(hex: light ? 0xB6C0CB : 0x4A5763), CGPoint(x: 0.5, y: 0.4), 0.70)
+            case .moss: (UIColor(hex: light ? 0x86CFBF : 0x4FB3A3), CGPoint(x: 0.3, y: 0.7), 0.50)
+            case .dusk: (UIColor(hex: light ? 0xBC9AE6 : 0x8A5CC4), CGPoint(x: 0.7, y: 0.6), 0.55)
             }
         }
 
@@ -203,23 +212,49 @@ final class WallpaperStore {
         }
         lastApplied = (current, size)
 
-        layer.sublayers?.forEach { $0.removeFromSuperlayer() }
-        layer.backgroundColor = Tokens.Color.background.desktopCGColor
         let bounds = CGRect(origin: .zero, size: size)
-
         switch current {
+        case .image(let name):
+            guard let image = loadImage(named: name) else {
+                fallBackToGradient(layer: layer, bounds: bounds)
+                return
+            }
+            Self.paint(current, image: image, into: layer, bounds: bounds, style: DesktopTheme.style)
+        case .file(let bookmark):
+            guard let image = loadImage(fromBookmark: bookmark) else {
+                fallBackToGradient(layer: layer, bounds: bounds)
+                return
+            }
+            Self.paint(current, image: image, into: layer, bounds: bounds, style: DesktopTheme.style)
+        default:
+            Self.paint(current, image: nil, into: layer, bounds: bounds, style: DesktopTheme.style)
+        }
+    }
+
+    /// Pinta un fondo en una capa. Lo usan el escritorio y las miniaturas.
+    private static func paint(
+        _ wallpaper: Wallpaper,
+        image: UIImage?,
+        into layer: CALayer,
+        bounds: CGRect,
+        style: UIUserInterfaceStyle
+    ) {
+        layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+        layer.backgroundColor = Tokens.Color.background.cgColor(for: style)
+
+        switch wallpaper {
         case .solid:
             return
 
         case .gradient(let gradient):
             let base = CAGradientLayer()
             base.frame = bounds
-            base.colors = gradient.colors.map(\.cgColor)
+            base.colors = gradient.colors(for: style).map(\.cgColor)
             base.startPoint = CGPoint(x: 0.5, y: 0)
             base.endPoint = CGPoint(x: 0.5, y: 1)
             layer.addSublayer(base)
 
-            let (color, center, radius) = gradient.glow
+            let (color, center, radius) = gradient.glow(for: style)
             let glow = CAGradientLayer()
             glow.type = .radial
             glow.frame = bounds
@@ -233,20 +268,48 @@ final class WallpaperStore {
             glow.opacity = gradient.glowOpacity
             layer.addSublayer(glow)
 
-        case .image(let name):
-            guard let image = loadImage(named: name) else {
-                fallBackToGradient(layer: layer, bounds: bounds)
-                return
-            }
-            addImageLayers(image, to: layer, bounds: bounds)
-
-        case .file(let bookmark):
-            guard let image = loadImage(fromBookmark: bookmark) else {
-                fallBackToGradient(layer: layer, bounds: bounds)
-                return
-            }
-            addImageLayers(image, to: layer, bounds: bounds)
+        case .image, .file:
+            guard let image else { return }
+            addImageLayers(image, to: layer, bounds: bounds, style: style)
         }
+    }
+
+    // MARK: - Miniaturas
+
+    private var thumbnails: [String: UIImage] = [:]
+
+    /// Una miniatura del fondo, para el selector de los ajustes.
+    ///
+    /// Se pinta con el mismo código que el escritorio, así que lo que se ve en
+    /// pequeño es exactamente lo que va a salir en grande. Las imágenes se
+    /// reducen antes de nada: decodificar diez HEIC de 3840 px para enseñarlos
+    /// a 130 puntos se comería la memoria.
+    func thumbnail(for wallpaper: Wallpaper, size: CGSize) -> UIImage {
+        let style = DesktopTheme.style
+        let key = "\(wallpaper.label)|\(style == .dark)|\(Int(size.width))"
+        if let cached = thumbnails[key] { return cached }
+
+        var image: UIImage?
+        if case .image(let name) = wallpaper,
+           let url = Bundle.main.url(
+               forResource: (name as NSString).deletingPathExtension,
+               withExtension: (name as NSString).pathExtension,
+               subdirectory: "Wallpapers"
+           ) {
+            image = UIImage(contentsOfFile: url.path)?
+                .preparingThumbnail(of: CGSize(width: size.width * 3, height: size.height * 3))
+        }
+
+        let bounds = CGRect(origin: .zero, size: size)
+        let layer = CALayer()
+        layer.frame = bounds
+        Self.paint(wallpaper, image: image, into: layer, bounds: bounds, style: style)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let result = renderer.image { context in
+            layer.render(in: context.cgContext)
+        }
+        thumbnails[key] = result
+        return result
     }
 
     /// La imagen ya no está: se pinta un degradado en su lugar.
@@ -257,9 +320,10 @@ final class WallpaperStore {
     /// recursión infinita y la app al suelo.
     private func fallBackToGradient(layer: CALayer, bounds: CGRect) {
         let gradient = Wallpaper.Gradient.goldenGate
+        layer.sublayers?.forEach { $0.removeFromSuperlayer() }
         let base = CAGradientLayer()
         base.frame = bounds
-        base.colors = gradient.colors.map(\.cgColor)
+        base.colors = gradient.colors(for: DesktopTheme.style).map(\.cgColor)
         base.startPoint = CGPoint(x: 0.5, y: 0)
         base.endPoint = CGPoint(x: 0.5, y: 1)
         layer.addSublayer(base)
@@ -269,7 +333,12 @@ final class WallpaperStore {
         }
     }
 
-    private func addImageLayers(_ image: UIImage, to layer: CALayer, bounds: CGRect) {
+    private static func addImageLayers(
+        _ image: UIImage,
+        to layer: CALayer,
+        bounds: CGRect,
+        style: UIUserInterfaceStyle
+    ) {
         let imageLayer = CALayer()
         imageLayer.frame = bounds
         imageLayer.contents = image.cgImage
@@ -283,7 +352,7 @@ final class WallpaperStore {
         // velo sólo apagaría la foto: se deja en un toque.
         let veil = CALayer()
         veil.frame = bounds
-        let dimming: CGFloat = DesktopTheme.style == .dark ? 0.35 : 0.08
+        let dimming: CGFloat = style == .dark ? 0.35 : 0.08
         veil.backgroundColor = UIColor.black.withAlphaComponent(dimming).cgColor
         layer.addSublayer(veil)
     }

@@ -29,6 +29,8 @@ final class FilesPane: UIView, Pane {
     /// descargar cada foto entera para enseñar un sello de 84 puntos.
     private var thumbnails: [String: UIImage] = [:]
     private var pendingThumbnails: Set<String> = []
+    /// Qué dejar seleccionado cuando termine de leerse la carpeta.
+    private var pendingSelection: String?
 
     /// Cómo se enseña la carpeta, como en el Finder.
     enum ViewMode: String, CaseIterable {
@@ -96,13 +98,14 @@ final class FilesPane: UIView, Pane {
     private var sidebarFrames: [CGRect] = []
     private var sortFrames: [Sort: CGRect] = [:]
     private var modeFrames: [ViewMode: CGRect] = [:]
+    private var settingsFrame: CGRect = .zero
     /// Casillas por fila en las vistas de iconos. Lo usan las flechas.
     private var columns = 1
 
     /// Dónde empiezan las columnas de tamaño y fecha, medido desde la derecha.
     /// Dejan sitio al selector de vista, que va en la cabecera.
-    private static let sizeColumnInset: CGFloat = 282
-    private static let dateColumnInset: CGFloat = 210
+    private static let sizeColumnInset: CGFloat = 310
+    private static let dateColumnInset: CGFloat = 238
     private static let gridPadding: CGFloat = 12
 
     var title: String {
@@ -126,12 +129,25 @@ final class FilesPane: UIView, Pane {
         clipsToBounds = true
         contentMode = .redraw
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(viewModeChanged),
+            name: Self.viewModeDidChange,
+            object: nil
+        )
+
         reload()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("BrunOS no usa storyboards")
+    }
+
+    static let viewModeDidChange = Notification.Name("BrunOSFilesViewModeDidChange")
+
+    @objc private func viewModeChanged() {
+        setMode(ViewMode.current)
     }
 
     // MARK: - Datos
@@ -146,9 +162,12 @@ final class FilesPane: UIView, Pane {
                 let listed = try await provider.list(path)
                 guard let self else { return }
                 self.items = self.sorted(listed)
+                let wanted = self.pendingSelection
+                self.pendingSelection = nil
                 self.thumbnails = [:]
                 self.pendingThumbnails = []
-                self.selectedIndex = self.items.isEmpty ? nil : 0
+                self.selectedIndex = wanted.flatMap { name in self.items.firstIndex { $0.name == name } }
+                    ?? (self.items.isEmpty ? nil : 0)
                 self.scrollOffset = 0
                 self.setNeedsLayout()
                 self.setNeedsDisplay()
@@ -219,10 +238,11 @@ final class FilesPane: UIView, Pane {
             .date: CGRect(x: bounds.width - Self.dateColumnInset, y: 6, width: 110, height: 18),
         ]
 
+        settingsFrame = CGRect(x: bounds.width - 30, y: 4, width: 24, height: 22)
         modeFrames = [:]
         for (index, mode) in ViewMode.allCases.enumerated() {
             modeFrames[mode] = CGRect(
-                x: bounds.width - 88 + CGFloat(index) * 27,
+                x: bounds.width - 118 + CGFloat(index) * 27,
                 y: 4, width: 24, height: 22
             )
         }
@@ -339,6 +359,8 @@ final class FilesPane: UIView, Pane {
             x: listX, y: Self.headerHeight - 1,
             width: bounds.width - listX, height: 1
         ))
+
+        drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.textSecondary)
 
         for (mode, frame) in modeFrames {
             let isActive = mode == self.mode
@@ -611,6 +633,10 @@ final class FilesPane: UIView, Pane {
                 reload()
                 return
             }
+            if settingsFrame.contains(event.location) {
+                services.desktopViewController?.presentSettings(.files)
+                return
+            }
             for (mode, frame) in modeFrames where frame.contains(event.location) {
                 setMode(mode)
                 return
@@ -867,6 +893,16 @@ final class FilesPane: UIView, Pane {
         } else if top + height > scrollOffset + visible {
             scrollOffset = top + height - visible
         }
+    }
+
+    /// Enseña una carpeta del iPhone y, si se dice, deja marcado un fichero.
+    /// Lo usa el aviso de descarga del navegador.
+    func show(localDirectory directory: String, selecting name: String?) {
+        guard let index = services.files.providers.firstIndex(where: { $0 is LocalProvider }) else { return }
+        services.files.select(index)
+        path = directory
+        pendingSelection = name
+        reload()
     }
 
     /// Vuelve a leer la carpeta. La usa el escritorio tras borrar o renombrar.

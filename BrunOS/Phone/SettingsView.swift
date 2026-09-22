@@ -183,7 +183,7 @@ struct SettingsView: View {
             LabeledContent(
                 "Listas",
                 value: services.blocker.isReady
-                    ? "\(services.blocker.compiledLists.count) cargadas"
+                    ? "\(services.blocker.sources.count) cargadas"
                     : "sin cargar"
             )
             .font(.brunosMono(14))
@@ -279,7 +279,7 @@ struct SettingsView: View {
         Section("AssistiveTouch") {
             LabeledContent(
                 "Estado",
-                value: services.assistiveTouch.isRunning ? "activo" : "inactivo"
+                value: services.assistiveTouch.statusLabel
             )
             .font(.brunosMono(14))
 
@@ -294,8 +294,6 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section("Acerca de") {
             LabeledContent("Versión", value: Self.versionString)
-                .font(.brunosMono(14))
-            LabeledContent("Fase", value: "1 · escritorio y entrada")
                 .font(.brunosMono(14))
             Link("Código en GitHub", destination: URL(string: "https://github.com/baltamir1978/BrunOS")!)
         }

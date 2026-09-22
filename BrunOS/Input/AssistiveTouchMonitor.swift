@@ -82,6 +82,18 @@ final class AssistiveTouchMonitor {
     /// Lo pone `MouseRouter` en cuanto llega el primero.
     var isPointerWorking = false
 
+    /// Lo que se enseña en Ajustes.
+    ///
+    /// **No basta con `isAssistiveTouchRunning`.** Con AssistiveTouch puesto
+    /// sólo para el puntero, iOS puede decir que no está activo mientras el
+    /// ratón funciona perfectamente, y los ajustes decían «inactivo» con el
+    /// cursor moviéndose delante. Si llegan eventos del ratón, está activo
+    /// digan lo que digan.
+    var statusLabel: String {
+        if isPointerWorking { return "activo" }
+        return isRunning ? "activo" : "no detectado"
+    }
+
     /// Cuándo merece la pena dar la lata con el aviso.
     ///
     /// **La regla manda sobre el estado declarado de AssistiveTouch**: si el

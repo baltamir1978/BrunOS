@@ -27,7 +27,11 @@ final class BrowserPane: UIView, Pane {
     /// sustituye.
     private var isAddressSelected = false
 
-    private let configuration: WKWebViewConfiguration
+    /// El aviso de descarga, abajo del panel.
+    private let downloadToast = UILabel()
+    private var downloadToastTimer: Timer?
+    /// Lo último que se descargó, para abrirlo al pulsar el aviso.
+    private var lastDownload: URL?
 
     var title: String { activeTab?.title ?? "Navegador" }
     var view: UIView { self }
@@ -37,14 +41,6 @@ final class BrowserPane: UIView, Pane {
     }
 
     override init(frame: CGRect) {
-        let configuration = WKWebViewConfiguration()
-        // User-agent de escritorio: con el de iPhone, media web sirve la
-        // versión móvil, que en un monitor de 27 pulgadas es ridícula.
-        configuration.defaultWebpagePreferences.preferredContentMode = .desktop
-        configuration.allowsInlineMediaPlayback = true
-        configuration.mediaTypesRequiringUserActionForPlayback = []
-        self.configuration = configuration
-
         super.init(frame: frame)
 
         backgroundColor = .white
@@ -55,6 +51,15 @@ final class BrowserPane: UIView, Pane {
 
         addSubview(content)
         addSubview(chrome)
+
+        downloadToast.font = Tokens.sans(12, weight: .medium)
+        downloadToast.textColor = Tokens.Color.text
+        downloadToast.backgroundColor = Tokens.Color.panelElevated
+        downloadToast.textAlignment = .center
+        downloadToast.layer.cornerRadius = 9
+        downloadToast.layer.masksToBounds = true
+        downloadToast.alpha = 0
+        addSubview(downloadToast)
 
         NotificationCenter.default.addObserver(
             self,
@@ -89,7 +94,53 @@ final class BrowserPane: UIView, Pane {
         for tab in tabs {
             tab.webView.frame = content.bounds
         }
+        layoutDownloadToast()
         refreshChrome()
+    }
+
+    // MARK: - Descargas
+
+    private func showDownload(_ name: String, _ state: BrowserTab.DownloadState) {
+        switch state {
+        case .started:
+            downloadToast.text = "Descargando \(name)…"
+        case .finished(let url):
+            lastDownload = url
+            downloadToast.text = "\(name) en Descargas · pulsa para verlo"
+        case .failed:
+            downloadToast.text = "La descarga falló: \(name)"
+        }
+        layoutDownloadToast()
+        UIView.animate(withDuration: 0.2) { self.downloadToast.alpha = 1 }
+
+        downloadToastTimer?.invalidate()
+        guard case .started = state else {
+            downloadToastTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    UIView.animate(withDuration: 0.3) { self?.downloadToast.alpha = 0 }
+                }
+            }
+            return
+        }
+    }
+
+    private func layoutDownloadToast() {
+        let size = downloadToast.intrinsicContentSize
+        let width = min(bounds.width - 40, size.width + 28)
+        downloadToast.frame = CGRect(
+            x: (bounds.width - width) / 2,
+            y: bounds.height - 46,
+            width: width,
+            height: 28
+        )
+    }
+
+    /// Abre las descargas en el gestor de ficheros.
+    private func revealDownloads() {
+        downloadToast.alpha = 0
+        AppServices.shared.desktopViewController?.revealInFiles(
+            lastDownload ?? BrowserTab.downloadsDirectory
+        )
     }
 
     private func refreshChrome() {
@@ -108,12 +159,47 @@ final class BrowserPane: UIView, Pane {
 
     // MARK: - Pestañas
 
+    /// Una configuración nueva **por pestaña**.
+    ///
+    /// Antes compartían una, y con ella el `WKUserContentController`: cada
+    /// pestaña nueva volvía a meter sus scripts en el mismo sitio, así que con
+    /// cinco pestañas cada página cargaba el inyector cinco veces, y cambiar el
+    /// bloqueador en una lo cambiaba en todas.
+    private static func makeConfiguration() -> WKWebViewConfiguration {
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController = WKUserContentController()
+        // User-agent de escritorio: con el de iPhone, media web sirve la
+        // versión móvil, que en un monitor de 27 pulgadas es ridícula.
+        configuration.defaultWebpagePreferences.preferredContentMode = .desktop
+        // El vídeo se queda dentro de la página. Sin esto, en un iPhone se
+        // abre el reproductor del sistema a pantalla completa... en el
+        // teléfono, que con monitor puesto está apagado.
+        configuration.allowsInlineMediaPlayback = true
+        // Los clics de BrunOS son sintéticos y WebKit no los cuenta como
+        // gesto del usuario: con la restricción puesta, ningún vídeo arrancaría.
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+        configuration.allowsPictureInPictureMediaPlayback = false
+        // Pantalla completa de un elemento (el botón de un reproductor web):
+        // se queda en el panel en vez de irse al teléfono.
+        configuration.preferences.isElementFullscreenEnabled = true
+        // Por lo mismo que con el vídeo: un `window.open` desde un clic
+        // sintético se bloquearía siempre.
+        configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
+        return configuration
+    }
+
     @discardableResult
     func newTab(url: String? = nil) -> BrowserTab {
-        let tab = BrowserTab(configuration: configuration)
+        let tab = BrowserTab(configuration: Self.makeConfiguration())
         tab.onChange = { [weak self] in
             self?.refreshChrome()
             AppServices.shared.desktop.notifyChange()
+        }
+        tab.onOpenInNewTab = { [weak self] url in
+            self?.newTab(url: url.absoluteString)
+        }
+        tab.onDownloadChange = { [weak self] name, state in
+            self?.showDownload(name, state)
         }
         tabs.append(tab)
         content.addSubview(tab.webView)
@@ -226,6 +312,90 @@ final class BrowserPane: UIView, Pane {
         AppServices.shared.blocker.toggleException(for: host)
     }
 
+    // MARK: - Menú contextual
+
+    /// El menú del clic derecho sobre la página.
+    ///
+    /// **Es de BrunOS, no de la página.** El botón derecho sintético sólo le
+    /// llega a la web como un evento `contextmenu`, y el menú del sistema no
+    /// sale nunca: sin esto no había forma de abrir un enlace en otra pestaña
+    /// ni de descargar nada.
+    func contextMenuEntries(at location: CGPoint) async -> [ContextMenu.Entry] {
+        if chrome.frame.contains(location) { return [] }
+        guard let tab = activeTab else { return [] }
+        let point = CGPoint(x: location.x, y: location.y - BrowserChrome.height)
+        let hit = await tab.describe(at: point)
+
+        var entries: [ContextMenu.Entry] = []
+
+        if let link = hit?.link, let url = URL(string: link) {
+            entries.append(ContextMenu.Entry(title: "Abrir en pestaña nueva", symbol: "plus.square.on.square") {
+                [weak self] in self?.newTab(url: url.absoluteString)
+            })
+            entries.append(ContextMenu.Entry(title: "Descargar enlace", symbol: "arrow.down.circle") {
+                tab.download(url)
+            })
+            entries.append(ContextMenu.Entry(title: "Copiar enlace", symbol: "link") {
+                UIPasteboard.general.url = url
+            })
+        }
+
+        if let image = hit?.image, let url = URL(string: image) {
+            entries.append(ContextMenu.Entry(title: "Abrir imagen en pestaña nueva", symbol: "photo") {
+                [weak self] in self?.newTab(url: url.absoluteString)
+            })
+            entries.append(ContextMenu.Entry(title: "Guardar imagen", symbol: "square.and.arrow.down") {
+                tab.download(url)
+            })
+            entries.append(ContextMenu.Entry(title: "Copiar dirección de la imagen", symbol: "doc.on.doc") {
+                UIPasteboard.general.url = url
+            })
+        }
+
+        if let selection = hit?.selection {
+            entries.append(ContextMenu.Entry(title: "Copiar", symbol: "doc.on.doc") {
+                UIPasteboard.general.string = selection
+            })
+            let short = selection.count > 24 ? String(selection.prefix(24)) + "…" : selection
+            entries.append(ContextMenu.Entry(
+                title: "Buscar «\(short)»",
+                symbol: "magnifyingglass"
+            ) { [weak self] in
+                self?.newTab(url: selection)
+            })
+        }
+
+        if hit?.isEditable == true {
+            entries.append(ContextMenu.Entry(
+                title: "Pegar",
+                symbol: "doc.on.clipboard",
+                isEnabled: UIPasteboard.general.hasStrings
+            ) { [weak self] in
+                self?.paste()
+            })
+        }
+
+        entries.append(ContextMenu.Entry(title: "Atrás", symbol: "chevron.left", isEnabled: tab.canGoBack) {
+            [weak self] in self?.goBack()
+        })
+        entries.append(ContextMenu.Entry(title: "Adelante", symbol: "chevron.right", isEnabled: tab.canGoForward) {
+            [weak self] in self?.goForward()
+        })
+        entries.append(ContextMenu.Entry(title: "Recargar", symbol: "arrow.clockwise") {
+            [weak self] in self?.reload()
+        })
+        if let host = tab.webView.url?.host() {
+            let blocking = AppServices.shared.blocker.isEnabled(for: host)
+            entries.append(ContextMenu.Entry(
+                title: blocking ? "No bloquear en \(host)" : "Bloquear en \(host)",
+                symbol: blocking ? "shield.slash" : "shield"
+            ) { [weak self] in
+                self?.toggleBlockerForCurrentSite()
+            })
+        }
+        return entries
+    }
+
     // MARK: - Pane
 
     func setFocused(_ focused: Bool) {
@@ -242,6 +412,11 @@ final class BrowserPane: UIView, Pane {
             return
         }
 
+        if downloadToast.alpha > 0.5, downloadToast.frame.contains(event.location) {
+            if case .down = event.kind { revealDownloads() }
+            return
+        }
+
         guard let tab = activeTab else { return }
         // Coordenadas de la página, que empieza bajo la barra del panel.
         let point = CGPoint(
@@ -255,6 +430,15 @@ final class BrowserPane: UIView, Pane {
         case .down(let button):
             isEditingAddress = false
             isAddressSelected = false
+            // Cmd+clic y el botón central: el enlace, a una pestaña nueva.
+            if button == .middle || (button == .left && event.modifiers.contains(.command)) {
+                Task { [weak self] in
+                    guard let link = await tab.describe(at: point)?.link,
+                          let url = URL(string: link) else { return }
+                    self?.newTab(url: url.absoluteString)
+                }
+                return
+            }
             tab.click(at: point, button: button, modifiers: event.modifiers)
             refreshChrome()
         case .scroll(let delta):
@@ -286,6 +470,8 @@ final class BrowserPane: UIView, Pane {
             focusAddressBar()
         case .blocker:
             toggleBlockerForCurrentSite()
+        case .settings:
+            AppServices.shared.desktopViewController?.presentSettings(.browser)
         case BrowserChrome.Target.none:
             isEditingAddress = false
             refreshChrome()

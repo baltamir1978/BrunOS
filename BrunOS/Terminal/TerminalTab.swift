@@ -25,7 +25,7 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
 
     /// Lo que el servidor haya puesto como título, si dijo algo.
     private var remoteTitle: String?
-    private var fontSize: CGFloat = 13 {
+    private var fontSize: CGFloat = TerminalTheme.fontSize {
         didSet { terminalView.font = Tokens.mono(fontSize) }
     }
 
@@ -50,13 +50,12 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         options.scrollback = 10_000
         options.termName = "xterm-256color"
 
-        self.terminalView = TerminalView(frame: .zero, font: Tokens.mono(13), options: options)
+        self.terminalView = TerminalView(frame: .zero, font: Tokens.mono(TerminalTheme.fontSize), options: options)
         super.init()
 
         terminalView.layer.addSublayer(selectionLayer)
         terminalView.terminalDelegate = self
-        terminalView.nativeBackgroundColor = Tokens.Color.terminalBackground
-        terminalView.nativeForegroundColor = Tokens.Color.text
+        applyTheme(TerminalTheme.style)
         // La pantalla externa no es interactiva y el ratón se inyecta a mano,
         // así que los gestos propios de SwiftTerm sobran.
         terminalView.allowMouseReporting = true
@@ -409,7 +408,24 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     }
 
     func resetFontSize() {
-        fontSize = 13
+        fontSize = TerminalTheme.fontSize
+    }
+
+    // MARK: - Tema
+
+    /// Colores ya resueltos, nunca dinámicos.
+    ///
+    /// **SwiftTerm convierte el `UIColor` a su formato en el momento** y no se
+    /// entera después de un cambio de modo. Antes se le pasaba el texto
+    /// dinámico del escritorio con el fondo fijo en negro: en modo claro salía
+    /// texto casi negro sobre negro.
+    func applyTheme(_ style: UIUserInterfaceStyle) {
+        terminalView.installColors(TerminalTheme.palette(for: style))
+        terminalView.nativeBackgroundColor = TerminalTheme.background(for: style)
+        terminalView.nativeForegroundColor = TerminalTheme.foreground(for: style)
+        terminalView.overrideUserInterfaceStyle = style
+        reconnectOverlay?.backgroundColor = TerminalTheme.background(for: style).withAlphaComponent(0.82)
+        terminalView.setNeedsDisplay()
     }
 
     // MARK: - TerminalViewDelegate

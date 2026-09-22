@@ -32,9 +32,11 @@ monitor sólo se puede comprobar en el iPhone.
 **Escrito y sin probar en el dispositivo.** Bruno prefiere acumular y probarlo todo junto;
 conviene no confundir "está escrito" con "funciona":
 
-- **Lo del 22-sep**: el modo claro en el monitor y su cambio en caliente, las ventanas que salían
-  vacías (ajustes, menú contextual, diálogo de texto, editor de máquinas), las vistas de iconos
-  del gestor de ficheros y el buscador seleccionable.
+- **Lo del 22-sep**: el modo claro en el monitor y su cambio en caliente, los fondos claros, el
+  terminal claro, las ventanas que salían vacías, los ajustes nuevos, la lista de conexiones del
+  terminal, la pantalla completa, el menú del botón derecho y las descargas del navegador, las
+  vistas de iconos y el cierre de los ajustes del iPhone al conectar. Intro, Retroceso y las
+  descargas **sí** se comprobaron en un `WKWebView` de macOS, pero no en el iPhone.
 - Terminal: tmux y vim con ratón, selección con arrastre, `known_hosts` ante una clave que cambie
   y la reconexión tras una caída real.
 - Navegador: clics sintéticos, pestañas y descargas contra webs de verdad.
@@ -196,6 +198,47 @@ en `draw(_:)` se repinta solo (el escritorio hace `setNeedsDisplay` en todo el �
 que se asigne a una capa** —`borderColor`, `backgroundColor` de un `CALayer`— hay que volver a
 asignarlo en `DesktopViewController.applyTheme()`. Los paneles lo hacen ya por `setFocused`.
 
+### Ajustes: los globales en el dock, los de cada panel en su barra (22-sep-2026)
+
+Bruno pidió que cada cosa esté donde se usa: la rueda del dock abre lo que afecta a todo el
+escritorio (modo, fondo con miniaturas, pantalla, ratón, acerca de) y cada panel tiene su rueda
+(navegador: buscador, zoom, bloqueo, descargas; terminal: máquinas, apariencia, claves conocidas;
+ficheros: vista y ubicaciones). La ventana (`SettingsWindow`) imita Ajustes del Sistema: secciones
+a la izquierda y grupos con interruptores, segmentados y botones. El contenido se describe en
+`SettingsPages` y se vuelve a pedir tras cada cambio. **Las zonas pulsables se apuntan al
+dibujar**, en el mismo cálculo, para que lo que se ve y lo que responde no se desalineen.
+
+La primera versión era una lista de filas que cambiaban de valor al pulsarlas: Bruno la llamó
+«un horror» y no dejaba cambiar casi nada. Las explicaciones de cada ajuste van en la nota de
+debajo de su grupo.
+
+### Terminal: lista de conexiones y tema propio
+
+El terminal **ya no se conecta solo** al abrirse: enseña `TerminalHomeView`, la lista de máquinas
+con su botón, y Cmd+T o el «+» de la barra vuelven a ella. La barra va siempre, con la rueda de
+ajustes.
+
+En modo claro, **el terminal pintaba texto casi negro sobre fondo negro**: el fondo era fijo y el
+texto era el color dinámico del escritorio. SwiftTerm convierte los `UIColor` al asignarlos y no
+se entera de los cambios, así que `TerminalTab.applyTheme` le pasa colores ya resueltos y una
+paleta ANSI clara propia (la de xterm no se lee sobre blanco). El modo sigue al escritorio por
+defecto y se puede fijar aparte (`TerminalTheme`).
+
+### Pantalla completa
+
+Ctrl+Cmd+F, o desde Ajustes › Pantalla: se esconden dock y barra y los paneles se llevan todo. El
+dock asoma al llevar el cursor al borde de abajo, y la barra al de arriba.
+
+### Al conectar el monitor, el iPhone vuelve a su pantalla de mando
+
+Si los ajustes del iPhone estaban abiertos al conectar, el clic que AssistiveTouch convierte en
+toque caía sobre ellos y **el ratón parecía muerto** en el monitor. Ahora se cierra lo que haya
+presentado (salvo el selector de carpetas, que se pide desde el monitor) y se recupera el primer
+respondedor para el teclado.
+
+**AssistiveTouch salía «inactivo» estando activo**: `isAssistiveTouchRunning` no es fiable con
+AssistiveTouch puesto sólo para el puntero. Si llegan eventos del ratón, se da por activo.
+
 ### Los ajustes salían vacíos: dibujar debajo de la tarjeta
 
 Síntoma: en los ajustes del monitor sólo se veían la marca y el aspa. **Las filas se dibujaban
@@ -296,6 +339,50 @@ google.com: `window.innerWidth` pasa de 980 a 1690.
 
 Con el viewport bien, el zoom por defecto vuelve a 1: ya no hay nada que compensar.
 
+### Intro no buscaba en Google: los eventos sintéticos no hacen nada solos (22-sep-2026)
+
+Un evento creado con `dispatchEvent` **no es de confianza, y el navegador no ejecuta su acción
+por defecto**: un Intro sintético no envía el formulario, un Retroceso no borra, una flecha no
+mueve el cursor de texto. La página sí recibe el evento. Por eso `__brunos.key` en
+`ClickInjector.js` dispara `keydown`/`keypress`/`keyup` y, **si la página no lo ha cancelado**,
+hace a mano lo que haría el navegador: `requestSubmit()` del formulario, borrar, mover el cursor,
+Tab al siguiente campo, espaciadora para bajar la página.
+
+Trampa: **el buscador de Google es un `textarea` con `role=combobox`**. Intro en un `textarea`
+mete un salto de línea, así que los que se comportan como caja de una línea (combobox,
+`aria-autocomplete`, `rows=1`) se tratan como un `input`.
+
+El texto se escribe con `execCommand('insertText')`, que genera `beforeinput` e `input` de verdad
+y lo entienden React y compañía. **Comprobado con un programa de prueba en macOS** (un
+`WKWebView` real con el inyector): Intro en google.com navega a `/search?q=…`, Retroceso borra y
+la flecha mueve el cursor.
+
+### Descargas, pestañas y el botón derecho del navegador
+
+- **Las descargas no funcionaban** por dos cosas: faltaba
+  `decidePolicyFor navigationAction` con `shouldPerformDownload` (los `<a download>` y los `blob:`
+  navegaban en vez de descargar), y el aviso `onDownloadChange` no lo escuchaba nadie. Ahora
+  también se descarga lo que llega con `Content-Disposition: attachment`, y sale un aviso abajo
+  del panel que abre la carpeta en Ficheros. Comprobado en la misma prueba de macOS.
+- **Todas las pestañas compartían `WKWebViewConfiguration`**, y con ella el
+  `WKUserContentController`: cada pestaña nueva volvía a meter los scripts, así que con cinco
+  pestañas el inyector se cargaba cinco veces por página. Ahora cada una tiene la suya.
+- **El botón derecho** sólo le llegaba a la página como `contextmenu`: el menú del sistema no sale
+  nunca. BrunOS pone el suyo (abrir en pestaña nueva, descargar, copiar, guardar imagen, buscar la
+  selección, bloquear en el sitio). Cmd+clic y el botón central abren el enlace en otra pestaña, y
+  los `target=_blank` también.
+- **Vídeo**: `allowsInlineMediaPlayback` (si no, el vídeo se va al reproductor del sistema en el
+  iPhone, que está apagado), sin exigir gesto para reproducir (los clics sintéticos no cuentan
+  como gesto) y `isElementFullscreenEnabled`. **Plex y compañía sin probar.**
+
+### Bloqueador editable
+
+`Tools/fetch-blocklists.sh` genera ahora **una lista por fuente** (`blocklist-easylist-NN`,
+`blocklist-easyprivacy-NN`) y un `manifest-blocklists.json` con cuántas reglas lleva cada una, para
+poder apagarlas por separado sin leer megas de JSON al arrancar. Encima van **reglas propias**,
+compiladas aparte en `brunos-user-rules`: dominios bloqueados y elementos ocultos con la sintaxis
+de AdBlock (`dominio##selector`). El formato se comprobó compilándolo con WebKit en macOS.
+
 ### El contador de bloqueados: quitado
 
 `WKContentRuleList` **no informa de cuántas peticiones detiene** — el filtrado ocurre dentro de
@@ -345,6 +432,12 @@ Pequeños, de fases anteriores:
   ahí, con Safari de respaldo.
 - **Buscar en la página (Cmd+F)**: se reconoce y se encamina, pero `perform(_:)` devuelve `false`
   porque no hay barra de búsqueda todavía.
+- **Autorrelleno de contraseñas**: el de Safari no está al alcance de una app (el llavero de
+  Contraseñas sólo se ofrece en el teclado del sistema sobre un campo nativo, y en el monitor no
+  hay ni una cosa ni la otra). Dos caminos posibles, sin decidir: un campo nativo en el iPhone
+  que pida la contraseña a iOS y la inyecte en la página, o un gestor propio en el Keychain que
+  guarde al enviar el formulario (`webView(_:willSubmitForm:submissionHandler:)`, nuevo en iOS
+  27, confirmado en el SDK).
 - **El lanzador (Cmd+P) sólo ofrece máquinas SSH.** Le faltan URLs (historial, marcadores) y
   ubicaciones de ficheros.
 - Una ventana abierta **mientras** cambia el modo claro/oscuro se queda con el borde del modo
@@ -376,6 +469,9 @@ ubicaciones más lista) en lugar de los dos paneles de Total Commander.
   carpeta que aparece sola al usar el navegador desconcierta más que ayuda.
 - `FilesPane`: **sin `UITableView` ni `UIButton`**, como todo lo de la pantalla externa. Flechas
   para moverse, Intro para abrir, Retroceso para subir, espaciadora para la vista previa.
+- **Ubicaciones del iPhone**: iOS no deja recorrer el teléfono entero. Cualquier carpeta que se
+  vea en la app Archivos (En mi iPhone, las de otras apps, iCloud, USB) se añade una vez con el
+  selector del sistema, que **sólo puede salir en la pantalla del iPhone**.
 - **Tres vistas**: lista, iconos pequeños e iconos grandes, con el selector en la cabecera o desde
   el clic derecho. Se recuerda la elegida. En iconos, las flechas se mueven en rejilla y las
   imágenes **locales** llevan miniatura (por SFTP habría que descargar cada foto entera).
