@@ -10,37 +10,39 @@ emergencia, teclado, dictado y ajustes.
 
 ---
 
-## ⚠ ESTADO ACTUAL — LEER PRIMERO
+## ⚠ ESTADO ACTUAL — LEER PRIMERO (22-sep-2026)
 
-**Fase 1 escrita entera. Compila y arranca, pero con un agujero grande de verificación.**
+**Las cuatro fases están escritas. Terminal y navegador se usan ya en el iPhone con monitor; el
+gestor de ficheros está a medias.**
 
-Verificado ejecutando, no leyendo:
+Visto funcionando en el dispositivo, con monitor delante:
 
-- `xcodebuild ... build` termina en **BUILD SUCCEEDED**, **sin un solo warning** en código propio.
-- La app **arranca en el simulador de iPhone 17 con iOS 27.0** y se queda viva. La interfaz del
-  teléfono sale entera: marca, estado de periféricos, trackpad y los cuatro botones con Liquid
-  Glass, con "Traer ventana" deshabilitado porque es de la Fase 3.
-- **Las fuentes cargan de verdad** (comprobado en captura: si el nombre PostScript estuviera mal
-  se vería San Francisco).
-- **`registerSceneAccessory(_:)` no falla en iOS 27**: el log emite "Accesorio de escena externa
-  registrado" al arrancar.
+- **La escena externa arranca y dibuja**: escritorio, barra, dock y cursor. Los fallos que han ido
+  saliendo (cursor invisible, webs enormes, clics perdidos por AssistiveTouch, cierres por
+  memoria) se encontraron usándolo, y están contados en sus secciones.
+- **El ratón llega a través de AssistiveTouch**: el clic izquierdo se convierte en un toque sobre
+  el iPhone. De ahí que el teléfono se quede en negro con monitor puesto (`RemoteModeView`).
+- **SSH conecta de verdad** contra una máquina de Bruno.
+- El bloqueador de anuncios compila sus 3 listas (114.213 reglas).
 
-**Lo que NO está verificado, que es casi todo lo importante de la Fase 1.** Bruno decidió
-expresamente seguir a ciegas hasta el final y probarlo todo junto en el iPhone; conviene no
-confundir "está escrito" con "funciona":
+Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arranca en el simulador
+de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
+monitor sólo se puede comprobar en el iPhone.
 
-- **Nada de la pantalla externa se ha ejecutado nunca.** `xcrun simctl` **no sabe** simular una
-  pantalla externa y el Device Hub de Xcode 27 es interfaz gráfica. Así que `ExternalSceneDelegate`,
-  `ExternalDisplayManager.attach`, todo `DesktopViewController` y el mosaico entero son **código
-  que no ha corrido ni una vez**.
-- **El espacio lógico es la apuesta más arriesgada.** El lienzo se escala con un `CGAffineTransform`
-  para que los puntos lógicos acaben en píxeles nativos. Si el factor está mal, se verá todo
-  borroso o cortado. Es lo primero que hay que mirar con un monitor delante.
-- **El ratón no se ha probado con hardware.** Ni `GCMouse` ni el puntero indirecto. En particular,
-  no se sabe **cuál de las dos fuentes acaba entregando eventos de verdad en un iPhone**, que era
-  justo la duda que motivó tener dos.
-- **El dictado no se ha ejecutado.** La primera vez descarga el modelo de idioma y puede tardar.
-- Los atajos, los divisores arrastrables y el teclado en pantalla: escritos, sin pulsar.
+**Escrito y sin probar en el dispositivo.** Bruno prefiere acumular y probarlo todo junto;
+conviene no confundir "está escrito" con "funciona":
+
+- **Lo del 22-sep**: el modo claro en el monitor y su cambio en caliente, las ventanas que salían
+  vacías (ajustes, menú contextual, diálogo de texto, editor de máquinas), las vistas de iconos
+  del gestor de ficheros y el buscador seleccionable.
+- Terminal: tmux y vim con ratón, selección con arrastre, `known_hosts` ante una clave que cambie
+  y la reconexión tras una caída real.
+- Navegador: clics sintéticos, pestañas y descargas contra webs de verdad.
+- Ficheros: SFTP, carpetas externas (iCloud, USB) y copiar entre orígenes.
+- El dictado (la primera vez descarga el modelo de idioma y puede tardar), los atajos, los
+  divisores arrastrables y el teclado en pantalla.
+- **Si el espacio lógico sale nítido** a todas las escalas: el lienzo se escala con un
+  `CGAffineTransform` y, si el factor estuviera mal, se vería borroso o cortado.
 
 ## Distribución
 
@@ -335,15 +337,33 @@ los suyos.
 obligaba a subir el ratón hasta arriba del todo, que con el tope del puntero indirecto es el
 movimiento más incómodo que hay.
 
-## Pendientes apuntados por Bruno
+## Pendientes
 
-- **Ventanas flotantes**, para el final del todo. La Fase 1 se hizo con mosaico puro estilo i3, a
-  propósito. Añadirlas implica que `TilingLayout` deje de repartir todo el espacio: harían falta
-  una capa de ventanas por encima del mosaico, orden de apilamiento, arrastre de título y
-  redimensión por las esquinas.
-- **Claves ed25519** para SSH, también para el final.
+Pequeños, de fases anteriores:
+
+- **Cmd+clic sobre una URL del terminal abre Safari.** Ya hay navegador propio: hay que mandarla
+  ahí, con Safari de respaldo.
+- **Buscar en la página (Cmd+F)**: se reconoce y se encamina, pero `perform(_:)` devuelve `false`
+  porque no hay barra de búsqueda todavía.
+- **El lanzador (Cmd+P) sólo ofrece máquinas SSH.** Le faltan URLs (historial, marcadores) y
+  ubicaciones de ficheros.
+- Una ventana abierta **mientras** cambia el modo claro/oscuro se queda con el borde del modo
+  anterior hasta que se cierra. Los ajustes sí lo corrigen, porque es donde se cambia.
+
+Del gestor de ficheros (Fase 4):
+
+- **Copiar carpetas enteras**, con una barra de progreso de verdad.
+- **Arrastrar entre ubicaciones.**
 - **Elegir el fondo desde el gestor de ficheros** (el caso `Wallpaper.file` ya está previsto).
-- **Descargas en el navegador**, a una carpeta visible desde el gestor de ficheros.
+
+Apuntados por Bruno para el final:
+
+- **Ventanas flotantes**. La Fase 1 se hizo con mosaico puro estilo i3, a propósito. Añadirlas
+  implica que `TilingLayout` deje de repartir todo el espacio: harían falta una capa de ventanas
+  por encima del mosaico, orden de apilamiento, arrastre de título y redimensión por las esquinas.
+- **Claves ed25519** para SSH.
+- **`Tools/testflight.sh`**: subir con la clave de la API de App Store Connect e incremento
+  automático de build. Hasta entonces, las subidas van a mano desde Xcode.
 
 ## Fase 4 — Ficheros
 
@@ -429,7 +449,9 @@ MetalToolchain`. Sin él, SwiftTerm falla con `cannot execute tool 'metal'`.
 - Swift 6 en modo estricto (`SWIFT_STRICT_CONCURRENCY: complete`) desde el primer día.
 - UIKit para la escena externa y el gestor de ventanas; SwiftUI para la interfaz del iPhone.
 - **iOS 27 mínimo**, sólo iPhone, sólo vertical en el teléfono.
-- Dependencias: **SwiftTerm** y **Citadel**, y ninguna más sin preguntar.
+- Dependencias: **SwiftTerm** y **Citadel**, y ninguna más sin preguntar. **Citadel fijado a la
+  serie 0.11** (22-sep-2026), por el fork de `swift-nio-ssh` del que tira: ver "Cadena de
+  suministro".
 - Bundle id **`com.baltamir.brunos`**. El primero que se intentó, `com.bruno.brunos`, **ya estaba
   registrado por otra cuenta**: los App ID son únicos en todo Apple. Una vez subida una build a
   App Store Connect ya no se puede cambiar.
@@ -441,6 +463,8 @@ MetalToolchain`. Sin él, SwiftTerm falla con `cannot execute tool 'metal'`.
   no se escribe a mano: si no, al cambiar el bundle id los logs se irían a un nombre y el código
   los buscaría en otro.
 - Mosaico estilo i3 con 3 espacios de trabajo, sin ventanas flotantes en esta versión.
+- El escritorio **sigue el modo claro/oscuro del iPhone** por defecto (22-sep-2026). Antes iba
+  siempre oscuro y Bruno lo rechazó.
 - Licencia **MIT** (decidida el 21-sep-2026).
 - Repositorio **público**: nada de claves, tokens, hosts reales del tailnet ni IPs, tampoco en
   ejemplos o tests. Se usa `homelab` como nombre genérico. Revisar el diff antes de cada push.
@@ -525,23 +549,22 @@ no se instalaba fallaba en silencio.
 Si algún día Apple arregla la importación, se borran los dos ficheros y la línea
 `SWIFT_OBJC_BRIDGING_HEADER` de `project.yml`, y se llama a la API directamente.
 
-## Cadena de suministro: mirar antes de la Fase 2
+## Cadena de suministro: Citadel fijado a la 0.11
 
 **Citadel 0.12.1 no usa el `swift-nio-ssh` de Apple.** Arrastra
 `github.com/Wellz26/swift-nio-ssh` (0 estrellas), un fork de `Joannis/swift-nio-ssh`, que a su vez
-forkea el de Apple. O sea: **toda la criptografía SSH de BrunOS pasa por el fork personal de un
-tercero**, y en esta app por ahí van a ir contraseñas de servidores.
+forkea el de Apple. Por esa capa pasa toda la criptografía SSH de BrunOS, contraseñas incluidas.
 
-Comprobado, y por eso no se bloqueó la Fase 0:
+No había indicios de nada malo —Wellz26 es colaborador real de Citadel, el cambio entró en abril
+de 2026 "for Mac Catalyst compatibility" y el tag 0.3.7 del fork son merges legítimos del de
+Apple—, pero el fork iba 7 commits por detrás del de Apple y añade un eslabón sin necesidad.
 
-- Wellz26 es colaborador real de Citadel; el cambio entró en el repositorio de arriba en abril de
-  2026 con el mensaje "use Wellz26 nio-ssh fork for Mac Catalyst compatibility".
-- El tag 0.3.7 del fork son merges legítimos del upstream de Apple.
-- Aun así el fork va **7 commits por detrás** de `apple/swift-nio-ssh`.
+**Decidido: Citadel se queda en la serie 0.11** (`minorVersion: 0.11.0` en `project.yml`;
+resuelve a la 0.11.1), que usa el fork de **Joannis, el autor de Citadel**: la cadena más corta y
+con un responsable identificable. Comprobado en `Package.resolved`: `swift-nio-ssh` sale de
+`github.com/Joannis/swift-nio-ssh`, versión 0.3.5.
 
-Citadel **0.11.0 y anteriores** usan el fork de Joannis, el autor de Citadel. Si Bruno prefiere esa
-cadena, se fija `exactVersion` o `upToNextMinor: 0.11.0` en `project.yml`. **Decisión pendiente,
-para tomarla al empezar la Fase 2.**
+**Antes de subir de versión**, mirar de qué fork tira la nueva en su `Package.swift`.
 
 ---
 
@@ -550,12 +573,15 @@ para tomarla al empezar la Fase 2.**
 ```
 BrunOS/
   App/         AppDelegate, PhoneSceneDelegate, ExternalSceneDelegate, Info.plist generado
-  Display/     ExternalDisplayManager, DisplayProfile (escala, overscan, perfiles por pantalla)
-  Input/       (Fase 1) PointerController, KeyboardRouter, atajos
-  Desktop/     Pane (protocolo), DesktopViewController; (Fase 1) TilingLayout, Workspace, TopBar
-  Terminal/    (Fase 2) TerminalPane, SSHSession, HostStore
-  Browser/     (Fase 3) BrowserPane, TabModel, ContentBlocker, ClickInjector.js
-  Files/       (Fase 4) FilesPane, LocalProvider, SFTPProvider, Bookmarks
+  Display/     ExternalDisplayManager, DisplayProfile, DesktopTheme (claro/oscuro), Wallpaper
+  Input/       PointerController, MouseSource, KeyboardRouter, atajos, AssistiveTouchMonitor
+  Desktop/     DesktopViewController, TilingLayout, Workspace, TopBar, Dock, Launcher, y las
+               ventanas del monitor: SettingsWindow, HostEditorWindow, PromptWindow,
+               ContextMenu, todas sobre CardView
+  Terminal/    TerminalPane, TerminalTab, SSHSession, HostStore, KnownHosts, TailscaleMonitor
+  Browser/     BrowserPane, BrowserTab, BrowserChrome, ContentBlocker, SearchEngine, ClickInjector.js
+  Files/       FilesPane, FileService, LocalProvider, ExternalFolderProvider, SFTPProvider,
+               QuickLookView
   Phone/       PhoneRootViewController (UIKit, registra el accesorio) + vistas SwiftUI
   Design/      Tokens: colores, tipografías, métricas
   Resources/   Fonts (versionadas, OFL), Blocklists (generadas, NO versionadas), Assets
@@ -568,17 +594,8 @@ BrunOS/
 
 ## Siguiente paso
 
-**Fase 2: terminal SSH.** Antes de empezar hay **dos cosas que decidir con Bruno**:
-
-1. Lo de Citadel y el fork de `swift-nio-ssh` de la sección anterior.
-2. Si merece la pena seguir acumulando fases sin haber visto nunca la pantalla externa. La Fase 1
-   entera descansa sobre código que no ha corrido; meterle encima un terminal multiplica lo que
-   habría que desenredar si el espacio lógico resulta estar mal planteado.
-
-Queda pendiente de la Fase 1, y está anotado en el código:
-
-- **El lanzador (Cmd+P)** está en la tabla de atajos pero todavía no abre nada: necesita hosts,
-  URLs y ubicaciones, que llegan con las fases 2 a 4.
-- Cmd+T, Cmd+W, Cmd+L, Cmd+R, Cmd+F y los de zoom se reconocen y se encaminan, pero el panel de
-  relleno no hace nada con ellos. `perform(_:)` devuelve `false` en esos casos a propósito.
-- El contador de anuncios bloqueados de la barra superior se pasa como `nil` hasta la Fase 3.
+1. **Que Bruno pruebe en el iPhone** lo de la lista de "Escrito y sin probar", empezando por lo
+   del 22-sep.
+2. Mientras tanto, lo pequeño de "Pendientes": Cmd+clic al navegador propio y el lanzador
+   completo.
+3. Cerrar la Fase 4: copiar carpetas con progreso y arrastrar entre ubicaciones.
