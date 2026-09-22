@@ -12,6 +12,20 @@ emergencia, teclado, dictado y ajustes.
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (22-sep-2026)
 
+**Para retomar (cierre del 22-sep-2026):**
+
+1. **Subir a TestFlight lo que hay en `main`**: `./Tools/testflight.sh`. El 22-sep saltó el límite
+   diario de subidas de App Store Connect y **el arreglo del clic y el arrastre (`bdacb54`) no
+   llegó al iPhone**. La última build que Bruno tiene instalada, la 2609221604, **tiene el clic
+   roto** (cada clic hacía saltar el cursor).
+2. **Que Bruno pruebe con ratón**: clic, arrastrar ventanas, divisores y ficheros, y seleccionar
+   texto. Es lo más delicado de todo: con AssistiveTouch el botón llega como un toque en el
+   iPhone, y **la posición de ese toque no es fiable; su desplazamiento, sí** (ver «Arrastrar con
+   el ratón» más abajo).
+3. Después: «ratón conectado» que se desmarca al desconectar, volver del modo mando al quitar el
+   monitor y el nombre de carpeta en Ficheros, también sin probar.
+
+
 **Las cuatro fases están escritas. Terminal y navegador se usan ya en el iPhone con monitor; el
 gestor de ficheros está a medias.**
 
