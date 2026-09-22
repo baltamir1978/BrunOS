@@ -407,9 +407,17 @@ final class DesktopViewController: UIViewController {
             guard let browser = workspace.focusedPane as? BrowserPane else { return false }
             browser.focusAddressBar()
 
+        case .reopenTab:
+            guard let browser = workspace.focusedPane as? BrowserPane else { return false }
+            browser.reopenClosedTab()
+
         case .bookmark:
             guard let browser = workspace.focusedPane as? BrowserPane else { return false }
             browser.toggleBookmark()
+
+        case .reader:
+            guard let browser = workspace.focusedPane as? BrowserPane else { return false }
+            browser.toggleReader()
 
         case .reload:
             guard let browser = workspace.focusedPane as? BrowserPane else { return false }

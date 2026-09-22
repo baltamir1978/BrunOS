@@ -29,6 +29,7 @@ final class AppServices {
     let files = FileService()
     let history = BrowserHistory()
     let favicons = FaviconStore()
+    let downloads = DownloadCenter()
     let passwords = PasswordBridge()
 
     /// El escritorio de la pantalla externa, si está conectada.

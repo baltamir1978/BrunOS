@@ -138,3 +138,70 @@ Costaron un rato, y cuando algo no le gusta rechaza **la lista entera** sin deci
 - Los dominios, en minúsculas.
 - `resource-type` sólo admite una lista cerrada de valores.
 - Las reglas con `ignore-previous-rules` van **después** de los bloqueos.
+
+### Favoritos, iconos y sugerencias (22-sep-2026)
+
+Lo pidió Bruno: que se parezca lo más posible a Safari.
+
+- **`BookmarksBar`**, bajo la de direcciones, se apaga desde Ajustes › Navegador › Favoritos. Los
+  que no caben **no se encogen**: van a un menú `»` al final. Una barra con quince favoritos de
+  tres letras no sirve para nada.
+- **`FaviconStore`**: los iconos se piden **al propio sitio** (`<link rel=icon>` que declara la
+  página, y si no `/favicon.ico`), nunca a un servicio de iconos de terceros, que sería entregarle
+  a un extraño la lista entera de favoritos. Se guardan reducidos a 32 px en Application Support.
+  Un icono que falta **no se vuelve a pedir en toda la sesión**: `icon(for:)` lo llama un
+  `draw(_:)`, y reintentar sería una petición por fotograma. Salen también en las pestañas, en las
+  sugerencias y en la página de inicio; si no hay, va un cuadrado de color estable por dominio con
+  la inicial, que es mejor que un hueco.
+- **`AddressSuggestions`**: la lista que cae al escribir. La primera fila es **siempre lo escrito**
+  (como dirección o como búsqueda), y debajo los favoritos y el historial que encajen. La fila de
+  búsqueda **no pasa por `load`**: si lo escrito parece una dirección, `load` la abriría como tal y
+  elegir «Buscar» no habría servido de nada.
+- **Cmd+D**, la estrella de la barra y el clic derecho llaman todos a `BrowserPane.toggleBookmark()`,
+  para que el icono y el aviso no puedan decir cosas distintas.
+- **Barra de progreso dentro de la cápsula** de dirección (`estimatedProgress`), recortada con la
+  propia forma redondeada. Vale 1 cuando no se está cargando: si no, se quedaba a medias al
+  cancelar una carga.
+
+### Modo lectura
+
+`readerArticle()` en el inyector es un Readability en pequeño: **el artículo es el bloque con más
+texto en párrafos**, penalizando por clase o id lo que huele a navegación o comentarios. Con menos
+de 600 caracteres de párrafos no se considera artículo y se dice, que es mejor que enseñar un
+revoltijo. El HTML se limpia a una lista blanca de etiquetas y sólo sobreviven `href` y `src`, ya
+absolutos.
+
+La página del lector se carga **con `baseURL` de la original**: sin eso, las imágenes y los
+enlaces relativos del artículo no tendrían desde dónde resolverse. `readerOrigin` guarda de dónde
+salió, y cualquier navegación (`load`, atrás, adelante, recargar) sale del modo lectura, porque el
+HTML del artículo no está en ningún servidor y recargarlo no significa nada.
+
+### Descargar vídeos
+
+- El detector (`mediaItems()`) mira **`currentSrc` primero**: es lo que el navegador está
+  reproduciendo de verdad, ya resuelto entre todos los `<source>`. Luego el `src`, los `<source>`
+  y los `og:video`, que muchos sitios rellenan con el fichero directo aunque el reproductor use
+  otra cosa.
+- **Lo que va por trozos se dice, no se esconde**: un `blob:` es memoria de la pestaña y un `.m3u8`
+  o un `.mpd` son listas de segmentos. Ninguno es un fichero que guardar. Salen en el menú
+  apagados y explicando por qué.
+- **YouTube no entra y no va a entrar**: sirve vídeo y audio por separado (DASH) y descifra la
+  firma ejecutando su propio JavaScript. Eso es yt-dlp, que es Python y se actualiza cada pocos
+  días porque YouTube rompe los extractores a propósito. La salida razonable, si hace falta, es
+  lanzar yt-dlp **en la máquina del tailnet** por la sesión SSH que ya existe.
+- La descarga va por `startDownload` del `WKWebView`, **con `Referer` y `Origin` de la página**:
+  los CDN que protegen el hotlinking (RedGifs y compañía) devuelven 403 a un mp4 pedido a pelo. El
+  nombre sale del título de la página, no del `videoplayback` del servidor.
+- **Progreso**: KVO sobre `WKDownload.progress`. El observador llega en cualquier hilo, así que
+  sólo cruza números al actor principal, nunca el `Progress`, que no es `Sendable`. Se refresca
+  **cada punto porcentual**: a cada trozo, el repintado se notaba en el cursor.
+- **`DownloadCenter`** está fuera del panel: una descarga sigue viva aunque se cierre la pestaña, y
+  tiene que verse desde cualquier navegador, como el ⤓ de Safari. Guarda los cancelar en un
+  diccionario aparte, para que el modelo que se compara y se copia no arrastre closures.
+- «Guardar como PDF» usa `WKWebView.createPDF`: lo pagina WebKit entero, no es una captura.
+
+### Pestañas
+
+Menú del clic derecho sobre una pestaña (recargar, duplicar, cerrar, cerrar las demás) y
+**Cmd+Mayús+T** para reabrir la última cerrada. De las cerradas se guarda **sólo la dirección**:
+mantener vivo un `WKWebView` por si acaso es justo lo que hace que iOS mate la app.

@@ -64,3 +64,31 @@ incluido**: se lee de uno y se escribe en el otro (`FileService.transfer`).
   **Dentro del mismo origen se mueve, entre orígenes se copia**, como en el Finder.
 - Los ficheros pasan enteros por memoria (`read` devuelve `Data`): un vídeo de varios gigas por
   SFTP puede ser demasiado. Si da problemas, hay que pasar a lectura por trozos.
+
+### SMB: lo pone la app Archivos, no BrunOS (22-sep-2026)
+
+**El SDK de iOS 27 no trae cliente SMB.** Comprobado: no hay NetFS ni nada equivalente; lo único
+que existe es `FileProvider`, que sirve para publicar ficheros, no para montar un servidor. Las dos
+salidas eran una librería de terceros (AMSMB2, sobre libsmb2 en C) o pasar por la app Archivos, que
+sí sabe conectarse. **Bruno eligió la app Archivos**: sin dependencias nuevas y sin otra capa de
+red por la que pasen sus credenciales.
+
+El camino, explicado en Ajustes › Ficheros › Ubicaciones: conectar el servidor una vez en Archivos
+(Examinar › ⋯ › Conectar a servidor) y añadirlo aquí con el selector de carpetas. A partir de ahí
+es una ubicación como cualquier otra.
+
+**Lo que esto obligó a cambiar**: un servidor desmontado hace que el marcador de seguridad no
+resuelva, y antes el proveedor ni se creaba, así que **la ubicación desaparecía de la barra
+lateral** como si nunca se hubiera añadido. Ahora `ExternalFolderStore` guarda nombre y tipo junto
+al marcador (`ExternalFolder`), el proveedor se crea igual y es `list` quien explica qué pasa; en
+la barra lateral sale en gris. Los marcadores caducados (`isStale`) se renuevan solos al primer
+acceso bueno, que es lo que evita tener que volver a añadir la carpeta tras un reinicio.
+
+El tipo se deduce de la ruta, que es lo único que da iOS: `smbclientd` → servidor,
+`Mobile Documents` → iCloud, `/Volumes` → disco.
+
+### SCP no aporta nada
+
+Lo preguntó Bruno el 22-sep. Citadel ya da SFTP, que es el mismo canal SSH y permite listar,
+renombrar y borrar; SCP sólo sabe copiar. Lo que de verdad falta ahí es **leer por trozos**: hoy
+`read` devuelve el fichero entero en memoria.

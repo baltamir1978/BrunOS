@@ -28,7 +28,9 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él | ✅ |
 | **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
 | **Navegador** con pestañas, bloqueo de anuncios editable, descargas y contraseñas de iOS | ✅ YouTube probado |
-| **Ficheros**: iPhone, iCloud, USB y SFTP, con vistas, vista previa, copiar carpetas y arrastrar | 🚧 a falta de rodaje |
+| **Favoritos** con barra propia, iconos de cada sitio, sugerencias al escribir y modo lectura | 🚧 sin rodaje |
+| **Descargar vídeos** de la página, con progreso, y guardar la página como PDF | 🚧 sin rodaje |
+| **Ficheros**: iPhone, iCloud, USB, SMB y SFTP, con vistas, vista previa, copiar carpetas y arrastrar | 🚧 a falta de rodaje |
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | 🚧 a falta de rodaje |
 
 El escritorio, el ratón, el teclado, la conexión SSH y el navegador están probados con un monitor

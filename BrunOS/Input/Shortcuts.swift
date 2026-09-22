@@ -16,12 +16,14 @@ enum DesktopCommand: Equatable {
     case toggleFloating
     case newTab
     case closeTab
+    case reopenTab
     case newPane
     case launcher
     case copy
     case paste
     case addressBar
     case bookmark
+    case reader
     case reload
     case find
     case zoomIn
@@ -39,12 +41,14 @@ enum DesktopCommand: Equatable {
         case .toggleFloating: "Flotar o volver al mosaico"
         case .newTab: "Nueva pestaña o sesión"
         case .closeTab: "Cerrar pestaña o sesión"
+        case .reopenTab: "Reabrir la última pestaña cerrada"
         case .newPane: "Nuevo panel"
         case .launcher: "Lanzador"
         case .copy: "Copiar"
         case .paste: "Pegar"
         case .addressBar: "Barra de direcciones"
         case .bookmark: "Añadir a favoritos"
+        case .reader: "Modo lectura"
         case .reload: "Recargar"
         case .find: "Buscar"
         case .zoomIn: "Aumentar"
@@ -109,6 +113,7 @@ enum Shortcuts {
                   title: "Flotar"),
             Entry(input: "t", modifiers: .command, command: .newTab, title: "Nueva pestaña"),
             Entry(input: "w", modifiers: .command, command: .closeTab, title: "Cerrar pestaña"),
+            Entry(input: "t", modifiers: [.command, .shift], command: .reopenTab, title: "Reabrir pestaña"),
             Entry(input: "n", modifiers: .command, command: .newPane, title: "Nuevo panel"),
             Entry(input: "p", modifiers: .command, command: .launcher, title: "Lanzador"),
             // Cmd+C y Cmd+V **tienen que estar aquí**. Sin declararlos, el
@@ -118,6 +123,7 @@ enum Shortcuts {
             Entry(input: "v", modifiers: .command, command: .paste, title: "Pegar"),
             Entry(input: "l", modifiers: .command, command: .addressBar, title: "Dirección"),
             Entry(input: "d", modifiers: .command, command: .bookmark, title: "Favorito"),
+            Entry(input: "r", modifiers: [.command, .shift], command: .reader, title: "Lectura"),
             Entry(input: "r", modifiers: .command, command: .reload, title: "Recargar"),
             Entry(input: "f", modifiers: .command, command: .find, title: "Buscar"),
             Entry(input: "+", modifiers: .command, command: .zoomIn, title: "Aumentar"),

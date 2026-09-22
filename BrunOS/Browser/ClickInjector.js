@@ -321,6 +321,87 @@ function mediaAt(x, y) {
     return null;
 }
 
+/// Extrae el artículo de la página, para el modo lectura.
+///
+/// Es un Readability en pequeño, con la idea de siempre: **el artículo es el
+/// bloque que más texto tiene en párrafos**. Se puntúa cada candidato por la
+/// longitud de sus `<p>`, se penaliza lo que huele a navegación o comentarios
+/// por su clase o su id, y se devuelve el ganador ya limpio.
+///
+/// No se intenta acertar en todas las webs: cuando no hay un bloque claro se
+/// devuelve `null` y la app lo dice, que es mejor que enseñar un revoltijo.
+function readerArticle() {
+    const BAD = /(^|[-_\s])(nav|menu|header|footer|sidebar|comment|share|related|promo|advert|social|newsletter|cookie|breadcrumb)([-_\s]|$)/i;
+    const KEEP = new Set([
+        'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'LI', 'BLOCKQUOTE',
+        'PRE', 'CODE', 'FIGURE', 'FIGCAPTION', 'IMG', 'A', 'EM', 'STRONG', 'B',
+        'I', 'BR', 'HR', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'SPAN',
+    ]);
+
+    function textLength(node) {
+        let total = 0;
+        for (const paragraph of node.querySelectorAll('p, li')) {
+            const text = (paragraph.innerText || '').trim();
+            // Los párrafos de una línea suelen ser pies, créditos o botones.
+            if (text.length > 40) total += text.length;
+        }
+        return total;
+    }
+
+    let best = null;
+    let bestScore = 0;
+    const candidates = document.querySelectorAll('article, main, [role=main], div, section');
+    for (const candidate of candidates) {
+        const signature = (candidate.className || '') + ' ' + (candidate.id || '');
+        if (typeof signature === 'string' && BAD.test(signature)) continue;
+        let score = textLength(candidate);
+        if (candidate.tagName === 'ARTICLE') score *= 1.4;
+        if (score > bestScore) {
+            bestScore = score;
+            best = candidate;
+        }
+    }
+
+    // Menos de esto no es un artículo: es una portada, un panel o un buscador.
+    if (!best || bestScore < 600) return null;
+
+    const copy = best.cloneNode(true);
+    // Fuera lo que no es el texto: guiones, estilos, formularios y todo lo que
+    // la página use para lo suyo.
+    for (const node of copy.querySelectorAll('*')) {
+        if (!KEEP.has(node.tagName)) {
+            node.replaceWith(...node.childNodes);
+            continue;
+        }
+        for (const attribute of Array.from(node.attributes)) {
+            const name = attribute.name.toLowerCase();
+            const allowed = (node.tagName === 'A' && name === 'href')
+                || (node.tagName === 'IMG' && (name === 'src' || name === 'alt'));
+            if (!allowed) node.removeAttribute(attribute.name);
+        }
+        if (node.tagName === 'IMG' && node.getAttribute('src')) {
+            try {
+                node.setAttribute('src', new URL(node.getAttribute('src'), location.href).href);
+            } catch (error) {
+                node.remove();
+            }
+        }
+        if (node.tagName === 'A' && node.getAttribute('href')) {
+            try {
+                node.setAttribute('href', new URL(node.getAttribute('href'), location.href).href);
+            } catch (error) {}
+        }
+    }
+
+    const heading = document.querySelector('h1');
+    const author = document.querySelector('[rel=author], .byline, .author, [itemprop=author]');
+    return {
+        title: (heading && heading.innerText.trim()) || document.title || '',
+        byline: author ? (author.innerText || '').trim().slice(0, 120) : '',
+        html: copy.innerHTML,
+    };
+}
+
 /// El icono del sitio que declara la página, para la barra de favoritos.
 function iconURL() {
     const links = document.querySelectorAll('link[rel~="icon" i]');
@@ -707,6 +788,7 @@ window.__brunos = {
     key: key,
     fillLogin: fillLogin,
     media: mediaItems,
+    reader: readerArticle,
     mediaAt: mediaAt,
     iconURL: iconURL,
 };

@@ -50,7 +50,7 @@ struct PhoneRootView: View {
             allowsMultipleSelection: false
         ) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }
-            try? services.files.externalFolders.add(url)
+            _ = try? services.files.externalFolders.add(url)
             services.files.rebuild()
         }
         .onReceive(NotificationCenter.default.publisher(for: .brunosPickFolder)) { _ in

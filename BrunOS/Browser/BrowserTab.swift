@@ -16,6 +16,8 @@ final class BrowserTab: NSObject {
     var title: String = "Nueva pestaña"
     var urlText: String = ""
     var isLoading = false
+    /// De 0 a 1, para la barra de la cápsula de dirección.
+    var loadProgress: Double = 1
     var canGoBack = false
     var canGoForward = false
 
@@ -187,6 +189,9 @@ final class BrowserTab: NSObject {
 
     func load(_ text: String) {
         guard let url = Self.url(from: text) else { return }
+        // Cualquier navegación saca del modo lectura: lo que se cargue ya no
+        // es el artículo que se estaba leyendo.
+        readerOrigin = nil
         lastUsed = Date()
         isSuspended = false
         webView.load(URLRequest(url: url))
@@ -310,9 +315,26 @@ final class BrowserTab: NSObject {
             .replacingOccurrences(of: "'", with: "&#39;")
     }
 
-    func goBack() { webView.goBack() }
-    func goForward() { webView.goForward() }
-    func reload() { webView.reload() }
+    func goBack() {
+        readerOrigin = nil
+        webView.goBack()
+    }
+
+    func goForward() {
+        readerOrigin = nil
+        webView.goForward()
+    }
+
+    func reload() {
+        // Recargar en el lector recarga la página original: el HTML del
+        // artículo no está en ningún servidor.
+        if let origin = readerOrigin {
+            readerOrigin = nil
+            webView.load(URLRequest(url: origin))
+            return
+        }
+        webView.reload()
+    }
 
     // MARK: - Descarga de pestañas inactivas
 
@@ -599,6 +621,96 @@ final class BrowserTab: NSObject {
         }
     }
 
+    // MARK: - Modo lectura
+
+    /// La dirección de la que salió el texto del lector, para poder volver.
+    private(set) var readerOrigin: URL?
+    var isReading: Bool { readerOrigin != nil }
+
+    /// Entra o sale del modo lectura. Devuelve `false` si la página no tiene un
+    /// artículo reconocible, para poder decirlo en vez de dejar la pantalla en
+    /// blanco.
+    @discardableResult
+    func toggleReader() async -> Bool {
+        if let origin = readerOrigin {
+            readerOrigin = nil
+            webView.load(URLRequest(url: origin))
+            return true
+        }
+        guard let url = webView.url else { return false }
+
+        let article: Article? = await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript("window.__brunos.reader();", in: nil, in: world) { result in
+                guard case .success(let value) = result,
+                      let dictionary = value as? [String: Any],
+                      let html = dictionary["html"] as? String, !html.isEmpty
+                else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: Article(
+                    title: dictionary["title"] as? String ?? "",
+                    byline: dictionary["byline"] as? String ?? "",
+                    html: html
+                ))
+            }
+        }
+        guard let article else { return false }
+
+        readerOrigin = url
+        // **Con `baseURL` de la página original**: si no, las imágenes y los
+        // enlaces del artículo se quedarían sin nada desde donde resolverse.
+        webView.loadHTMLString(Self.readerHTML(article, from: url), baseURL: url)
+        return true
+    }
+
+    struct Article: Sendable {
+        var title: String
+        var byline: String
+        var html: String
+    }
+
+    /// La página del lector: una columna de texto y nada más.
+    ///
+    /// Sigue el modo claro u oscuro como cualquier web, con `color-scheme`, y
+    /// usa una serifa para el cuerpo: en un texto largo se nota.
+    private static func readerHTML(_ article: Article, from url: URL) -> String {
+        let source = article.byline.isEmpty
+            ? (url.host() ?? "")
+            : escape(article.byline) + " · " + (url.host() ?? "")
+        let style = """
+            :root { color-scheme: light dark;
+                    --bg: #FBF9F5; --text: #1A1D21; --muted: #6A717B; --accent: #A96B06; }
+            @media (prefers-color-scheme: dark) {
+              :root { --bg: #14161A; --text: #E6E3DC; --muted: #9AA1AB; --accent: #E8A33D; }
+            }
+            body { margin: 0 auto; padding: 48px 24px 96px; max-width: 42em;
+                   background: var(--bg); color: var(--text);
+                   font-family: Georgia, 'Times New Roman', serif;
+                   font-size: 19px; line-height: 1.65; }
+            h1.brunos-title { font-size: 34px; line-height: 1.2; margin: 0 0 6px; }
+            .brunos-byline { color: var(--muted); font-size: 13px; margin-bottom: 34px;
+                   font-family: -apple-system, system-ui, sans-serif;
+                   padding-bottom: 18px;
+                   border-bottom: 1px solid color-mix(in srgb, var(--muted) 35%, transparent); }
+            img { max-width: 100%; height: auto; border-radius: 6px; }
+            a { color: var(--accent); }
+            pre, code { font-family: ui-monospace, monospace; font-size: 15px; }
+            pre { overflow-x: auto; padding: 12px; border-radius: 8px;
+                  background: color-mix(in srgb, var(--muted) 15%, transparent); }
+            blockquote { margin: 0; padding-left: 18px; color: var(--muted);
+                   border-left: 3px solid var(--accent); }
+            figcaption { color: var(--muted); font-size: 14px; }
+            """
+        return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+            + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+            + "<style>\(style)</style></head><body>"
+            + "<h1 class=\"brunos-title\">\(escape(article.title))</h1>"
+            + "<div class=\"brunos-byline\">\(source)</div>"
+            + article.html
+            + "</body></html>"
+    }
+
     /// El icono que declara la página, para la barra de favoritos.
     private func reportIcon() {
         guard let host = webView.url?.host() else { return }
@@ -674,6 +786,9 @@ final class BrowserTab: NSObject {
             webView.observe(\.isLoading, options: [.new]) { [weak self] _, _ in
                 MainActor.assumeIsolated { self?.refresh() }
             },
+            webView.observe(\.estimatedProgress, options: [.new]) { [weak self] _, _ in
+                MainActor.assumeIsolated { self?.refresh() }
+            },
         ]
     }
 
@@ -681,6 +796,9 @@ final class BrowserTab: NSObject {
         title = webView.title?.isEmpty == false ? webView.title! : (webView.url?.host() ?? "Nueva pestaña")
         urlText = webView.url?.absoluteString ?? ""
         isLoading = webView.isLoading
+        // Cuando no se está cargando vale 1: si no, la barra se quedaría a
+        // medias al terminar una carga que se cancela.
+        loadProgress = webView.isLoading ? webView.estimatedProgress : 1
         canGoBack = webView.canGoBack
         canGoForward = webView.canGoForward
         onChange?()
@@ -794,6 +912,9 @@ extension BrowserTab: WKDownloadDelegate {
         let id = ObjectIdentifier(download)
         destinations[id] = url
         watchProgress(of: download)
+        AppServices.shared.downloads.begin(name: url.lastPathComponent) { [weak download] in
+            download?.cancel()
+        }
         onDownloadChange?(url.lastPathComponent, .started)
         return url
     }
@@ -803,6 +924,7 @@ extension BrowserTab: WKDownloadDelegate {
         progressObservations.removeValue(forKey: id)
         lastReportedFraction.removeValue(forKey: id)
         guard let url = destinations.removeValue(forKey: id) else { return }
+        AppServices.shared.downloads.finish(name: url.lastPathComponent, url: url)
         onDownloadChange?(url.lastPathComponent, .finished(url))
     }
 
@@ -812,9 +934,10 @@ extension BrowserTab: WKDownloadDelegate {
         resumeData: Data?
     ) {
         let id = ObjectIdentifier(download)
-        destinations.removeValue(forKey: id)
+        let name = destinations.removeValue(forKey: id)?.lastPathComponent ?? ""
         progressObservations.removeValue(forKey: id)
         lastReportedFraction.removeValue(forKey: id)
+        AppServices.shared.downloads.fail(name: name, reason: error.localizedDescription)
         onDownloadChange?(error.localizedDescription, .failed)
     }
 
@@ -840,6 +963,9 @@ extension BrowserTab: WKDownloadDelegate {
                 let last = self.lastReportedFraction[id] ?? -1
                 guard fraction - last >= 0.01 || fraction >= 1 else { return }
                 self.lastReportedFraction[id] = fraction
+                AppServices.shared.downloads.progress(
+                    name: url.lastPathComponent, fraction: fraction, done: done, total: total
+                )
                 self.onDownloadChange?(url.lastPathComponent, .progress(fraction, done, total))
             }
         }

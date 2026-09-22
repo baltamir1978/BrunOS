@@ -28,6 +28,10 @@ final class BrowserPane: UIView, Pane {
     private var media: [BrowserTab.Media] = []
     private var mediaTimer: Timer?
 
+    /// Las últimas pestañas cerradas, para Cmd+Mayús+T. Sólo la dirección: no
+    /// tiene sentido mantener vivo un `WKWebView` por si acaso.
+    private var closedTabs: [String] = []
+
     private var tabs: [BrowserTab] = []
     private var activeIndex = 0
     private var isEditingAddress = false
@@ -35,6 +39,9 @@ final class BrowserPane: UIView, Pane {
     /// Todo el texto de la barra está seleccionado y la próxima tecla lo
     /// sustituye.
     private var isAddressSelected = false
+
+    /// La lista que cae de la barra de direcciones al escribir.
+    private let suggestions = AddressSuggestions()
 
     /// Cmd+F.
     private let findBar = FindBar()
@@ -66,6 +73,10 @@ final class BrowserPane: UIView, Pane {
         addSubview(chrome)
         addSubview(bookmarksBar)
         addSubview(findBar)
+        // Encima de la página: se añade después que `content`, que es lo que
+        // decide quién tapa a quién.
+        addSubview(suggestions)
+        suggestions.isHidden = true
         findBar.isHidden = true
         findBar.placeholder = "Buscar en la página"
         findBar.onChange = { [weak self] text in self?.find(text, backwards: false) }
@@ -106,6 +117,12 @@ final class BrowserPane: UIView, Pane {
             self,
             selector: #selector(faviconsChanged),
             name: FaviconStore.didChange,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(downloadsChanged),
+            name: DownloadCenter.didChange,
             object: nil
         )
 
@@ -152,6 +169,7 @@ final class BrowserPane: UIView, Pane {
         for tab in tabs {
             tab.webView.frame = content.bounds
         }
+        suggestions.frame = bounds
         layoutDownloadToast()
         refreshChrome()
     }
@@ -227,7 +245,7 @@ final class BrowserPane: UIView, Pane {
     private func refreshChrome() {
         let url = activeTab?.webView.url
         chrome.update(
-            tabs: tabs.map(\.title),
+            tabs: tabs.map { BrowserChrome.Tab(title: $0.title, host: $0.webView.url?.host()) },
             active: activeIndex,
             address: isEditingAddress ? addressDraft : (activeTab?.urlText ?? ""),
             isEditing: isEditingAddress,
@@ -235,16 +253,90 @@ final class BrowserPane: UIView, Pane {
             canGoBack: activeTab?.canGoBack ?? false,
             canGoForward: activeTab?.canGoForward ?? false,
             isLoading: activeTab?.isLoading ?? false,
+            progress: activeTab?.loadProgress ?? 1,
             blockerOn: AppServices.shared.blocker.isEnabled(for: url?.host()),
             isBookmarked: url.map { AppServices.shared.history.isBookmarked($0) } ?? false,
-            hasMedia: !media.isEmpty
+            isReading: activeTab?.isReading ?? false,
+            isWebPage: url?.scheme == "http" || url?.scheme == "https",
+            hasMedia: !media.isEmpty,
+            hasDownloads: !AppServices.shared.downloads.items.isEmpty,
+            isDownloading: AppServices.shared.downloads.hasRunning
         )
         bookmarksBar.update(pages: AppServices.shared.history.bookmarks)
+        updateSuggestions()
+    }
+
+    // MARK: - Sugerencias de la barra de direcciones
+
+    private func updateSuggestions() {
+        guard isEditingAddress, !addressDraft.isEmpty else {
+            suggestions.isHidden = true
+            return
+        }
+        suggestions.update(
+            items: AddressSuggestions.build(for: addressDraft),
+            under: chrome.addressFieldFrame,
+            in: bounds.width
+        )
+    }
+
+    /// Abre una sugerencia. La de búsqueda **no pasa por `load`**: si lo que
+    /// se escribió parece una dirección, `load` la abriría como tal y elegir
+    /// «Buscar» no habría servido de nada.
+    private func openSuggestion(_ item: AddressSuggestions.Item) {
+        isEditingAddress = false
+        isAddressSelected = false
+        suggestions.isHidden = true
+        switch item.kind {
+        case .search:
+            if let url = SearchEngine.current.url(for: item.target) {
+                activeTab?.load(url.absoluteString)
+            }
+        case .address, .bookmark, .history:
+            activeTab?.load(item.target)
+        }
+        refreshChrome()
     }
 
     @objc private func bookmarksChanged() {
         setNeedsLayout()
         refreshChrome()
+    }
+
+    @objc private func downloadsChanged() {
+        refreshChrome()
+    }
+
+    /// El menú del ⤓: lo que se está bajando y lo último que terminó.
+    private func downloadsMenu() -> [ContextMenu.Entry] {
+        let center = AppServices.shared.downloads
+        var entries: [ContextMenu.Entry] = center.items.prefix(8).map { item in
+            // El detalle va en el mismo renglón: el menú no tiene subtítulos, y
+            // «45 % · 12 MB de 30 MB» es justo lo que hace falta ver.
+            return ContextMenu.Entry(
+                title: "\(item.name) · \(item.detail)",
+                symbol: item.isRunning ? "arrow.down.circle" : (item.url == nil ? "exclamationmark.triangle" : "doc")
+            ) { [weak self] in
+                if item.isRunning {
+                    center.cancel(item)
+                } else if let url = item.url {
+                    self?.downloadToast.alpha = 0
+                    AppServices.shared.desktopViewController?.revealInFiles(url)
+                }
+            }
+        }
+        if entries.isEmpty {
+            entries.append(ContextMenu.Entry(title: "No hay descargas", symbol: "tray", isEnabled: false) {})
+        }
+        entries.append(ContextMenu.Entry(title: "Abrir la carpeta Descargas", symbol: "folder") {
+            AppServices.shared.desktopViewController?.revealInFiles(BrowserTab.downloadsDirectory)
+        })
+        if center.items.contains(where: { !$0.isRunning }) {
+            entries.append(ContextMenu.Entry(title: "Vaciar la lista", symbol: "xmark.circle") {
+                center.clearFinished()
+            })
+        }
+        return entries
     }
 
     @objc private func faviconsChanged() {
@@ -263,6 +355,22 @@ final class BrowserPane: UIView, Pane {
         AppServices.shared.favicons.remember(host: url.host(), iconURL: nil)
         toast(added ? "Añadido a favoritos" : "Quitado de favoritos")
         refreshChrome()
+    }
+
+    /// Modo lectura, como el de Safari: el artículo sin lo demás.
+    func toggleReader() {
+        guard let tab = activeTab else { return }
+        let wasReading = tab.isReading
+        Task { [weak self] in
+            let worked = await tab.toggleReader()
+            guard let self else { return }
+            if !worked {
+                self.toast("Esta página no tiene un artículo que leer")
+            } else if !wasReading {
+                self.toast("Modo lectura · pulsa otra vez para salir")
+            }
+            self.refreshChrome()
+        }
     }
 
     private func openBookmark(_ page: BrowserHistory.Page, inNewTab: Bool) {
@@ -415,15 +523,71 @@ final class BrowserPane: UIView, Pane {
     }
 
     func closeActiveTab() {
-        guard tabs.indices.contains(activeIndex) else { return }
-        let tab = tabs.remove(at: activeIndex)
+        close(at: activeIndex)
+    }
+
+    private func close(at index: Int) {
+        guard tabs.indices.contains(index) else { return }
+        let tab = tabs.remove(at: index)
+        if let url = tab.webView.url, url.scheme == "http" || url.scheme == "https" {
+            closedTabs.append(url.absoluteString)
+            if closedTabs.count > 10 { closedTabs.removeFirst() }
+        }
         tab.webView.removeFromSuperview()
+        if index < activeIndex { activeIndex -= 1 }
         if tabs.isEmpty {
             newTab()
         } else {
             activate(min(activeIndex, tabs.count - 1))
         }
         setNeedsLayout()
+    }
+
+    /// Cmd+Mayús+T, como en Safari.
+    func reopenClosedTab() {
+        guard let url = closedTabs.popLast() else {
+            toast("No hay ninguna pestaña que recuperar")
+            return
+        }
+        newTab(url: url)
+    }
+
+    /// El menú del clic derecho sobre una pestaña.
+    private func tabMenu(at index: Int) -> [ContextMenu.Entry] {
+        guard tabs.indices.contains(index) else { return [] }
+        let tab = tabs[index]
+        var entries: [ContextMenu.Entry] = [
+            ContextMenu.Entry(title: "Recargar", symbol: "arrow.clockwise") { tab.reload() },
+            ContextMenu.Entry(title: "Duplicar", symbol: "plus.square.on.square") { [weak self] in
+                guard let url = tab.webView.url else { return }
+                self?.newTab(url: url.absoluteString)
+            },
+        ]
+        if let url = tab.webView.url, url.scheme == "http" || url.scheme == "https" {
+            entries.append(ContextMenu.Entry(title: "Copiar enlace", symbol: "link") {
+                UIPasteboard.general.url = url
+            })
+        }
+        entries.append(ContextMenu.Entry(title: "Cerrar", symbol: "xmark") { [weak self] in
+            self?.close(at: index)
+        })
+        entries.append(ContextMenu.Entry(
+            title: "Cerrar las demás",
+            symbol: "xmark.square",
+            isEnabled: tabs.count > 1
+        ) { [weak self] in
+            guard let self else { return }
+            for position in self.tabs.indices.reversed() where position != index {
+                self.close(at: position)
+            }
+            self.activate(0)
+        })
+        if !closedTabs.isEmpty {
+            entries.append(ContextMenu.Entry(title: "Reabrir la última cerrada", symbol: "arrow.uturn.left") {
+                [weak self] in self?.reopenClosedTab()
+            })
+        }
+        return entries
     }
 
     private func activate(_ index: Int) {
@@ -607,7 +771,11 @@ final class BrowserPane: UIView, Pane {
     /// sale nunca: sin esto no había forma de abrir un enlace en otra pestaña
     /// ni de descargar nada.
     func contextMenuEntries(at location: CGPoint) async -> [ContextMenu.Entry] {
-        if chrome.frame.contains(location) { return [] }
+        if chrome.frame.contains(location) {
+            let point = CGPoint(x: location.x, y: location.y - chrome.frame.minY)
+            if case .tab(let index) = chrome.hit(at: point) { return tabMenu(at: index) }
+            return []
+        }
         guard let tab = activeTab else { return [] }
 
         // El botón derecho sobre la barra de favoritos: el menú del favorito
@@ -714,6 +882,19 @@ final class BrowserPane: UIView, Pane {
             [weak self] in self?.reload()
         })
         if let url = tab.webView.url, url.scheme == "http" || url.scheme == "https" {
+            entries.append(ContextMenu.Entry(
+                title: tab.isReading ? "Salir del modo lectura" : "Modo lectura",
+                symbol: "textformat.size"
+            ) { [weak self] in
+                self?.toggleReader()
+            })
+        }
+        if tab.webView.url != nil {
+            entries.append(ContextMenu.Entry(title: "Guardar como PDF", symbol: "doc.richtext") {
+                [weak self] in self?.savePDF()
+            })
+        }
+        if let url = tab.webView.url, url.scheme == "http" || url.scheme == "https" {
             let history = AppServices.shared.history
             let saved = history.isBookmarked(url)
             entries.append(ContextMenu.Entry(
@@ -735,13 +916,50 @@ final class BrowserPane: UIView, Pane {
         return entries
     }
 
+    /// Guarda la página como PDF en Descargas, como el «Exportar como PDF» de
+    /// Safari. Lo hace WebKit entero, con su maquetación y sus saltos de
+    /// página: no es una captura de lo que se ve.
+    private func savePDF() {
+        guard let tab = activeTab else { return }
+        let name = (tab.title.isEmpty ? "página" : tab.title)
+            .components(separatedBy: CharacterSet(charactersIn: "/\\:*?\"<>|"))
+            .joined(separator: " ")
+            .prefix(80)
+        toast("Creando el PDF…")
+        tab.webView.createPDF { [weak self] result in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                switch result {
+                case .success(let data):
+                    var url = BrowserTab.downloadsDirectory.appendingPathComponent("\(name).pdf")
+                    var counter = 2
+                    while FileManager.default.fileExists(atPath: url.path) {
+                        url = BrowserTab.downloadsDirectory.appendingPathComponent("\(name) \(counter).pdf")
+                        counter += 1
+                    }
+                    do {
+                        try data.write(to: url, options: .atomic)
+                        self.showDownload(url.lastPathComponent, .finished(url))
+                    } catch {
+                        self.toast("No se pudo guardar el PDF")
+                    }
+                case .failure:
+                    self.toast("No se pudo crear el PDF")
+                }
+            }
+        }
+    }
+
     // MARK: - Pane
 
     func setFocused(_ focused: Bool) {
         layer.borderColor = focused
             ? Tokens.Color.accent.desktopCGColor
             : Tokens.Color.border.desktopCGColor
-        if !focused { isEditingAddress = false }
+        if !focused {
+            isEditingAddress = false
+            suggestions.isHidden = true
+        }
         refreshChrome()
     }
 
@@ -751,6 +969,21 @@ final class BrowserPane: UIView, Pane {
             return
         }
         chrome.hover(at: nil)
+
+        if suggestions.contains(event.location) {
+            switch event.kind {
+            case .moved:
+                suggestions.hover(at: event.location)
+            case .down:
+                if let index = suggestions.hit(at: event.location),
+                   suggestions.items.indices.contains(index) {
+                    openSuggestion(suggestions.items[index])
+                }
+            default:
+                break
+            }
+            return
+        }
 
         if !bookmarksBar.isHidden, bookmarksBar.frame.contains(event.location) {
             handleBookmarksPointer(event)
@@ -783,6 +1016,7 @@ final class BrowserPane: UIView, Pane {
         case .down(let button):
             isEditingAddress = false
             isAddressSelected = false
+            suggestions.isHidden = true
             // Cmd+clic y el botón central: el enlace, a una pestaña nueva.
             if button == .middle || (button == .left && event.modifiers.contains(.command)) {
                 Task { [weak self] in
@@ -856,9 +1090,15 @@ final class BrowserPane: UIView, Pane {
             toggleBlockerForCurrentSite()
         case .bookmark:
             toggleBookmark()
+        case .reader:
+            toggleReader()
         case .media:
             AppServices.shared.desktopViewController?.presentContextMenu(
                 mediaMenu(), from: self, at: event.location
+            )
+        case .downloads:
+            AppServices.shared.desktopViewController?.presentContextMenu(
+                downloadsMenu(), from: self, at: event.location
             )
         case .settings:
             AppServices.shared.desktopViewController?.presentSettings(.browser)
@@ -877,12 +1117,25 @@ final class BrowserPane: UIView, Pane {
         if isEditingAddress {
             switch event.key.keyCode {
             case .keyboardReturnOrEnter:
+                // Lo que esté marcado en la lista manda: es lo que se ve
+                // resaltado, y en Safari Intro abre eso.
+                if !suggestions.isHidden, let item = suggestions.selected {
+                    openSuggestion(item)
+                    return
+                }
                 isEditingAddress = false
                 isAddressSelected = false
                 activeTab?.load(addressDraft)
+            case .keyboardDownArrow:
+                suggestions.moveSelection(by: 1)
+                return
+            case .keyboardUpArrow:
+                suggestions.moveSelection(by: -1)
+                return
             case .keyboardEscape:
                 isEditingAddress = false
                 isAddressSelected = false
+                suggestions.isHidden = true
             case .keyboardDeleteOrBackspace:
                 // Con todo seleccionado, borrar se lleva la selección entera.
                 if isAddressSelected {

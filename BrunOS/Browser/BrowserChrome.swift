@@ -26,14 +26,23 @@ final class BrowserChrome: UIView {
         case reload
         case address
         case blocker
+        case reader
         case bookmark
         case media
+        case downloads
         case settings
         case window(WindowControls.Button)
         case none
     }
 
-    private var titles: [String] = []
+    /// Lo que la barra necesita saber de cada pestaña: su título y de qué
+    /// sitio es, para poner el icono.
+    struct Tab: Equatable {
+        var title: String
+        var host: String?
+    }
+
+    private var tabItems: [Tab] = []
     private var activeIndex = 0
     private var address = ""
     private var isEditing = false
@@ -42,10 +51,22 @@ final class BrowserChrome: UIView {
     private var canGoForward = false
     private var isLoading = false
     private var blockerOn = true
+    /// Cuánto lleva cargada la página, de 0 a 1. Safari lo pinta dentro de la
+    /// propia cápsula de dirección, y se lee mejor que cualquier ruedecita.
+    private var progress: Double = 1
     private var isBookmarked = false
+    /// Se está viendo el artículo en modo lectura.
+    private var isReading = false
+    /// La página es una web de verdad: en la de inicio no pinta nada ofrecer
+    /// el lector ni el favorito.
+    private var isWebPage = false
     /// La página tiene vídeo o audio que se puede guardar: entonces, y sólo
     /// entonces, aparece el botón de descargar medios.
     private var hasMedia = false
+    /// Hay descargas que enseñar: el ⤓ aparece con la primera y se queda.
+    private var hasDownloads = false
+    /// Alguna sigue bajando, y entonces el icono va relleno.
+    private var isDownloading = false
 
     private var tabFrames: [CGRect] = []
     private var closeFrames: [CGRect] = []
@@ -55,8 +76,10 @@ final class BrowserChrome: UIView {
     private var reloadFrame: CGRect = .zero
     private var addressFrame: CGRect = .zero
     private var blockerFrame: CGRect = .zero
+    private var readerFrame: CGRect = .zero
     private var bookmarkFrame: CGRect = .zero
     private var mediaFrame: CGRect = .zero
+    private var downloadsFrame: CGRect = .zero
     private var settingsFrame: CGRect = .zero
     /// El cursor está sobre los botones de ventana, que es cuando enseñan sus
     /// símbolos.
@@ -76,7 +99,7 @@ final class BrowserChrome: UIView {
     }
 
     func update(
-        tabs: [String],
+        tabs: [Tab],
         active: Int,
         address: String,
         isEditing: Bool,
@@ -84,11 +107,17 @@ final class BrowserChrome: UIView {
         canGoBack: Bool,
         canGoForward: Bool,
         isLoading: Bool,
+        progress: Double,
         blockerOn: Bool,
         isBookmarked: Bool,
-        hasMedia: Bool
+        isReading: Bool,
+        isWebPage: Bool,
+        hasMedia: Bool,
+        hasDownloads: Bool,
+        isDownloading: Bool
     ) {
-        self.titles = tabs
+        self.tabItems = tabs
+        self.progress = progress
         self.activeIndex = active
         self.address = address
         self.isEditing = isEditing
@@ -98,7 +127,11 @@ final class BrowserChrome: UIView {
         self.isLoading = isLoading
         self.blockerOn = blockerOn
         self.isBookmarked = isBookmarked
+        self.isReading = isReading
+        self.isWebPage = isWebPage
         self.hasMedia = hasMedia
+        self.hasDownloads = hasDownloads
+        self.isDownloading = isDownloading
         recomputeFrames()
         setNeedsDisplay()
     }
@@ -112,6 +145,10 @@ final class BrowserChrome: UIView {
         let y = (Self.height - size) / 2
 
         backFrame = CGRect(x: Self.controlsX + WindowControls.width + 10, y: y, width: size, height: size)
+        // El lector, a la izquierda de la cápsula, como en Safari.
+        readerFrame = isWebPage
+            ? CGRect(x: 0, y: y, width: size, height: size)
+            : .zero
         forwardFrame = CGRect(x: backFrame.maxX + 1, y: y, width: size, height: size)
         reloadFrame = CGRect(x: forwardFrame.maxX + 1, y: y, width: size, height: size)
 
@@ -124,17 +161,21 @@ final class BrowserChrome: UIView {
         mediaFrame = hasMedia
             ? CGRect(x: bookmarkFrame.minX - size, y: y, width: size, height: size)
             : .zero
+        let afterMedia = hasMedia ? mediaFrame.minX : bookmarkFrame.minX
+        downloadsFrame = hasDownloads
+            ? CGRect(x: afterMedia - size, y: y, width: size, height: size)
+            : .zero
 
         // Las pestañas sólo aparecen con más de una: con una sola, su título ya
         // está en la barra superior del escritorio y aquí sólo robaría sitio.
-        let showTabs = titles.count > 1
+        let showTabs = tabItems.count > 1
         if showTabs {
             let gap: CGFloat = 3
-            let tabWidth = min(150, (bounds.width * 0.42) / CGFloat(titles.count))
-            let tabsWidth = tabWidth * CGFloat(titles.count) + gap * CGFloat(titles.count - 1)
-            let rightmost = hasMedia ? mediaFrame.minX : bookmarkFrame.minX
+            let tabWidth = min(150, (bounds.width * 0.42) / CGFloat(tabItems.count))
+            let tabsWidth = tabWidth * CGFloat(tabItems.count) + gap * CGFloat(tabItems.count - 1)
+            let rightmost = rightmostButtonX
             let start = rightmost - tabsWidth - 6
-            tabFrames = titles.indices.map { index in
+            tabFrames = tabItems.indices.map { index in
                 CGRect(
                     x: start + CGFloat(index) * (tabWidth + gap), y: 4,
                     width: tabWidth, height: Self.height - 8
@@ -152,7 +193,7 @@ final class BrowserChrome: UIView {
         // centrada en su hueco, a los lados queda sitio vacío para agarrar el
         // panel y arrastrarlo, como la barra de título de Safari.
         let addressStart = reloadFrame.maxX + 6
-        let addressEnd = (tabFrames.first?.minX ?? (hasMedia ? mediaFrame.minX : bookmarkFrame.minX)) - 8
+        let addressEnd = (tabFrames.first?.minX ?? rightmostButtonX) - 8
         let available = max(60, addressEnd - addressStart)
         let width = min(available, max(420, available * 0.72))
         addressFrame = CGRect(
@@ -161,6 +202,17 @@ final class BrowserChrome: UIView {
             width: width,
             height: size - 6
         )
+        if isWebPage {
+            readerFrame.origin.x = addressFrame.minX - size - 2
+        }
+    }
+
+    /// Dónde empieza el grupo de botones de la derecha, que es hasta dónde
+    /// pueden llegar la dirección y las pestañas.
+    private var rightmostButtonX: CGFloat {
+        if hasDownloads { return downloadsFrame.minX }
+        if hasMedia { return mediaFrame.minX }
+        return bookmarkFrame.minX
     }
 
     override func layoutSubviews() {
@@ -168,6 +220,9 @@ final class BrowserChrome: UIView {
         recomputeFrames()
         setNeedsDisplay()
     }
+
+    /// Dónde está la cápsula, para colgarle debajo las sugerencias.
+    var addressFieldFrame: CGRect { addressFrame }
 
     func hover(at point: CGPoint?) {
         let inside = point.map { WindowControls.groupContains($0, x: Self.controlsX, midY: Self.height / 2) } ?? false
@@ -188,7 +243,9 @@ final class BrowserChrome: UIView {
         }
         if newTabFrame.contains(point) { return .newTab }
         if bookmarkFrame.contains(point) { return .bookmark }
+        if isWebPage, readerFrame.contains(point) { return .reader }
         if hasMedia, mediaFrame.contains(point) { return .media }
+        if hasDownloads, downloadsFrame.contains(point) { return .downloads }
         if settingsFrame.contains(point) { return .settings }
         if backFrame.contains(point) { return .back }
         if forwardFrame.contains(point) { return .forward }
@@ -215,13 +272,28 @@ final class BrowserChrome: UIView {
             in: blockerFrame,
             color: blockerOn ? Tokens.Color.accentAlt : Tokens.Color.textSecondary
         )
+        if isWebPage {
+            drawSymbol(
+                "textformat.size",
+                in: readerFrame,
+                color: isReading ? Tokens.Color.accent : Tokens.Color.textSecondary
+            )
+        }
         drawSymbol(
             isBookmarked ? "star.fill" : "star",
             in: bookmarkFrame,
             color: isBookmarked ? Tokens.Color.accent : Tokens.Color.textSecondary
         )
         if hasMedia {
-            drawSymbol("arrow.down.circle.fill", in: mediaFrame, color: Tokens.Color.accentAlt, size: 13)
+            drawSymbol("film", in: mediaFrame, color: Tokens.Color.accentAlt, size: 13)
+        }
+        if hasDownloads {
+            drawSymbol(
+                isDownloading ? "arrow.down.circle.fill" : "arrow.down.circle",
+                in: downloadsFrame,
+                color: isDownloading ? Tokens.Color.accent : Tokens.Color.textSecondary,
+                size: 13
+            )
         }
         drawSymbol("plus", in: newTabFrame, color: Tokens.Color.textSecondary)
         drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.text.withAlphaComponent(0.72), size: 13.5)
@@ -267,10 +339,17 @@ final class BrowserChrome: UIView {
                 .font: font,
                 .foregroundColor: isActive ? Tokens.Color.text : Tokens.Color.textSecondary,
             ]
-            (titles[index] as NSString).draw(
+            // El icono del sitio, como en Safari: con cuatro pestañas abiertas
+            // se reconocen antes por el icono que por un título recortado.
+            var textX = frame.minX + 8
+            if let icon = AppServices.shared.favicons.icon(for: tabItems[index].host) {
+                icon.draw(in: CGRect(x: textX, y: frame.midY - 6, width: 12, height: 12))
+                textX += 16
+            }
+            (tabItems[index].title as NSString).draw(
                 in: CGRect(
-                    x: frame.minX + 8, y: frame.midY - 7,
-                    width: max(0, frame.width - 28), height: 14
+                    x: textX, y: frame.midY - 7,
+                    width: max(0, frame.maxX - 20 - textX), height: 14
                 ),
                 withAttributes: attributes
             )
@@ -294,6 +373,20 @@ final class BrowserChrome: UIView {
         context.setFillColor(Tokens.Color.background.desktopCGColor)
         context.addPath(path.cgPath)
         context.fillPath()
+
+        // Lo cargado, dentro de la cápsula. Se recorta con la propia forma
+        // redondeada para que no asome por las esquinas.
+        if progress < 1, progress > 0, !isEditing {
+            context.saveGState()
+            context.addPath(path.cgPath)
+            context.clip()
+            context.setFillColor(Tokens.Color.accent.withAlphaComponent(0.28).desktopCGColor)
+            context.fill(CGRect(
+                x: addressFrame.minX, y: addressFrame.minY,
+                width: addressFrame.width * progress, height: addressFrame.height
+            ))
+            context.restoreGState()
+        }
 
         if isEditing {
             context.setStrokeColor(Tokens.Color.accent.desktopCGColor)

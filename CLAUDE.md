@@ -46,6 +46,10 @@ monitor sólo se puede comprobar en el iPhone.
 **Escrito y sin probar en el dispositivo.** Bruno prefiere acumular y probarlo todo junto;
 conviene no confundir "está escrito" con "funciona":
 
+- **Lo del navegador y Ficheros del 22-sep (tarde)**: la barra de favoritos y sus iconos, las
+  sugerencias de la barra de direcciones, el modo lectura, la descarga de vídeos de la página, el
+  gestor de descargas (⤓), guardar como PDF, el menú de pestañas con Cmd+Mayús+T, y las
+  ubicaciones de red (SMB por la app Archivos) que ya no desaparecen al desmontarse.
 - **Lo del 22-sep**: el modo claro en el monitor y su cambio en caliente, los fondos claros, el
   terminal claro, las ventanas que salían vacías, los ajustes nuevos, la lista de conexiones del
   terminal, la pantalla completa, el menú del botón derecho y las descargas del navegador, las
@@ -342,6 +346,11 @@ obligaba a subir el ratón hasta arriba del todo, que con el tope del puntero in
 movimiento más incómodo que hay.
 
 ## Pendientes
+
+- **Navegador, para parecerse más a Safari**: navegación privada, silenciar una pestaña, zoom por
+  sitio, ventana de historial, fijar pestañas y buscadores propios.
+- **Vídeo por trozos (HLS)**: bajar los segmentos y unirlos. Bruno lo dejó para más adelante; lo de
+  YouTube sólo saldría lanzando yt-dlp en una máquina del tailnet por SSH.
 
 
 ## El bloqueo de arranque del singleton
