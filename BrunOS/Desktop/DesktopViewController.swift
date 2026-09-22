@@ -634,6 +634,27 @@ final class DesktopViewController: UIViewController {
         services.desktop.notifyChange()
     }
 
+    /// Pulsar un icono del dock, como en macOS: se va a esa app, vuelven sus
+    /// paneles minimizados y, si no tenía ninguno abierto —porque se cerraron
+    /// todos—, se abre uno nuevo. Antes, con la app cerrada, pulsar su icono
+    /// llevaba a un espacio vacío y no había forma de volver a abrirla.
+    private func openFromDock(_ number: Int) {
+        let desktop = services.desktop
+        guard desktop.workspaces.indices.contains(number - 1) else { return }
+        let workspace = desktop.workspaces[number - 1]
+        desktop.activate(number: number)
+
+        if !workspace.minimized.isEmpty {
+            for entry in workspace.minimized {
+                restoreMinimized(entry.id, in: workspace)
+            }
+        } else if workspace.isEmpty,
+                  let kind = PaneKind.allCases.first(where: { $0.preferredWorkspace == number }) {
+            addPane(kind: kind)
+        }
+        desktop.notifyChange()
+    }
+
     /// Devuelve un panel minimizado a su espacio y le pasa el foco.
     func restoreMinimized(_ id: PaneID, in workspace: Workspace) {
         services.desktop.activate(number: workspace.index)
@@ -1361,10 +1382,8 @@ final class DesktopViewController: UIViewController {
 
         if dock.hitsSettings(pointInDock) {
             dock.onSettings?()
-        } else if let (workspace, id) = dock.minimizedEntry(at: pointInDock) {
-            restoreMinimized(id, in: workspace)
         } else if let number = dock.workspaceNumber(at: pointInDock) {
-            services.desktop.activate(number: number)
+            openFromDock(number)
         }
         return true
     }

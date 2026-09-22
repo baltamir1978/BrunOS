@@ -21,9 +21,6 @@ final class Dock: UIView {
     var onSettings: (() -> Void)?
 
     private var items: [DockItem] = []
-    /// Los paneles minimizados, entre el separador y los ajustes, como las
-    /// ventanas minimizadas del Dock de macOS.
-    private var minimizedItems: [(item: DockItem, workspace: Workspace, id: PaneID)] = []
     private var settingsItem: DockItem?
     private let separator = UIView()
     private let background = UIView()
@@ -81,24 +78,6 @@ final class Dock: UIView {
                 isActive: index == desktop.activeIndex
             )
         }
-
-        let entries = desktop.workspaces.flatMap { workspace in
-            workspace.minimized.map { (workspace, $0.id, $0.pane) }
-        }
-        // `update` llega en cada pasada de maquetación, o sea en cada clic: los
-        // iconos sólo se rehacen si ha cambiado qué hay minimizado.
-        guard entries.map(\.1) != minimizedItems.map(\.id) else {
-            settingsItem?.updateAsSettings()
-            setNeedsLayout()
-            return
-        }
-        minimizedItems.forEach { $0.item.removeFromSuperview() }
-        minimizedItems = entries.map { workspace, id, pane in
-            let item = DockItem()
-            item.updateAsMinimized(kind: PaneKind.of(pane), title: pane.title)
-            background.addSubview(item)
-            return (item, workspace, id)
-        }
         settingsItem?.updateAsSettings()
         setNeedsLayout()
     }
@@ -114,10 +93,8 @@ final class Dock: UIView {
         let separatorGap: CGFloat = 10
 
         let count = CGFloat(items.count)
-        let minimizedCount = CGFloat(minimizedItems.count)
         let contentWidth = count * itemSize + (count - 1) * spacing
             + separatorGap * 2 + separatorWidth + itemSize
-            + minimizedCount * (itemSize + spacing)
         let width = contentWidth + padding * 2
 
         background.frame = CGRect(
@@ -143,14 +120,6 @@ final class Dock: UIView {
         )
         x += separatorWidth + separatorGap
 
-        for entry in minimizedItems {
-            entry.item.frame = CGRect(
-                x: x, y: (Self.height - itemSize) / 2,
-                width: itemSize, height: itemSize
-            )
-            x += itemSize + spacing
-        }
-
         settingsItem?.frame = CGRect(
             x: x, y: (Self.height - itemSize) / 2,
             width: itemSize, height: itemSize
@@ -163,17 +132,6 @@ final class Dock: UIView {
             let frame = item.convert(item.bounds, to: self)
             if frame.insetBy(dx: -4, dy: -4).contains(point) {
                 return index + 1
-            }
-        }
-        return nil
-    }
-
-    /// Qué panel minimizado hay bajo un punto.
-    func minimizedEntry(at point: CGPoint) -> (Workspace, PaneID)? {
-        for entry in minimizedItems {
-            let frame = entry.item.convert(entry.item.bounds, to: self)
-            if frame.insetBy(dx: -4, dy: -4).contains(point) {
-                return (entry.workspace, entry.id)
             }
         }
         return nil
@@ -211,9 +169,9 @@ private final class DockItem: UIView {
         iconView.tintColor = Tokens.Color.textSecondary
         addSubview(iconView)
 
-        // Punto debajo del espacio activo, como el Dock de macOS.
-        indicator.backgroundColor = Tokens.Color.accent
-        indicator.layer.cornerRadius = 2
+        // Punto debajo de las apps abiertas, como el Dock de macOS: ámbar la
+        // que se está viendo, gris las demás.
+        indicator.layer.cornerRadius = 2.5
         addSubview(indicator)
 
         isAccessibilityElement = true
@@ -231,20 +189,15 @@ private final class DockItem: UIView {
     func update(workspace: Workspace, isActive: Bool) {
         kind = PaneKind.allCases.first { $0.preferredWorkspace == workspace.index }
         isSettings = false
-        indicator.isHidden = !isActive
-        // Un espacio vacío se ve más apagado que uno con paneles.
-        alpha = workspace.isEmpty && !isActive ? 0.5 : 1
+        // «Abierta» incluye lo minimizado: sus paneles siguen vivos en el dock.
+        // Un icono a color siempre; lo que dice si hay algo abierto es el
+        // punto. Antes los espacios vacíos salían en gris, y parecían
+        // desactivados.
+        let isOpen = !workspace.isEmpty || !workspace.minimized.isEmpty
+        indicator.isHidden = !isOpen
+        indicator.backgroundColor = isActive ? Tokens.Color.accent : Tokens.Color.textSecondary
+        alpha = 1
         accessibilityLabel = "Espacio \(workspace.index), \(workspace.name)"
-        refreshIcon()
-    }
-
-    /// Un panel minimizado: su icono, algo apagado, sin punto de activo.
-    func updateAsMinimized(kind: PaneKind, title: String) {
-        isSettings = false
-        self.kind = kind
-        indicator.isHidden = true
-        alpha = 0.85
-        accessibilityLabel = "\(title), minimizado"
         refreshIcon()
     }
 
@@ -270,7 +223,7 @@ private final class DockItem: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         iconView.frame = bounds
-        indicator.frame = CGRect(x: bounds.midX - 7, y: bounds.maxY + 3, width: 14, height: 3)
+        indicator.frame = CGRect(x: bounds.midX - 2.5, y: bounds.maxY + 3, width: 5, height: 5)
         refreshIcon()
     }
 }

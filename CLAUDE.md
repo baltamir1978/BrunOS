@@ -110,9 +110,14 @@ dock asoma al llevar el cursor al borde de abajo, y la barra al de arriba.
 
 Cada panel lleva las **tres bolitas de macOS** (`WindowControls`), con lo que Bruno decidió
 pensando ya en las ventanas flotantes: **rojo cierra, amarillo al dock, verde maximiza** (a
-pantalla completa). Lo minimizado sale del mosaico pero sigue vivo —la sesión SSH no se corta— y
-vuelve a su sitio al pulsar su icono en el dock, entre el separador y los ajustes. Cmd+Intro
-sigue maximizando dentro del mosaico.
+pantalla completa). Lo minimizado sale del mosaico pero sigue vivo —la sesión SSH no se corta—.
+Cmd+Intro sigue maximizando dentro del mosaico.
+
+**El dock es el de macOS** (lo pidió Bruno): un icono por app, siempre a color, con un **punto
+debajo si está abierta** —ámbar la que se ve, gris las demás—, y lo minimizado cuenta como
+abierto. Al pulsar un icono vuelven sus paneles minimizados y, si estaba cerrada, **se abre un
+panel nuevo**, como al lanzar una app. Antes los espacios vacíos salían en gris, lo minimizado
+tenía un icono aparte duplicado, y con la app cerrada no había forma de volver a abrirla.
 
 ### El lanzador (Cmd+P)
 
