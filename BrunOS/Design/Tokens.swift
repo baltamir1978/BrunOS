@@ -95,6 +95,23 @@ enum Tokens {
 // MARK: - Puentes
 
 extension UIColor {
+
+    /// El color resuelto **en oscuro**, para las capas de la pantalla externa.
+    ///
+    /// **Esto no es un detalle.** `UIColor.cgColor` resuelve un color dinámico
+    /// con el modo que esté activo **en el instante de la llamada**, y ahí se
+    /// queda: no se entera de nada después. Las capas del escritorio se crean
+    /// muy pronto, antes de que exista el view controller que fuerza
+    /// `.dark`, así que con el iPhone en modo claro salían con los colores
+    /// claros. El cursor, que es `text`, acababa siendo casi negro sobre el
+    /// fondo oscuro del escritorio: invisible.
+    ///
+    /// El escritorio va siempre oscuro, así que se resuelve explícitamente y se
+    /// acabó el problema.
+    var desktopCGColor: CGColor {
+        resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)).cgColor
+    }
+
     /// Inicializa desde un literal 0xRRGGBB. Los tokens se escriben así para
     /// que se lean igual que en la tabla de diseño.
     convenience init(hex: UInt32) {

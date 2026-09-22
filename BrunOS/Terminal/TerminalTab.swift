@@ -362,7 +362,7 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
                 width: CGFloat(toCol - fromCol + 1) * cell.width,
                 height: cell.height
             )
-            band.backgroundColor = Tokens.Color.accent.withAlphaComponent(0.30).cgColor
+            band.backgroundColor = Tokens.Color.accent.withAlphaComponent(0.30).desktopCGColor
             selectionLayer.addSublayer(band)
         }
         CATransaction.commit()

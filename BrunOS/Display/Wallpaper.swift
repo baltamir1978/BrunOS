@@ -180,7 +180,7 @@ final class WallpaperStore {
     /// degradados, resplandores e imágenes sin rehacer la jerarquía de vistas.
     func apply(to layer: CALayer, size: CGSize) {
         layer.sublayers?.forEach { $0.removeFromSuperlayer() }
-        layer.backgroundColor = Tokens.Color.background.cgColor
+        layer.backgroundColor = Tokens.Color.background.desktopCGColor
         let bounds = CGRect(origin: .zero, size: size)
 
         switch current {

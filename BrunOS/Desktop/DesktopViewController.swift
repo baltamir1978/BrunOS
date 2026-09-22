@@ -493,6 +493,9 @@ final class DesktopViewController: UIViewController {
         let position = services.pointer.position
         let frames = currentFrames()
 
+        // El lanzador es modal: mientras esté, se lo queda todo.
+        if let launcher, launcher.handlePointer(kind, at: position) { return }
+
         if handleDock(kind, at: position) { return }
         if handleTopBar(kind, at: position) { return }
         if handleDivider(kind, at: position, frames: frames) { return }
@@ -539,8 +542,13 @@ final class DesktopViewController: UIViewController {
         }
 
         let pointInBar = CGPoint(x: position.x - topBar.frame.minX, y: position.y - topBar.frame.minY)
-        if let number = topBar.workspaceNumber(at: pointInBar) {
-            services.desktop.activate(number: number)
+        switch topBar.hit(at: pointInBar) {
+        case .brand:
+            presentLauncher()
+        case .display:
+            NotificationCenter.default.post(name: .brunosShowSettings, object: nil)
+        case .none:
+            break
         }
         return true
     }

@@ -41,7 +41,7 @@ final class Launcher: UIView {
         card.backgroundColor = Tokens.Color.panelElevated
         card.layer.cornerRadius = 12
         card.layer.borderWidth = 1
-        card.layer.borderColor = Tokens.Color.accent.withAlphaComponent(0.5).cgColor
+        card.layer.borderColor = Tokens.Color.accent.withAlphaComponent(0.5).desktopCGColor
         card.layer.shadowColor = UIColor.black.cgColor
         card.layer.shadowOpacity = 0.5
         card.layer.shadowRadius = 24
@@ -168,6 +168,42 @@ final class Launcher: UIView {
         return true
     }
 
+    // MARK: - Ratón
+
+    /// Clic dentro del lanzador. Devuelve `true` si lo consumió.
+    ///
+    /// **Todo lo que se ve tiene que poder pulsarse.** Una lista que sólo
+    /// responde al teclado, con el ratón en la mano, es una lista rota.
+    func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint) -> Bool {
+        let inCard = CGPoint(x: point.x - card.frame.minX, y: point.y - card.frame.minY)
+
+        guard card.frame.contains(point) else {
+            // Pinchar fuera de la tarjeta cierra, como cualquier diálogo.
+            if case .down = kind { onDismiss?() }
+            return true
+        }
+
+        guard let index = rows.firstIndex(where: { $0.frame.contains(inCard) }) else { return true }
+
+        switch kind {
+        case .moved:
+            // Resaltar lo que hay bajo el cursor, como en un menú.
+            if selectedIndex != index {
+                selectedIndex = index
+                for (position, row) in rows.enumerated() {
+                    row.update(entry: filtered[position], isSelected: position == index)
+                }
+            }
+        case .down:
+            let action = filtered.indices.contains(index) ? filtered[index].action : nil
+            onDismiss?()
+            action?()
+        default:
+            break
+        }
+        return true
+    }
+
     private func move(by delta: Int) {
         guard !filtered.isEmpty else { return }
         selectedIndex = (selectedIndex + delta + filtered.count) % filtered.count
@@ -219,7 +255,7 @@ private final class LauncherRow: UIView {
         backgroundColor = isSelected ? Tokens.Color.accent.withAlphaComponent(0.2) : .clear
         titleLabel.textColor = isSelected ? Tokens.Color.accent : Tokens.Color.text
         layer.borderWidth = isSelected ? 1 : 0
-        layer.borderColor = Tokens.Color.accent.withAlphaComponent(0.5).cgColor
+        layer.borderColor = Tokens.Color.accent.withAlphaComponent(0.5).desktopCGColor
     }
 
     override func layoutSubviews() {

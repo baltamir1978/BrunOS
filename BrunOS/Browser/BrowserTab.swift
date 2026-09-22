@@ -60,9 +60,16 @@ final class BrowserTab: NSObject {
         super.init()
 
         webView.allowsBackForwardNavigationGestures = false
-        webView.isOpaque = false
-        webView.backgroundColor = Tokens.Color.panel
-        webView.scrollView.backgroundColor = Tokens.Color.panel
+        // **Blanco, no el gris del escritorio.** La mayoría de la web tiene
+        // fondo claro, y pintar el hueco de oscuro hacía que cada página
+        // apareciera sobre negro hasta que terminaba de cargar, y que las que
+        // no declaran fondo se vieran ilegibles.
+        webView.isOpaque = true
+        webView.backgroundColor = .white
+        webView.scrollView.backgroundColor = .white
+        // Que la web decida si quiere modo oscuro por su cuenta, sin que se lo
+        // imponga el estilo del escritorio.
+        webView.overrideUserInterfaceStyle = .unspecified
         // El indicador de scroll estorba: el cursor ya dice dónde está uno.
         webView.scrollView.showsVerticalScrollIndicator = false
 

@@ -166,6 +166,27 @@ con una web de verdad**.
 - **Descargas** a `Documentos/Descargas`, sin pisar ficheros: se numeran. Con `UIFileSharingEnabled`
   se ven también desde la app Archivos del iPhone.
 
+### El cursor invisible, y por qué afectaba a todo el escritorio
+
+`UIColor.cgColor` resuelve un color dinámico **con el modo que esté activo en el instante de la
+llamada**, y ahí se queda: no se entera de los cambios. Las capas del escritorio se crean muy
+pronto, antes de que exista el view controller que fuerza `.dark`, así que con el iPhone en modo
+claro salían con los colores claros. El cursor, que usa `text`, acababa siendo **casi negro sobre
+el fondo oscuro del escritorio**: invisible.
+
+Afectaba a cualquier `CALayer` de la pantalla externa, no sólo al cursor. La solución es
+`UIColor.desktopCGColor` (en `Tokens.swift`), que resuelve explícitamente en oscuro. **Regla: en
+la pantalla externa, nunca `.cgColor` de un color dinámico; siempre `.desktopCGColor`.**
+
+### Todo lo que se ve tiene que poder pulsarse
+
+Principio que pidió Bruno y que se aplicó a todo: el dock, la barra superior (la marca abre el
+lanzador, la resolución lleva a los ajustes), las filas del lanzador, las pestañas y la barra de
+direcciones del navegador. Un rótulo con pinta de botón que no responde es peor que no ponerlo.
+
+Como en la pantalla externa no hay eventos del sistema, **cada vista expone un `hit(at:)`** que
+resuelve por geometría qué hay bajo el cursor, y el escritorio pregunta.
+
 ### El fallo que dejó el bloqueador muerto
 
 Daba `WKErrorDomain 7` con **cualquier** lista, incluso con una regla canónica válida. La pista

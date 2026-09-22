@@ -23,20 +23,25 @@ final class TopBar: UIView {
     private var workspaceLabels: [UILabel] = []
     private var clockTimer: Timer?
 
-    /// Qué espacio de trabajo hay bajo un punto, en coordenadas de la barra.
+    /// Lo que hay bajo un punto de la barra.
     ///
-    /// Se resuelve por geometría y no con `hitTest`, porque los toques no
-    /// llegan por UIKit: los entrega el escritorio desde su propio cursor.
-    func workspaceNumber(at point: CGPoint) -> Int? {
-        for (index, label) in workspaceLabels.enumerated() {
-            let frame = label.convert(label.bounds, to: self)
-            // Un poco de holgura: acertar a pulso con el ratón en una etiqueta
-            // de 12 pt es incómodo.
-            if frame.insetBy(dx: -3, dy: -6).contains(point) {
-                return index + 1
-            }
-        }
-        return nil
+    /// **Todo lo que se ve tiene que poder pulsarse**: un rótulo que parece un
+    /// botón y no responde es peor que no ponerlo. Se resuelve por geometría y
+    /// no con `hitTest`, porque los toques no llegan por UIKit: los entrega el
+    /// escritorio desde su propio cursor.
+    enum Target {
+        /// La marca abre el lanzador, como el menú de una esquina.
+        case brand
+        /// La resolución lleva a los ajustes de pantalla.
+        case display
+        case none
+    }
+
+    func hit(at point: CGPoint) -> Target {
+        // Con holgura: acertar a pulso en una etiqueta de 12 pt es incómodo.
+        if brandLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .brand }
+        if resolutionLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .display }
+        return .none
     }
 
     override init(frame: CGRect) {

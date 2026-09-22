@@ -66,13 +66,13 @@ final class TerminalTabBar: UIView {
             let isActive = index == activeIndex
 
             context.setFillColor(
-                (isActive ? Tokens.Color.panelElevated : Tokens.Color.panel).cgColor
+                (isActive ? Tokens.Color.panelElevated : Tokens.Color.panel).desktopCGColor
             )
             context.fill(frame)
 
             if isActive {
                 // Filete ámbar abajo, igual que el espacio de trabajo activo.
-                context.setFillColor(Tokens.Color.accent.cgColor)
+                context.setFillColor(Tokens.Color.accent.desktopCGColor)
                 context.fill(CGRect(
                     x: frame.minX, y: frame.maxY - 2,
                     width: frame.width, height: 2

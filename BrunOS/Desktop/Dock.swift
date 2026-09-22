@@ -31,7 +31,7 @@ final class Dock: UIView {
         background.backgroundColor = Tokens.Color.panelElevated.withAlphaComponent(0.72)
         background.layer.cornerRadius = 16
         background.layer.borderWidth = 1
-        background.layer.borderColor = Tokens.Color.border.withAlphaComponent(0.8).cgColor
+        background.layer.borderColor = Tokens.Color.border.withAlphaComponent(0.8).desktopCGColor
         background.layer.shadowColor = UIColor.black.cgColor
         background.layer.shadowOpacity = 0.35
         background.layer.shadowRadius = 12
@@ -178,36 +178,42 @@ private final class DockItem: UIView {
         fatalError("BrunOS no usa storyboards")
     }
 
-    func update(workspace: Workspace, isActive: Bool) {
-        let kind = PaneKind.allCases.first { $0.preferredWorkspace == workspace.index }
-        setSymbol(kind?.symbol ?? "square.grid.2x2", active: isActive)
+    private var kind: PaneKind?
+    private var isSettings = false
 
+    func update(workspace: Workspace, isActive: Bool) {
+        kind = PaneKind.allCases.first { $0.preferredWorkspace == workspace.index }
+        isSettings = false
         indicator.isHidden = !isActive
-        // Un espacio con paneles se distingue de uno vacío.
-        alpha = workspace.isEmpty && !isActive ? 0.45 : 1
+        // Un espacio vacío se ve más apagado que uno con paneles.
+        alpha = workspace.isEmpty && !isActive ? 0.5 : 1
         accessibilityLabel = "Espacio \(workspace.index), \(workspace.name)"
+        refreshIcon()
     }
 
     func updateAsSettings() {
-        setSymbol("gearshape.fill", active: false)
+        isSettings = true
+        kind = nil
         indicator.isHidden = true
+        alpha = 1
         accessibilityLabel = "Ajustes"
+        refreshIcon()
     }
 
-    private func setSymbol(_ name: String, active: Bool) {
-        let configuration = UIImage.SymbolConfiguration(pointSize: 21, weight: .regular)
-        iconView.image = UIImage(systemName: name, withConfiguration: configuration)
-        iconView.tintColor = active ? Tokens.Color.background : Tokens.Color.text
-        backgroundColor = active
-            ? Tokens.Color.accent
-            : Tokens.Color.panel.withAlphaComponent(0.9)
-        layer.borderWidth = active ? 0 : 1
-        layer.borderColor = Tokens.Color.border.withAlphaComponent(0.6).cgColor
+    private func refreshIcon() {
+        let side = max(bounds.width, 44)
+        iconView.image = isSettings
+            ? DockIcon.settingsImage(size: side)
+            : kind.map { DockIcon.image(for: $0, size: side) }
+        // El icono ya trae su propio fondo: aquí no hace falta ninguno.
+        backgroundColor = .clear
+        layer.borderWidth = 0
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         iconView.frame = bounds
         indicator.frame = CGRect(x: bounds.midX - 7, y: bounds.maxY + 3, width: 14, height: 3)
+        refreshIcon()
     }
 }

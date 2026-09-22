@@ -35,7 +35,7 @@ final class TerminalPane: UIView, Pane {
         backgroundColor = Tokens.Color.terminalBackground
         layer.cornerRadius = Tokens.Metric.paneCornerRadius
         layer.borderWidth = Tokens.Metric.focusBorderWidth
-        layer.borderColor = Tokens.Color.border.cgColor
+        layer.borderColor = Tokens.Color.border.desktopCGColor
         clipsToBounds = true
 
         addSubview(tabBar)
@@ -143,8 +143,8 @@ final class TerminalPane: UIView, Pane {
 
     func setFocused(_ focused: Bool) {
         layer.borderColor = focused
-            ? Tokens.Color.accent.cgColor
-            : Tokens.Color.border.cgColor
+            ? Tokens.Color.accent.desktopCGColor
+            : Tokens.Color.border.desktopCGColor
         // El cursor del terminal lo gobierna SwiftTerm por su cuenta; aquí
         // sólo se marca el panel.
     }

@@ -1,20 +1,23 @@
 import UIKit
 
-/// Barra del panel de navegador: pestañas arriba, navegación y dirección abajo.
+/// Barra del panel de navegador, al estilo de Safari.
+///
+/// **Una sola fila**: navegación a la izquierda, dirección al centro en una
+/// cápsula, y a la derecha el escudo del bloqueador, las pestañas y el botón de
+/// pestaña nueva. Las dos filas separadas de la primera versión se comían 60 pt
+/// lógicos de alto en un panel que muchas veces no llega a 500.
 ///
 /// Se dibuja con `draw(_:)` y resuelve los clics por geometría, sin un solo
-/// `UIButton`. **En la pantalla externa no hay eventos del sistema**, así que un
-/// botón de UIKit no serviría de nada: el escritorio pregunta qué hay bajo el
-/// cursor y esta vista responde.
+/// `UIButton`. **En la pantalla externa no hay eventos del sistema**: el
+/// escritorio pregunta qué hay bajo el cursor y esta vista responde.
 @MainActor
 final class BrowserChrome: UIView {
 
-    static let height: CGFloat = 60
-    private static let tabStripHeight: CGFloat = 26
-    private static let buttonSize: CGFloat = 26
+    static let height: CGFloat = 38
+    private static let buttonSize: CGFloat = 28
 
     /// Lo que hay bajo un punto.
-    enum Target {
+    enum Target: Equatable {
         case tab(Int)
         case closeTab(Int)
         case newTab
@@ -83,37 +86,43 @@ final class BrowserChrome: UIView {
     private func recomputeFrames() {
         guard bounds.width > 0 else { return }
 
-        // Tira de pestañas.
-        let stripHeight = Self.tabStripHeight
-        let newTabWidth: CGFloat = 26
-        let available = bounds.width - newTabWidth - 8
-        let tabWidth = titles.isEmpty ? 0 : min(available / CGFloat(titles.count), 190)
-
-        tabFrames = titles.indices.map { index in
-            CGRect(x: CGFloat(index) * tabWidth, y: 0, width: tabWidth, height: stripHeight)
-        }
-        closeFrames = tabFrames.map { frame in
-            CGRect(x: frame.maxX - 20, y: frame.midY - 8, width: 16, height: 16)
-        }
-        newTabFrame = CGRect(
-            x: CGFloat(titles.count) * tabWidth + 4,
-            y: 3,
-            width: newTabWidth - 8,
-            height: stripHeight - 6
-        )
-
-        // Fila de navegación.
-        let rowY = stripHeight + 4
         let size = Self.buttonSize
-        backFrame = CGRect(x: 6, y: rowY, width: size, height: size)
-        forwardFrame = CGRect(x: backFrame.maxX + 2, y: rowY, width: size, height: size)
-        reloadFrame = CGRect(x: forwardFrame.maxX + 2, y: rowY, width: size, height: size)
-        blockerFrame = CGRect(x: bounds.width - size - 6, y: rowY, width: size, height: size)
+        let y = (Self.height - size) / 2
+
+        backFrame = CGRect(x: 6, y: y, width: size, height: size)
+        forwardFrame = CGRect(x: backFrame.maxX + 1, y: y, width: size, height: size)
+        reloadFrame = CGRect(x: forwardFrame.maxX + 1, y: y, width: size, height: size)
+
+        newTabFrame = CGRect(x: bounds.width - size - 4, y: y, width: size, height: size)
+        blockerFrame = CGRect(x: newTabFrame.minX - size, y: y, width: size, height: size)
+
+        // Las pestañas sólo aparecen con más de una: con una sola, su título ya
+        // está en la barra superior del escritorio y aquí sólo robaría sitio.
+        let showTabs = titles.count > 1
+        if showTabs {
+            let tabWidth = min(150, (bounds.width * 0.42) / CGFloat(titles.count))
+            let tabsWidth = tabWidth * CGFloat(titles.count)
+            let start = blockerFrame.minX - tabsWidth - 6
+            tabFrames = titles.indices.map { index in
+                CGRect(
+                    x: start + CGFloat(index) * tabWidth, y: 4,
+                    width: tabWidth, height: Self.height - 8
+                )
+            }
+            closeFrames = tabFrames.map { frame in
+                CGRect(x: frame.maxX - 18, y: frame.midY - 7, width: 14, height: 14)
+            }
+        } else {
+            tabFrames = []
+            closeFrames = []
+        }
+
+        let addressEnd = (tabFrames.first?.minX ?? blockerFrame.minX) - 8
         addressFrame = CGRect(
             x: reloadFrame.maxX + 6,
-            y: rowY + 2,
-            width: max(0, blockerFrame.minX - reloadFrame.maxX - 12),
-            height: size - 4
+            y: y + 3,
+            width: max(60, addressEnd - reloadFrame.maxX - 6),
+            height: size - 6
         )
     }
 
@@ -130,12 +139,14 @@ final class BrowserChrome: UIView {
         if let index = tabFrames.firstIndex(where: { $0.contains(point) }) {
             return .tab(index)
         }
-        if newTabFrame.insetBy(dx: -4, dy: -4).contains(point) { return .newTab }
+        if newTabFrame.contains(point) { return .newTab }
         if backFrame.contains(point) { return .back }
         if forwardFrame.contains(point) { return .forward }
         if reloadFrame.contains(point) { return .reload }
         if blockerFrame.contains(point) { return .blocker }
-        if addressFrame.contains(point) { return .address }
+        // La dirección se mira la última y con holgura: es la zona más grande y
+        // la que más se pulsa, así que conviene que perdone puntería.
+        if addressFrame.insetBy(dx: -4, dy: -4).contains(point) { return .address }
         return .none
     }
 
@@ -145,11 +156,16 @@ final class BrowserChrome: UIView {
         guard let context = UIGraphicsGetCurrentContext() else { return }
 
         drawTabs(in: context)
-        drawNavigationButtons(in: context)
+        drawNavigationButtons()
         drawAddressField(in: context)
-        drawBlockerBadge(in: context)
+        drawSymbol(
+            blockerOn ? "shield.lefthalf.filled" : "shield.slash",
+            in: blockerFrame,
+            color: blockerOn ? Tokens.Color.accentAlt : Tokens.Color.textSecondary
+        )
+        drawSymbol("plus", in: newTabFrame, color: Tokens.Color.textSecondary)
 
-        context.setFillColor(Tokens.Color.border.cgColor)
+        context.setFillColor(Tokens.Color.border.desktopCGColor)
         context.fill(CGRect(x: 0, y: bounds.maxY - 1, width: bounds.width, height: 1))
     }
 
@@ -157,98 +173,95 @@ final class BrowserChrome: UIView {
         let font = Tokens.sans(11)
         for (index, frame) in tabFrames.enumerated() {
             let isActive = index == activeIndex
-            context.setFillColor(
-                (isActive ? Tokens.Color.panel : Tokens.Color.panelElevated).cgColor
-            )
-            context.fill(frame)
 
+            // Cápsulas, como las pestañas de Safari.
             if isActive {
-                context.setFillColor(Tokens.Color.accent.cgColor)
-                context.fill(CGRect(x: frame.minX, y: frame.maxY - 2, width: frame.width, height: 2))
+                let path = UIBezierPath(roundedRect: frame, cornerRadius: 7)
+                context.setFillColor(Tokens.Color.panel.desktopCGColor)
+                context.addPath(path.cgPath)
+                context.fillPath()
             }
 
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
                 .foregroundColor: isActive ? Tokens.Color.text : Tokens.Color.textSecondary,
             ]
-            let text = titles[index] as NSString
-            let textRect = CGRect(
-                x: frame.minX + 8,
-                y: frame.midY - 7,
-                width: max(0, frame.width - 30),
-                height: 14
+            (titles[index] as NSString).draw(
+                in: CGRect(
+                    x: frame.minX + 8, y: frame.midY - 7,
+                    width: max(0, frame.width - 28), height: 14
+                ),
+                withAttributes: attributes
             )
-            text.draw(in: textRect, withAttributes: attributes)
 
-            drawGlyph("×", in: closeFrames[index], color: Tokens.Color.textSecondary, size: 14)
+            drawSymbol("xmark", in: closeFrames[index], color: Tokens.Color.textSecondary, size: 9)
         }
-
-        drawGlyph("+", in: newTabFrame, color: Tokens.Color.textSecondary, size: 15)
     }
 
-    private func drawNavigationButtons(in context: CGContext) {
-        drawGlyph("‹", in: backFrame,
-                  color: canGoBack ? Tokens.Color.text : Tokens.Color.border, size: 20)
-        drawGlyph("›", in: forwardFrame,
-                  color: canGoForward ? Tokens.Color.text : Tokens.Color.border, size: 20)
-        drawGlyph(isLoading ? "×" : "⟳", in: reloadFrame, color: Tokens.Color.text, size: 15)
+    private func drawNavigationButtons() {
+        drawSymbol("chevron.left", in: backFrame,
+                   color: canGoBack ? Tokens.Color.text : Tokens.Color.border)
+        drawSymbol("chevron.right", in: forwardFrame,
+                   color: canGoForward ? Tokens.Color.text : Tokens.Color.border)
+        drawSymbol(isLoading ? "xmark" : "arrow.clockwise", in: reloadFrame,
+                   color: Tokens.Color.text)
     }
 
+    /// Cápsula de dirección, como la de Safari.
     private func drawAddressField(in context: CGContext) {
-        let path = UIBezierPath(roundedRect: addressFrame, cornerRadius: 6)
-        context.setFillColor(Tokens.Color.background.cgColor)
+        let path = UIBezierPath(roundedRect: addressFrame, cornerRadius: addressFrame.height / 2)
+        context.setFillColor(Tokens.Color.background.desktopCGColor)
         context.addPath(path.cgPath)
         context.fillPath()
 
-        context.setStrokeColor(
-            (isEditing ? Tokens.Color.accent : Tokens.Color.border).cgColor
-        )
-        context.setLineWidth(1)
-        context.addPath(path.cgPath)
-        context.strokePath()
+        if isEditing {
+            context.setStrokeColor(Tokens.Color.accent.desktopCGColor)
+            context.setLineWidth(1.5)
+            context.addPath(path.cgPath)
+            context.strokePath()
+        }
 
-        let shown = address.isEmpty && !isEditing ? "Escribe una dirección o busca" : address
+        let isPlaceholder = address.isEmpty && !isEditing
+        let shown = isPlaceholder ? "Busca o escribe una dirección" : address
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: Tokens.mono(11),
-            .foregroundColor: address.isEmpty && !isEditing
-                ? Tokens.Color.textSecondary
-                : Tokens.Color.text,
+            .font: Tokens.sans(12),
+            .foregroundColor: isPlaceholder ? Tokens.Color.textSecondary : Tokens.Color.text,
         ]
-        let text = (isEditing ? shown + "▌" : shown) as NSString
-        text.draw(
-            in: addressFrame.insetBy(dx: 8, dy: 0).offsetBy(dx: 0, dy: addressFrame.height / 2 - 7),
-            withAttributes: attributes
-        )
-    }
-
-    /// Escudo del bloqueador. Sin número al lado, y es una decisión.
-    ///
-    /// `WKContentRuleList` **no dice cuántas peticiones bloquea**: el filtrado
-    /// ocurre dentro de WebKit y no hay ningún callback. Se podría enseñar una
-    /// estimación, pero sería un número inventado con pinta de dato. Mejor
-    /// decir sólo si está activo aquí, que eso sí se sabe.
-    private func drawBlockerBadge(in context: CGContext) {
-        drawGlyph(
-            blockerOn ? "◉" : "○",
-            in: blockerFrame,
-            color: blockerOn ? Tokens.Color.accentAlt : Tokens.Color.textSecondary,
-            size: 15
-        )
-    }
-
-    private func drawGlyph(_ glyph: String, in frame: CGRect, color: UIColor, size: CGFloat) {
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: Tokens.sans(size),
-            .foregroundColor: color,
-        ]
-        let text = glyph as NSString
+        let text = (isEditing ? shown + "|" : shown) as NSString
         let textSize = text.size(withAttributes: attributes)
+
+        // Centrada cuando sólo se lee, a la izquierda mientras se escribe: si
+        // no, el texto bailaría con cada letra que se teclea.
+        let fits = textSize.width < addressFrame.width - 24
+        let x = isEditing || !fits
+            ? addressFrame.minX + 12
+            : addressFrame.midX - textSize.width / 2
         text.draw(
-            at: CGPoint(
-                x: frame.midX - textSize.width / 2,
-                y: frame.midY - textSize.height / 2
+            in: CGRect(
+                x: x, y: addressFrame.midY - textSize.height / 2,
+                width: addressFrame.width - 16, height: textSize.height
             ),
             withAttributes: attributes
         )
+    }
+
+    /// Dibuja un símbolo del sistema centrado en un rectángulo.
+    ///
+    /// El color se resuelve en oscuro a mano: esto se pinta en la pantalla
+    /// externa, que va siempre oscura, y un color dinámico saldría con el modo
+    /// que tuviera el iPhone en ese momento.
+    private func drawSymbol(_ name: String, in frame: CGRect, color: UIColor, size: CGFloat = 12) {
+        let configuration = UIImage.SymbolConfiguration(pointSize: size, weight: .medium)
+        guard let image = UIImage(systemName: name, withConfiguration: configuration)?
+            .withTintColor(
+                color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)),
+                renderingMode: .alwaysOriginal
+            )
+        else { return }
+
+        image.draw(at: CGPoint(
+            x: frame.midX - image.size.width / 2,
+            y: frame.midY - image.size.height / 2
+        ))
     }
 }

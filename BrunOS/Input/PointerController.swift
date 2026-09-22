@@ -282,7 +282,7 @@ final class PointerController {
 
         let shape = CAShapeLayer()
         shape.path = path.cgPath
-        shape.fillColor = Tokens.Color.text.cgColor
+        shape.fillColor = Tokens.Color.text.desktopCGColor
         shape.strokeColor = UIColor.black.withAlphaComponent(0.85).cgColor
         shape.lineWidth = 1
         shape.lineJoin = .round
