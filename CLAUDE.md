@@ -12,18 +12,26 @@ emergencia, teclado, dictado y ajustes.
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (22-sep-2026)
 
-**Para retomar (cierre del 22-sep-2026):**
+**Para retomar (cierre del 22-sep-2026, noche):**
 
-1. **Subir a TestFlight lo que hay en `main`**: `./Tools/testflight.sh`. El 22-sep saltó el límite
-   diario de subidas de App Store Connect y **el arreglo del clic y el arrastre (`bdacb54`) no
-   llegó al iPhone**. La última build que Bruno tiene instalada, la 2609221604, **tiene el clic
-   roto** (cada clic hacía saltar el cursor).
+1. **Subir a TestFlight lo que hay en `main`**: `./Tools/testflight.sh`, **lo primero y sin
+   preguntar**. El 22-sep saltó el límite diario de subidas de App Store Connect, así que no
+   llegaron al iPhone ni el arreglo del clic (`bdacb54`) ni nada de lo escrito después. La build
+   que Bruno tiene instalada, la 2609221604, **tiene el clic roto** (cada clic hacía saltar el
+   cursor). Tarda 5–15 minutos en aparecer en TestFlight.
 2. **Que Bruno pruebe con ratón**: clic, arrastrar ventanas, divisores y ficheros, y seleccionar
    texto. Es lo más delicado de todo: con AssistiveTouch el botón llega como un toque en el
    iPhone, y **la posición de ese toque no es fiable; su desplazamiento, sí** (ver «Arrastrar con
    el ratón» más abajo).
-3. Después: «ratón conectado» que se desmarca al desconectar, volver del modo mando al quitar el
-   monitor y el nombre de carpeta en Ficheros, también sin probar.
+3. Luego, lo nuevo del navegador: barra de favoritos e iconos, sugerencias al escribir, modo
+   lectura, descargar un vídeo de una web (RedGifs va con mp4 directo; YouTube no puede),
+   el ⤓ de descargas y guardar como PDF. Y en Ficheros, montar un SMB desde la app Archivos y
+   añadirlo como ubicación.
+4. Pendiente de antes, también sin probar: «ratón conectado» que se desmarca al desconectar,
+   volver del modo mando al quitar el monitor y el nombre de carpeta en Ficheros.
+5. Cuando Bruno quiera seguir escribiendo: el navegador va hacia «un Safari». Lo siguiente
+   propuesto, por orden: restaurar la sesión al arrancar, navegación privada, zoom por sitio,
+   ventana de historial, silenciar y fijar pestañas.
 
 
 **Las cuatro fases están escritas. Terminal y navegador se usan ya en el iPhone con monitor; el
