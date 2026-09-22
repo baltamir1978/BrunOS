@@ -26,6 +26,13 @@ final class PhoneRootViewController: UIViewController {
         // una vista propia encima: taparía los toques de la interfaz.
         services.mouse.indirectSource.attach(to: view)
 
+        // El escritorio sigue el modo del iPhone, y el único sitio donde se
+        // sabe cuál es de verdad es aquí.
+        DesktopTheme.phoneStyle = traitCollection.userInterfaceStyle
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (controller: Self, _) in
+            DesktopTheme.phoneStyle = controller.traitCollection.userInterfaceStyle
+        }
+
         services.keyboard.delegate = self
         services.mouse.delegate = self
         services.start()

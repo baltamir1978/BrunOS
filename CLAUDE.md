@@ -163,6 +163,8 @@ con una web de verdad**.
   la pantalla externa no hay eventos del sistema.
 - Máximo 8 pestañas vivas; las demás se descargan guardando URL y scroll. Cada `WKWebView` es un
   proceso de WebKit y pasado un punto iOS mata la app entera.
+- **Buscador seleccionable** en Ajustes (`SearchEngine`): Google por defecto, y DuckDuckGo, Bing,
+  Startpage y Ecosia. Antes estaba fijo en DuckDuckGo.
 - **Descargas** a `Documentos/Descargas`, sin pisar ficheros: se numeran. Con `UIFileSharingEnabled`
   se ven también desde la app Archivos del iPhone.
 
@@ -175,8 +177,30 @@ claro salían con los colores claros. El cursor, que usa `text`, acababa siendo 
 el fondo oscuro del escritorio**: invisible.
 
 Afectaba a cualquier `CALayer` de la pantalla externa, no sólo al cursor. La solución es
-`UIColor.desktopCGColor` (en `Tokens.swift`), que resuelve explícitamente en oscuro. **Regla: en
-la pantalla externa, nunca `.cgColor` de un color dinámico; siempre `.desktopCGColor`.**
+`UIColor.desktopCGColor` (en `Tokens.swift`), que resuelve con el modo del escritorio. **Regla: en
+la pantalla externa, nunca `.cgColor` de un color dinámico; siempre `.desktopCGColor`.** El cursor
+es la excepción: va siempre resuelto en oscuro (claro con borde negro), que se ve en los dos modos.
+
+### Claro u oscuro (22-sep-2026)
+
+El escritorio iba **siempre oscuro**, y Bruno se hartó: con el iPhone en claro, el monitor seguía
+en negro. Ahora `DesktopTheme` (en `Display/`) lo decide: **por defecto sigue al iPhone**, y en
+Ajustes se puede fijar en claro u oscuro. El modo del teléfono lo apunta
+`PhoneRootViewController` con `registerForTraitChanges`: la escena externa no lo hereda de forma
+fiable. El terminal sigue oscuro en los dos modos.
+
+**Lo que obliga a cualquier vista nueva**: un `CGColor` no se entera del cambio. Lo que se pinte
+en `draw(_:)` se repinta solo (el escritorio hace `setNeedsDisplay` en todo el árbol), pero **lo
+que se asigne a una capa** —`borderColor`, `backgroundColor` de un `CALayer`— hay que volver a
+asignarlo en `DesktopViewController.applyTheme()`. Los paneles lo hacen ya por `setFocused`.
+
+### Los ajustes salían vacíos: dibujar debajo de la tarjeta
+
+Síntoma: en los ajustes del monitor sólo se veían la marca y el aspa. **Las filas se dibujaban
+en el `draw(_:)` de la vista de fondo, y una vista dibuja su contenido debajo de sus subvistas**:
+la tarjeta, opaca, lo tapaba todo. Pasaba igual en el menú contextual, el diálogo de texto y el
+editor de máquinas. Ahora dibuja la propia tarjeta (`CardView`). **Regla: en una ventana, nada se
+dibuja en la vista que tiene la tarjeta como subvista.**
 
 ### La app se cerraba al hacer varios clics
 
@@ -332,6 +356,9 @@ ubicaciones más lista) en lugar de los dos paneles de Total Commander.
   carpeta que aparece sola al usar el navegador desconcierta más que ayuda.
 - `FilesPane`: **sin `UITableView` ni `UIButton`**, como todo lo de la pantalla externa. Flechas
   para moverse, Intro para abrir, Retroceso para subir, espaciadora para la vista previa.
+- **Tres vistas**: lista, iconos pequeños e iconos grandes, con el selector en la cabecera o desde
+  el clic derecho. Se recuerda la elegida. En iconos, las flechas se mueven en rejilla y las
+  imágenes **locales** llevan miniatura (por SFTP habría que descargar cada foto entera).
 - **Un clic selecciona, no abre.** El doble clic con un cursor sintético es poco fiable: depende de
   que dos eventos lleguen lo bastante seguidos, y los nuestros pasan por AssistiveTouch.
 

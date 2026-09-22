@@ -20,7 +20,7 @@ final class ContextMenu: UIView {
     var onDismiss: (() -> Void)?
 
     private let entries: [Entry]
-    private let card = UIView()
+    private let card = CardView()
     private var rowFrames: [CGRect] = []
     private var hoveredIndex: Int?
 
@@ -41,6 +41,7 @@ final class ContextMenu: UIView {
         card.layer.shadowOpacity = 0.4
         card.layer.shadowRadius = 16
         card.layer.shadowOffset = CGSize(width: 0, height: 6)
+        card.drawContent = { [weak self] in self?.drawCard(in: $0) }
         addSubview(card)
 
         // El menú se abre donde está el cursor, pero **no se sale de la
@@ -64,8 +65,8 @@ final class ContextMenu: UIView {
         fatalError("BrunOS no usa storyboards")
     }
 
-    override func draw(_ rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext() else { return }
+    /// Lo llama la tarjeta desde su `draw(_:)`: ver `CardView`.
+    private func drawCard(in context: CGContext) {
         let origin = card.frame.origin
 
         for (index, entry) in entries.enumerated() {
@@ -88,7 +89,7 @@ final class ContextMenu: UIView {
             let configuration = UIImage.SymbolConfiguration(pointSize: 11, weight: .regular)
             if let image = UIImage(systemName: entry.symbol, withConfiguration: configuration)?
                 .withTintColor(
-                    color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)),
+                    color.resolvedColor(with: UITraitCollection(userInterfaceStyle: DesktopTheme.style)),
                     renderingMode: .alwaysOriginal
                 ) {
                 image.draw(at: CGPoint(x: frame.minX + 10, y: frame.midY - image.size.height / 2))
@@ -119,7 +120,7 @@ final class ContextMenu: UIView {
         case .moved:
             if hoveredIndex != index {
                 hoveredIndex = index
-                setNeedsDisplay()
+                card.setNeedsDisplay()
             }
         case .up:
             // Se actúa al **soltar**, no al pulsar: si no, el mismo clic que

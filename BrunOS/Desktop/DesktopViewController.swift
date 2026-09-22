@@ -1,4 +1,5 @@
 import UIKit
+import WebKit
 
 /// Raíz de la pantalla externa: barra superior, mosaico y cursor.
 ///
@@ -30,8 +31,8 @@ final class DesktopViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // El escritorio va siempre oscuro, siga el iPhone el modo que siga.
-        overrideUserInterfaceStyle = .dark
+        // Claro u oscuro según `DesktopTheme`: por defecto, como el iPhone.
+        overrideUserInterfaceStyle = DesktopTheme.style
 
         view.backgroundColor = Tokens.Color.background
         canvas.backgroundColor = .clear
@@ -67,6 +68,12 @@ final class DesktopViewController: UIViewController {
             self,
             selector: #selector(refreshLayout),
             name: WallpaperStore.didChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(themeChanged),
+            name: DesktopTheme.didChangeNotification,
             object: nil
         )
         // Una máquina recién añadida tiene que poder usarse sin reiniciar.
@@ -245,6 +252,43 @@ final class DesktopViewController: UIViewController {
 
     @objc private func refreshLayout() {
         applyDisplayProfile()
+    }
+
+    @objc private func themeChanged() {
+        applyTheme()
+    }
+
+    /// Pasa el escritorio entero a claro o a oscuro, en caliente.
+    ///
+    /// Cambiar `overrideUserInterfaceStyle` basta para las etiquetas y los
+    /// fondos de las vistas, que llevan colores dinámicos. **No basta para las
+    /// capas**: un `CGColor` es un color ya resuelto y no se entera de nada, así
+    /// que los bordes, el fondo y todo lo que se dibuja a mano hay que volver a
+    /// pintarlo. Se incluyen los paneles de los otros espacios, que están fuera
+    /// de la jerarquía y no reciben el cambio de rasgos.
+    func applyTheme() {
+        overrideUserInterfaceStyle = DesktopTheme.style
+
+        redraw(canvas)
+        for workspace in services.desktop.workspaces {
+            for (id, pane) in workspace.panes {
+                pane.setFocused(id == workspace.focused)
+                if pane.view.superview == nil { redraw(pane.view) }
+            }
+        }
+        dock.applyTheme()
+        services.wallpaper.invalidate()
+        layoutCanvas()
+    }
+
+    private func redraw(_ view: UIView) {
+        view.setNeedsDisplay()
+        // Dentro de un `WKWebView` no hay nada nuestro, y la página ya se
+        // entera sola del modo por `prefers-color-scheme`.
+        guard !(view is WKWebView) else { return }
+        for subview in view.subviews {
+            redraw(subview)
+        }
     }
 
     /// Se añadió o cambió una máquina en el iPhone.

@@ -55,6 +55,11 @@ final class Dock: UIView {
         fatalError("BrunOS no usa storyboards")
     }
 
+    /// Vuelve a pintar el borde, que es un `CGColor` y no cambia solo de modo.
+    func applyTheme() {
+        background.layer.borderColor = Tokens.Color.border.withAlphaComponent(0.8).desktopCGColor
+    }
+
     // MARK: - Contenido
 
     func update(desktop: DesktopModel) {

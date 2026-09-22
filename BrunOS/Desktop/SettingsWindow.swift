@@ -30,7 +30,7 @@ final class SettingsWindow: UIView {
     }
 
     private let services = AppServices.shared
-    private let card = UIView()
+    private let card = CardView()
     private let titleLabel = UILabel()
     private let closeLabel = UILabel()
     private var rows: [Row] = []
@@ -51,6 +51,7 @@ final class SettingsWindow: UIView {
         card.layer.shadowOpacity = 0.5
         card.layer.shadowRadius = 26
         card.layer.shadowOffset = CGSize(width: 0, height: 10)
+        card.drawContent = { [weak self] in self?.drawCard(in: $0) }
         addSubview(card)
 
         titleLabel.attributedText = TopBar.brandText(size: 17)
@@ -89,6 +90,9 @@ final class SettingsWindow: UIView {
                 self?.cycleOverscan()
             })
         }
+        rows.append(Row(title: "Apariencia", value: DesktopTheme.appearance.label) { [weak self] in
+            self?.cycleAppearance()
+        })
         rows.append(Row(title: "Fondo", value: services.wallpaper.current.label) { [weak self] in
             self?.cycleWallpaper()
         })
@@ -125,6 +129,10 @@ final class SettingsWindow: UIView {
             self?.toggleBlocker()
         })
 
+        rows.append(Row(title: "Buscador", value: SearchEngine.current.label) { [weak self] in
+            self?.cycleSearchEngine()
+        })
+
         rows.append(Row(title: "SSH", value: "", isHeader: true))
         if services.hosts.hosts.isEmpty {
             rows.append(Row(title: "Sin máquinas todavía", value: ""))
@@ -152,7 +160,7 @@ final class SettingsWindow: UIView {
 
         self.rows = rows
         setNeedsLayout()
-        setNeedsDisplay()
+        card.setNeedsDisplay()
     }
 
     // MARK: - Acciones
@@ -179,6 +187,22 @@ final class SettingsWindow: UIView {
         let all = services.wallpaper.available
         guard let index = all.firstIndex(of: services.wallpaper.current) else { return }
         services.wallpaper.current = all[(index + 1) % all.count]
+        rebuild()
+    }
+
+    private func cycleAppearance() {
+        let all = DesktopAppearance.allCases
+        let index = all.firstIndex(of: DesktopTheme.appearance) ?? 0
+        DesktopTheme.appearance = all[(index + 1) % all.count]
+        // El borde de la tarjeta es un `CGColor`: no cambia solo.
+        card.layer.borderColor = Tokens.Color.border.desktopCGColor
+        rebuild()
+    }
+
+    private func cycleSearchEngine() {
+        let all = SearchEngine.allCases
+        let index = all.firstIndex(of: SearchEngine.current) ?? 0
+        SearchEngine.current = all[(index + 1) % all.count]
         rebuild()
     }
 
@@ -255,11 +279,11 @@ final class SettingsWindow: UIView {
             y += height
             return frame
         }
-        setNeedsDisplay()
+        card.setNeedsDisplay()
     }
 
-    override func draw(_ rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext() else { return }
+    /// Lo llama la tarjeta desde su `draw(_:)`: ver `CardView`.
+    private func drawCard(in context: CGContext) {
         let origin = card.frame.origin
 
         for (index, row) in rows.enumerated() {
@@ -352,7 +376,7 @@ final class SettingsWindow: UIView {
         case .moved:
             if hoveredIndex != index {
                 hoveredIndex = index
-                setNeedsDisplay()
+                card.setNeedsDisplay()
             }
         case .down:
             // Lo secundario se mira primero: cae dentro de la fila y, si no,

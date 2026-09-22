@@ -282,7 +282,9 @@ final class PointerController {
 
         let shape = CAShapeLayer()
         shape.path = path.cgPath
-        shape.fillColor = Tokens.Color.text.desktopCGColor
+        // El cursor no cambia con el modo: claro con borde negro se ve igual
+        // sobre un fondo claro que sobre uno oscuro, y así no hay que repintarlo.
+        shape.fillColor = Tokens.Color.text.cgColor(for: .dark)
         shape.strokeColor = UIColor.black.withAlphaComponent(0.85).cgColor
         shape.lineWidth = 1
         shape.lineJoin = .round

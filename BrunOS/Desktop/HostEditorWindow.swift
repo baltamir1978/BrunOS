@@ -58,7 +58,7 @@ final class HostEditorWindow: UIView {
     private var focusedField: Field = .name
     private var error: String?
 
-    private let card = UIView()
+    private let card = CardView()
     private let titleLabel = UILabel()
     private var fieldFrames: [Field: CGRect] = [:]
     private var buttonFrames: [Button: CGRect] = [:]
@@ -79,6 +79,7 @@ final class HostEditorWindow: UIView {
         card.layer.shadowOpacity = 0.55
         card.layer.shadowRadius = 28
         card.layer.shadowOffset = CGSize(width: 0, height: 10)
+        card.drawContent = { [weak self] in self?.drawCard(in: $0) }
         addSubview(card)
 
         titleLabel.font = Tokens.sans(17, weight: .semibold)
@@ -133,7 +134,7 @@ final class HostEditorWindow: UIView {
             .cancel: CGRect(x: width - 200, y: buttonY, width: 86, height: 32),
             .save: CGRect(x: width - 106, y: buttonY, width: 90, height: 32),
         ]
-        setNeedsDisplay()
+        card.setNeedsDisplay()
     }
 
     private func isVisible(_ field: Field) -> Bool {
@@ -143,8 +144,8 @@ final class HostEditorWindow: UIView {
 
     // MARK: - Dibujo
 
-    override func draw(_ rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext() else { return }
+    /// Lo llama la tarjeta desde su `draw(_:)`: ver `CardView`.
+    private func drawCard(in context: CGContext) {
         let origin = card.frame.origin
 
         for (field, localFrame) in fieldFrames {
@@ -297,7 +298,7 @@ final class HostEditorWindow: UIView {
             } else {
                 focusedField = field
             }
-            setNeedsDisplay()
+            card.setNeedsDisplay()
             return true
         }
         return true
@@ -324,7 +325,7 @@ final class HostEditorWindow: UIView {
         default:
             insert(event.key.characters)
         }
-        setNeedsDisplay()
+        card.setNeedsDisplay()
         return true
     }
 
@@ -383,13 +384,13 @@ final class HostEditorWindow: UIView {
         guard !host.host.isEmpty else {
             error = "Falta el host."
             focusedField = .host
-            setNeedsDisplay()
+            card.setNeedsDisplay()
             return
         }
         guard !host.username.isEmpty else {
             error = "Falta el usuario."
             focusedField = .username
-            setNeedsDisplay()
+            card.setNeedsDisplay()
             return
         }
         if host.port == 0 { host.port = 22 }

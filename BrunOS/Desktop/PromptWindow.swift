@@ -19,7 +19,7 @@ final class PromptWindow: UIView {
     private let asksForText: Bool
 
     private var text: String
-    private let card = UIView()
+    private let card = CardView()
     private var fieldFrame: CGRect = .zero
     private var cancelFrame: CGRect = .zero
     private var confirmFrame: CGRect = .zero
@@ -50,6 +50,7 @@ final class PromptWindow: UIView {
         card.layer.shadowOpacity = 0.5
         card.layer.shadowRadius = 26
         card.layer.shadowOffset = CGSize(width: 0, height: 10)
+        card.drawContent = { [weak self] in self?.drawCard(in: $0) }
         addSubview(card)
     }
 
@@ -72,11 +73,11 @@ final class PromptWindow: UIView {
         fieldFrame = CGRect(x: 18, y: 64, width: width - 36, height: 32)
         confirmFrame = CGRect(x: width - 112, y: height - 46, width: 94, height: 32)
         cancelFrame = CGRect(x: width - 214, y: height - 46, width: 94, height: 32)
-        setNeedsDisplay()
+        card.setNeedsDisplay()
     }
 
-    override func draw(_ rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext() else { return }
+    /// Lo llama la tarjeta desde su `draw(_:)`: ver `CardView`.
+    private func drawCard(in context: CGContext) {
         let origin = card.frame.origin
 
         (title as NSString).draw(
@@ -196,7 +197,7 @@ final class PromptWindow: UIView {
         default:
             if asksForText { text += event.key.characters }
         }
-        setNeedsDisplay()
+        card.setNeedsDisplay()
         return true
     }
 }

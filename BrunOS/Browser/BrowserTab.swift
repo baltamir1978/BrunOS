@@ -184,9 +184,7 @@ final class BrowserTab: NSObject {
         guard !trimmed.isEmpty else { return nil }
 
         if trimmed.contains(" ") || !trimmed.contains(".") {
-            var components = URLComponents(string: "https://duckduckgo.com/")
-            components?.queryItems = [URLQueryItem(name: "q", value: trimmed)]
-            return components?.url
+            return SearchEngine.current.url(for: trimmed)
         }
 
         if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {

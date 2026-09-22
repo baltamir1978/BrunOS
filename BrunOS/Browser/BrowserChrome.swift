@@ -291,7 +291,7 @@ final class BrowserChrome: UIView {
         let configuration = UIImage.SymbolConfiguration(pointSize: size, weight: .medium)
         guard let image = UIImage(systemName: name, withConfiguration: configuration)?
             .withTintColor(
-                color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)),
+                color.resolvedColor(with: UITraitCollection(userInterfaceStyle: DesktopTheme.style)),
                 renderingMode: .alwaysOriginal
             )
         else { return }

@@ -15,6 +15,8 @@ struct SettingsView: View {
     @State private var browserZoom = BrowserZoom.default
     @State private var scale: DisplayProfile.Scale = .x2
     @State private var overscan: DisplayProfile.Overscan = .none
+    @State private var appearance = DesktopTheme.appearance
+    @State private var searchEngine = SearchEngine.current
 
     var body: some View {
         NavigationStack {
@@ -77,7 +79,21 @@ struct SettingsView: View {
                     LabeledContent("Fondo", value: services.wallpaper.current.label)
                         .font(.brunosMono(14))
                 }
-            } else {
+            }
+
+            // Esto sí vale sin monitor: no depende de la pantalla concreta.
+            Picker("Apariencia del escritorio", selection: $appearance) {
+                ForEach(DesktopAppearance.allCases, id: \.self) { value in
+                    // En el monitor los valores van en minúscula, como «sí» y
+                    // «no»; en una lista de iOS, con mayúscula.
+                    Text(value.label.prefix(1).uppercased() + value.label.dropFirst()).tag(value)
+                }
+            }
+            .onChange(of: appearance) { _, newValue in
+                DesktopTheme.appearance = newValue
+            }
+
+            if services.externalDisplay.currentProfile == nil {
                 Text("Sin pantalla externa conectada")
                     .foregroundStyle(Color.brunosTextSecondary)
             }
@@ -148,6 +164,15 @@ struct SettingsView: View {
             .onChange(of: browserZoom) { _, newValue in
                 BrowserZoom.remember(newValue)
                 NotificationCenter.default.post(name: .brunosBrowserZoomChanged, object: nil)
+            }
+
+            Picker("Buscador", selection: $searchEngine) {
+                ForEach(SearchEngine.allCases, id: \.self) { value in
+                    Text(value.label).tag(value)
+                }
+            }
+            .onChange(of: searchEngine) { _, newValue in
+                SearchEngine.current = newValue
             }
 
             Toggle("Bloquear anuncios", isOn: Binding(

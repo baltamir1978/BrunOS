@@ -22,6 +22,62 @@ final class FilesPane: UIView, Pane {
     private var scrollOffset: CGFloat = 0
     private var status: String?
     private var sort: Sort = .name
+    private var mode = ViewMode.current {
+        didSet { ViewMode.current = mode }
+    }
+    /// Miniaturas de las imágenes, por ruta. Sólo en local: por SFTP habría que
+    /// descargar cada foto entera para enseñar un sello de 84 puntos.
+    private var thumbnails: [String: UIImage] = [:]
+    private var pendingThumbnails: Set<String> = []
+
+    /// Cómo se enseña la carpeta, como en el Finder.
+    enum ViewMode: String, CaseIterable {
+        case list, smallIcons, largeIcons
+
+        private static let key = "files.viewMode"
+
+        static var current: ViewMode {
+            get {
+                UserDefaults.standard.string(forKey: key)
+                    .flatMap(ViewMode.init(rawValue:)) ?? .list
+            }
+            set { UserDefaults.standard.set(newValue.rawValue, forKey: key) }
+        }
+
+        var label: String {
+            switch self {
+            case .list: "Lista"
+            case .smallIcons: "Iconos pequeños"
+            case .largeIcons: "Iconos grandes"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .list: "list.bullet"
+            case .smallIcons: "square.grid.3x3"
+            case .largeIcons: "square.grid.2x2"
+            }
+        }
+
+        /// Tamaño de cada casilla en las vistas de iconos.
+        var cellSize: CGSize {
+            switch self {
+            case .list: .zero
+            case .smallIcons: CGSize(width: 96, height: 92)
+            case .largeIcons: CGSize(width: 140, height: 138)
+            }
+        }
+
+        /// Lado del cuadrado donde va el icono o la miniatura.
+        var iconSide: CGFloat {
+            switch self {
+            case .list: 16
+            case .smallIcons: 46
+            case .largeIcons: 84
+            }
+        }
+    }
 
     private enum Sort {
         case name, size, date
@@ -35,9 +91,19 @@ final class FilesPane: UIView, Pane {
         }
     }
 
+    /// Lo que ocupa cada elemento: una fila en la lista, una casilla en iconos.
     private var rowFrames: [CGRect] = []
     private var sidebarFrames: [CGRect] = []
     private var sortFrames: [Sort: CGRect] = [:]
+    private var modeFrames: [ViewMode: CGRect] = [:]
+    /// Casillas por fila en las vistas de iconos. Lo usan las flechas.
+    private var columns = 1
+
+    /// Dónde empiezan las columnas de tamaño y fecha, medido desde la derecha.
+    /// Dejan sitio al selector de vista, que va en la cabecera.
+    private static let sizeColumnInset: CGFloat = 282
+    private static let dateColumnInset: CGFloat = 210
+    private static let gridPadding: CGFloat = 12
 
     var title: String {
         let provider = services.files.currentProvider
@@ -80,6 +146,8 @@ final class FilesPane: UIView, Pane {
                 let listed = try await provider.list(path)
                 guard let self else { return }
                 self.items = self.sorted(listed)
+                self.thumbnails = [:]
+                self.pendingThumbnails = []
                 self.selectedIndex = self.items.isEmpty ? nil : 0
                 self.scrollOffset = 0
                 self.setNeedsLayout()
@@ -147,18 +215,70 @@ final class FilesPane: UIView, Pane {
         let listWidth = bounds.width - listX
         sortFrames = [
             .name: CGRect(x: listX + 34, y: 6, width: 140, height: 18),
-            .size: CGRect(x: bounds.width - 190, y: 6, width: 70, height: 18),
-            .date: CGRect(x: bounds.width - 118, y: 6, width: 110, height: 18),
+            .size: CGRect(x: bounds.width - Self.sizeColumnInset, y: 6, width: 70, height: 18),
+            .date: CGRect(x: bounds.width - Self.dateColumnInset, y: 6, width: 110, height: 18),
         ]
 
-        rowFrames = items.indices.map { index in
-            CGRect(
-                x: listX,
-                y: Self.headerHeight + CGFloat(index) * Self.rowHeight - scrollOffset,
-                width: listWidth,
-                height: Self.rowHeight
+        modeFrames = [:]
+        for (index, mode) in ViewMode.allCases.enumerated() {
+            modeFrames[mode] = CGRect(
+                x: bounds.width - 88 + CGFloat(index) * 27,
+                y: 4, width: 24, height: 22
             )
         }
+
+        switch mode {
+        case .list:
+            columns = 1
+            rowFrames = items.indices.map { index in
+                CGRect(
+                    x: listX,
+                    y: Self.headerHeight + CGFloat(index) * Self.rowHeight - scrollOffset,
+                    width: listWidth,
+                    height: Self.rowHeight
+                )
+            }
+
+        case .smallIcons, .largeIcons:
+            // Las casillas se estiran lo justo para llenar el ancho: con un
+            // ancho fijo quedaría un hueco a la derecha que cambia al
+            // redimensionar el panel y parece un error.
+            let padding = Self.gridPadding
+            let available = max(1, listWidth - 2 * padding)
+            let cell = mode.cellSize
+            columns = max(1, Int(available / cell.width))
+            let width = available / CGFloat(columns)
+            rowFrames = items.indices.map { index in
+                CGRect(
+                    x: listX + padding + CGFloat(index % columns) * width,
+                    y: Self.headerHeight + padding
+                        + CGFloat(index / columns) * cell.height - scrollOffset,
+                    width: width,
+                    height: cell.height
+                )
+            }
+        }
+    }
+
+    /// Alto de todo el contenido, para saber hasta dónde se puede bajar.
+    private var contentHeight: CGFloat {
+        switch mode {
+        case .list:
+            CGFloat(items.count) * Self.rowHeight
+        case .smallIcons, .largeIcons:
+            CGFloat((items.count + columns - 1) / columns) * mode.cellSize.height
+                + 2 * Self.gridPadding
+        }
+    }
+
+    private func setMode(_ newMode: ViewMode) {
+        guard newMode != mode else { return }
+        mode = newMode
+        scrollOffset = 0
+        recomputeFrames()
+        if let selectedIndex { reveal(selectedIndex) }
+        setNeedsLayout()
+        setNeedsDisplay()
     }
 
     // MARK: - Dibujo
@@ -220,6 +340,20 @@ final class FilesPane: UIView, Pane {
             width: bounds.width - listX, height: 1
         ))
 
+        for (mode, frame) in modeFrames {
+            let isActive = mode == self.mode
+            if isActive {
+                context.setFillColor(Tokens.Color.accent.withAlphaComponent(0.2).desktopCGColor)
+                context.addPath(UIBezierPath(roundedRect: frame, cornerRadius: 5).cgPath)
+                context.fillPath()
+            }
+            drawSymbol(
+                mode.symbol,
+                in: frame,
+                color: isActive ? Tokens.Color.accent : Tokens.Color.textSecondary
+            )
+        }
+
         for (kind, frame) in sortFrames {
             let isActive = kind == sort
             (kind.label as NSString).draw(
@@ -258,6 +392,11 @@ final class FilesPane: UIView, Pane {
             return
         }
 
+        if mode != .list {
+            drawGrid(in: context)
+            return
+        }
+
         for (index, item) in items.enumerated() {
             guard index < rowFrames.count else { break }
             let frame = rowFrames[index]
@@ -282,7 +421,8 @@ final class FilesPane: UIView, Pane {
             (item.name as NSString).draw(
                 in: CGRect(
                     x: frame.minX + 34, y: frame.midY - 8,
-                    width: max(0, bounds.width - frame.minX - 230), height: 16
+                    width: max(0, bounds.width - frame.minX - Self.sizeColumnInset - 40),
+                    height: 16
                 ),
                 withAttributes: [
                     .font: Tokens.sans(13),
@@ -295,14 +435,126 @@ final class FilesPane: UIView, Pane {
                 .foregroundColor: Tokens.Color.textSecondary,
             ]
             (item.sizeLabel as NSString).draw(
-                at: CGPoint(x: bounds.width - 190, y: frame.midY - 6),
+                at: CGPoint(x: bounds.width - Self.sizeColumnInset, y: frame.midY - 6),
                 withAttributes: meta
             )
             (item.modifiedLabel as NSString).draw(
-                at: CGPoint(x: bounds.width - 118, y: frame.midY - 6),
+                at: CGPoint(x: bounds.width - Self.dateColumnInset, y: frame.midY - 6),
                 withAttributes: meta
             )
         }
+    }
+
+    /// Las vistas de iconos: icono o miniatura arriba y el nombre debajo, en
+    /// dos líneas como mucho.
+    private func drawGrid(in context: CGContext) {
+        let side = mode.iconSide
+        let fontSize: CGFloat = mode == .largeIcons ? 12 : 11
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byTruncatingMiddle
+
+        // Lo de debajo de la cabecera se recorta: al hacer scroll, una casilla
+        // a medias no puede pintarse encima de los rótulos de ordenar.
+        context.saveGState()
+        context.clip(to: CGRect(
+            x: Self.sidebarWidth, y: Self.headerHeight,
+            width: bounds.width - Self.sidebarWidth,
+            height: bounds.height - Self.headerHeight
+        ))
+        defer { context.restoreGState() }
+
+        for (index, item) in items.enumerated() {
+            guard index < rowFrames.count else { break }
+            let frame = rowFrames[index]
+            guard frame.maxY > Self.headerHeight, frame.minY < bounds.height else { continue }
+
+            let iconFrame = CGRect(
+                x: frame.midX - side / 2, y: frame.minY + 6,
+                width: side, height: side
+            )
+            let labelFrame = CGRect(
+                x: frame.minX + 6, y: iconFrame.maxY + 6,
+                width: frame.width - 12, height: frame.maxY - iconFrame.maxY - 10
+            )
+
+            // El resalte abraza icono y nombre, no la casilla entera: así se
+            // distingue qué está seleccionado aunque las casillas se toquen.
+            let isSelected = index == selectedIndex
+            if isSelected || index == hoveredIndex {
+                let color = isSelected
+                    ? Tokens.Color.accent.withAlphaComponent(0.22)
+                    : Tokens.Color.text.withAlphaComponent(0.06)
+                context.setFillColor(color.desktopCGColor)
+                context.addPath(UIBezierPath(
+                    roundedRect: frame.insetBy(dx: 4, dy: 2),
+                    cornerRadius: 8
+                ).cgPath)
+                context.fillPath()
+            }
+
+            if let thumbnail = thumbnail(for: item) {
+                let fitted = aspectFit(thumbnail.size, in: iconFrame)
+                context.saveGState()
+                UIBezierPath(roundedRect: fitted, cornerRadius: 4).addClip()
+                thumbnail.draw(in: fitted)
+                context.restoreGState()
+            } else {
+                drawSymbol(
+                    symbol(for: item),
+                    in: iconFrame,
+                    color: item.isDirectory ? Tokens.Color.accent : Tokens.Color.textSecondary,
+                    pointSize: side * 0.62
+                )
+            }
+
+            (item.name as NSString).draw(
+                with: labelFrame,
+                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+                attributes: [
+                    .font: Tokens.sans(fontSize),
+                    .foregroundColor: Tokens.Color.text,
+                    .paragraphStyle: paragraph,
+                ],
+                context: nil
+            )
+        }
+    }
+
+    private func aspectFit(_ size: CGSize, in frame: CGRect) -> CGRect {
+        guard size.width > 0, size.height > 0 else { return frame }
+        let scale = min(frame.width / size.width, frame.height / size.height)
+        let fitted = CGSize(width: size.width * scale, height: size.height * scale)
+        return CGRect(
+            x: frame.midX - fitted.width / 2,
+            y: frame.midY - fitted.height / 2,
+            width: fitted.width,
+            height: fitted.height
+        )
+    }
+
+    /// La miniatura, si ya está; si no, la pide y de momento va el icono.
+    ///
+    /// Sólo para ficheros locales, y a un tamaño fijo en píxeles: decodificar
+    /// una foto de 48 megapíxeles para enseñarla a 84 puntos se come la memoria
+    /// en cuanto hay unas cuantas en la carpeta.
+    private func thumbnail(for item: FileItem) -> UIImage? {
+        guard item.kind == .image, services.files.currentProvider is LocalProvider else { return nil }
+        if let image = thumbnails[item.path] { return image }
+        guard !pendingThumbnails.contains(item.path) else { return nil }
+        pendingThumbnails.insert(item.path)
+
+        let path = item.path
+        let side = ViewMode.largeIcons.iconSide * 3
+        Task { [weak self] in
+            let image = await UIImage(contentsOfFile: path)?
+                .byPreparingThumbnail(ofSize: CGSize(width: side, height: side))
+            guard let self, let image, self.pendingThumbnails.contains(path) else { return }
+            self.thumbnails[path] = image
+            self.setNeedsDisplay()
+        }
+        return nil
     }
 
     private func symbol(for item: FileItem) -> String {
@@ -316,11 +568,16 @@ final class FilesPane: UIView, Pane {
         }
     }
 
-    private func drawSymbol(_ name: String, in frame: CGRect, color: UIColor) {
-        let configuration = UIImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+    private func drawSymbol(
+        _ name: String,
+        in frame: CGRect,
+        color: UIColor,
+        pointSize: CGFloat = 12
+    ) {
+        let configuration = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
         guard let image = UIImage(systemName: name, withConfiguration: configuration)?
             .withTintColor(
-                color.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)),
+                color.resolvedColor(with: UITraitCollection(userInterfaceStyle: DesktopTheme.style)),
                 renderingMode: .alwaysOriginal
             )
         else { return }
@@ -341,7 +598,7 @@ final class FilesPane: UIView, Pane {
     func handlePointer(_ event: PointerEvent) {
         switch event.kind {
         case .moved:
-            let index = rowFrames.firstIndex { $0.contains(event.location) }
+            let index = itemIndex(at: event.location)
             if hoveredIndex != index {
                 hoveredIndex = index
                 setNeedsDisplay()
@@ -354,13 +611,17 @@ final class FilesPane: UIView, Pane {
                 reload()
                 return
             }
+            for (mode, frame) in modeFrames where frame.contains(event.location) {
+                setMode(mode)
+                return
+            }
             for (kind, frame) in sortFrames where frame.insetBy(dx: -6, dy: -6).contains(event.location) {
                 sort = kind
                 items = sorted(items)
                 setNeedsDisplay()
                 return
             }
-            if let index = rowFrames.firstIndex(where: { $0.contains(event.location) }) {
+            if let index = itemIndex(at: event.location) {
                 // Un clic selecciona; para abrir, Intro o la espaciadora. El
                 // doble clic con un cursor sintético es poco fiable: depende de
                 // que dos eventos lleguen lo bastante seguidos.
@@ -377,9 +638,16 @@ final class FilesPane: UIView, Pane {
         }
     }
 
+    /// El elemento bajo un punto. Lo que el scroll ha metido debajo de la
+    /// cabecera no cuenta: ahí se está pulsando la cabecera.
+    private func itemIndex(at point: CGPoint) -> Int? {
+        guard point.y > Self.headerHeight else { return nil }
+        return rowFrames.firstIndex { $0.contains(point) }
+    }
+
     /// Menú del clic derecho.
     func contextMenuEntries(at location: CGPoint) -> [ContextMenu.Entry] {
-        let index = rowFrames.firstIndex { $0.contains(location) }
+        let index = itemIndex(at: location)
         if let index { selectedIndex = index; setNeedsDisplay() }
         let item = index.flatMap { items.indices.contains($0) ? items[$0] : nil }
         let files = services.files
@@ -430,6 +698,14 @@ final class FilesPane: UIView, Pane {
         entries.append(ContextMenu.Entry(title: "Nueva carpeta", symbol: "folder.badge.plus") { [weak self] in
             self?.createFolder()
         })
+        for mode in ViewMode.allCases where mode != self.mode {
+            entries.append(ContextMenu.Entry(
+                title: "Ver como \(mode.label.lowercased())",
+                symbol: mode.symbol
+            ) { [weak self] in
+                self?.setMode(mode)
+            })
+        }
         entries.append(ContextMenu.Entry(
             title: "Añadir ubicación…",
             symbol: "folder.badge.plus"
@@ -530,7 +806,7 @@ final class FilesPane: UIView, Pane {
     }
 
     private func scroll(by amount: CGFloat) {
-        let total = CGFloat(items.count) * Self.rowHeight
+        let total = contentHeight
         let visible = bounds.height - Self.headerHeight
         guard total > visible else { return }
         scrollOffset = min(max(scrollOffset + amount, 0), total - visible)
@@ -543,8 +819,12 @@ final class FilesPane: UIView, Pane {
 
         switch event.key.keyCode {
         case .keyboardUpArrow:
-            move(by: -1)
+            move(by: -columns)
         case .keyboardDownArrow:
+            move(by: columns)
+        case .keyboardLeftArrow where mode != .list:
+            move(by: -1)
+        case .keyboardRightArrow where mode != .list:
             move(by: 1)
         case .keyboardReturnOrEnter:
             if let index = selectedIndex, items.indices.contains(index) {
@@ -566,17 +846,27 @@ final class FilesPane: UIView, Pane {
         guard !items.isEmpty else { return }
         let next = min(max((selectedIndex ?? 0) + delta, 0), items.count - 1)
         selectedIndex = next
-        // Que la selección no se vaya fuera de la vista al moverse con flechas.
-        let rowTop = CGFloat(next) * Self.rowHeight
-        let visible = bounds.height - Self.headerHeight
-        if rowTop < scrollOffset {
-            scrollOffset = rowTop
-        } else if rowTop + Self.rowHeight > scrollOffset + visible {
-            scrollOffset = rowTop + Self.rowHeight - visible
-        }
+        reveal(next)
         setNeedsLayout()
         setNeedsDisplay()
         AppServices.shared.desktop.notifyChange()
+    }
+
+    /// Que la selección no se vaya fuera de la vista al moverse con flechas.
+    private func reveal(_ index: Int) {
+        let (top, height): (CGFloat, CGFloat) = switch mode {
+        case .list:
+            (CGFloat(index) * Self.rowHeight, Self.rowHeight)
+        case .smallIcons, .largeIcons:
+            (Self.gridPadding + CGFloat(index / columns) * mode.cellSize.height,
+             mode.cellSize.height)
+        }
+        let visible = bounds.height - Self.headerHeight
+        if top < scrollOffset {
+            scrollOffset = max(0, top - (mode == .list ? 0 : Self.gridPadding))
+        } else if top + height > scrollOffset + visible {
+            scrollOffset = top + height - visible
+        }
     }
 
     /// Vuelve a leer la carpeta. La usa el escritorio tras borrar o renombrar.

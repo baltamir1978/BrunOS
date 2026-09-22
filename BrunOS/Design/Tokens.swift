@@ -10,10 +10,8 @@ enum Tokens {
 
     // MARK: - Colores
 
-    /// Los colores del iPhone **siguen el modo del sistema**; los de la pantalla
-    /// externa, no: el escritorio va siempre oscuro, porque es una estación de
-    /// trabajo delante de la que uno se sienta a mirar texto, no una app que
-    /// convenga en blanco a mediodía. `DesktopViewController` fuerza `.dark`.
+    /// Los colores del iPhone siguen el modo del sistema. Los de la pantalla
+    /// externa siguen `DesktopTheme`: por defecto, lo mismo que el iPhone.
     ///
     /// La paleta clara no es la oscura invertida. Dos ajustes que importan:
     /// el ámbar y el turquesa se **oscurecen** sobre fondo claro, porque los de
@@ -96,20 +94,28 @@ enum Tokens {
 
 extension UIColor {
 
-    /// El color resuelto **en oscuro**, para las capas de la pantalla externa.
+    /// El color resuelto con el modo del escritorio, para las capas de la
+    /// pantalla externa.
     ///
     /// **Esto no es un detalle.** `UIColor.cgColor` resuelve un color dinámico
     /// con el modo que esté activo **en el instante de la llamada**, y ahí se
     /// queda: no se entera de nada después. Las capas del escritorio se crean
-    /// muy pronto, antes de que exista el view controller que fuerza
-    /// `.dark`, así que con el iPhone en modo claro salían con los colores
-    /// claros. El cursor, que es `text`, acababa siendo casi negro sobre el
-    /// fondo oscuro del escritorio: invisible.
+    /// muy pronto, antes de que exista el view controller que fija el modo, así
+    /// que salían con el que tocara: el cursor llegó a quedar casi negro sobre
+    /// el fondo oscuro, invisible.
     ///
-    /// El escritorio va siempre oscuro, así que se resuelve explícitamente y se
-    /// acabó el problema.
+    /// **Regla: en la pantalla externa, nunca `.cgColor` de un color dinámico.**
+    /// Y como un `CGColor` no se entera de los cambios, lo que se pinta con esto
+    /// en una capa hay que volver a pintarlo al cambiar el modo: de eso se
+    /// encarga `DesktopViewController.applyTheme()`.
+    @MainActor
     var desktopCGColor: CGColor {
-        resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)).cgColor
+        cgColor(for: DesktopTheme.style)
+    }
+
+    /// El color resuelto en un modo concreto, sin mirar el del escritorio.
+    func cgColor(for style: UIUserInterfaceStyle) -> CGColor {
+        resolvedColor(with: UITraitCollection(userInterfaceStyle: style)).cgColor
     }
 
     /// Inicializa desde un literal 0xRRGGBB. Los tokens se escriben así para

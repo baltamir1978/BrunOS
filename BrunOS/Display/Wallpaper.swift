@@ -186,6 +186,12 @@ final class WallpaperStore {
 
     // MARK: - Dibujo
 
+    /// Obliga a repintar en la próxima pasada, aunque no haya cambiado ni el
+    /// fondo ni el tamaño. Lo pide el cambio de claro a oscuro.
+    func invalidate() {
+        lastApplied = nil
+    }
+
     /// Prepara la capa de fondo para un tamaño dado.
     ///
     /// Se pinta en capas y no con una `UIImageView` para poder mezclar
@@ -273,10 +279,12 @@ final class WallpaperStore {
 
         // Un velo oscuro encima. Los fondos de macOS son luminosos, y sobre un
         // cielo claro se pierden el texto de la barra y los bordes de los
-        // paneles.
+        // paneles. En modo claro, la barra y los paneles ya son claros y el
+        // velo sólo apagaría la foto: se deja en un toque.
         let veil = CALayer()
         veil.frame = bounds
-        veil.backgroundColor = UIColor.black.withAlphaComponent(0.35).cgColor
+        let dimming: CGFloat = DesktopTheme.style == .dark ? 0.35 : 0.08
+        veil.backgroundColor = UIColor.black.withAlphaComponent(dimming).cgColor
         layer.addSublayer(veil)
     }
 
