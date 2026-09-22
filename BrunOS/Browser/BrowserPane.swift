@@ -23,6 +23,9 @@ final class BrowserPane: UIView, Pane {
     private var activeIndex = 0
     private var isEditingAddress = false
     private var addressDraft = ""
+    /// Todo el texto de la barra está seleccionado y la próxima tecla lo
+    /// sustituye.
+    private var isAddressSelected = false
 
     private let configuration: WKWebViewConfiguration
 
@@ -95,6 +98,7 @@ final class BrowserPane: UIView, Pane {
             active: activeIndex,
             address: isEditingAddress ? addressDraft : (activeTab?.urlText ?? ""),
             isEditing: isEditingAddress,
+            isSelected: isAddressSelected,
             canGoBack: activeTab?.canGoBack ?? false,
             canGoForward: activeTab?.canGoForward ?? false,
             isLoading: activeTab?.isLoading ?? false,
@@ -180,9 +184,15 @@ final class BrowserPane: UIView, Pane {
 
     // MARK: - Órdenes
 
+    /// Abre la barra de direcciones con **todo el texto seleccionado**, como
+    /// cualquier navegador: al escribir la primera letra se sustituye entero.
+    ///
+    /// Sin esto había que borrar a mano la dirección anterior antes de poder
+    /// escribir otra, que con `about:blank` delante es de todo menos cómodo.
     func focusAddressBar() {
         isEditingAddress = true
         addressDraft = activeTab?.urlText ?? ""
+        isAddressSelected = !addressDraft.isEmpty
         refreshChrome()
     }
 
@@ -244,6 +254,7 @@ final class BrowserPane: UIView, Pane {
             tab.hover(at: point)
         case .down(let button):
             isEditingAddress = false
+            isAddressSelected = false
             tab.click(at: point, button: button, modifiers: event.modifiers)
             refreshChrome()
         case .scroll(let delta):
@@ -289,13 +300,28 @@ final class BrowserPane: UIView, Pane {
             switch event.key.keyCode {
             case .keyboardReturnOrEnter:
                 isEditingAddress = false
+                isAddressSelected = false
                 activeTab?.load(addressDraft)
             case .keyboardEscape:
                 isEditingAddress = false
+                isAddressSelected = false
             case .keyboardDeleteOrBackspace:
-                if !addressDraft.isEmpty { addressDraft.removeLast() }
+                // Con todo seleccionado, borrar se lleva la selección entera.
+                if isAddressSelected {
+                    addressDraft = ""
+                    isAddressSelected = false
+                } else if !addressDraft.isEmpty {
+                    addressDraft.removeLast()
+                }
             default:
-                addressDraft += event.key.characters
+                let characters = event.key.characters
+                guard !characters.isEmpty else { break }
+                if isAddressSelected {
+                    addressDraft = characters
+                    isAddressSelected = false
+                } else {
+                    addressDraft += characters
+                }
             }
             refreshChrome()
             return
@@ -306,7 +332,12 @@ final class BrowserPane: UIView, Pane {
 
     func insertText(_ text: String) {
         if isEditingAddress {
-            addressDraft += text
+            if isAddressSelected {
+                addressDraft = text
+                isAddressSelected = false
+            } else {
+                addressDraft += text
+            }
             refreshChrome()
         } else {
             activeTab?.insertText(text)

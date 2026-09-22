@@ -146,6 +146,18 @@ final class WallpaperStore {
 
     private(set) var imageNames: [String] = []
 
+    /// Lo último que se pintó, para no repetir trabajo.
+    ///
+    /// **Esto no es una optimización, es lo que evitaba que la app muriera.**
+    /// `apply` se llamaba en cada pasada de layout del escritorio, o sea en cada
+    /// clic, y con un fondo de imagen eso significaba **volver a decodificar un
+    /// HEIC de 3840 px cada vez**. Unos cuantos clics seguidos y iOS mataba la
+    /// app por consumo de memoria.
+    private var lastApplied: (wallpaper: Wallpaper, size: CGSize)?
+
+    /// La imagen ya decodificada. Decodificar un HEIC grande cuesta caro.
+    private var cachedImage: (name: String, image: UIImage)?
+
     init() {
         if let data = UserDefaults.standard.data(forKey: Self.key),
            let stored = try? JSONDecoder().decode(Wallpaper.self, from: data) {
@@ -179,6 +191,12 @@ final class WallpaperStore {
     /// Se pinta en capas y no con una `UIImageView` para poder mezclar
     /// degradados, resplandores e imágenes sin rehacer la jerarquía de vistas.
     func apply(to layer: CALayer, size: CGSize) {
+        // Si no ha cambiado ni el fondo ni el tamaño, no hay nada que rehacer.
+        if let lastApplied, lastApplied.wallpaper == current, lastApplied.size == size {
+            return
+        }
+        lastApplied = (current, size)
+
         layer.sublayers?.forEach { $0.removeFromSuperlayer() }
         layer.backgroundColor = Tokens.Color.background.desktopCGColor
         let bounds = CGRect(origin: .zero, size: size)
@@ -211,19 +229,37 @@ final class WallpaperStore {
 
         case .image(let name):
             guard let image = loadImage(named: name) else {
-                // La imagen ya no está: se cae a un degradado en vez de dejar
-                // el escritorio en negro sin explicación.
-                current = .gradient(.goldenGate)
+                fallBackToGradient(layer: layer, bounds: bounds)
                 return
             }
             addImageLayers(image, to: layer, bounds: bounds)
 
         case .file(let bookmark):
             guard let image = loadImage(fromBookmark: bookmark) else {
-                current = .gradient(.goldenGate)
+                fallBackToGradient(layer: layer, bounds: bounds)
                 return
             }
             addImageLayers(image, to: layer, bounds: bounds)
+        }
+    }
+
+    /// La imagen ya no está: se pinta un degradado en su lugar.
+    ///
+    /// **El cambio de `current` va aplazado a propósito.** Hacerlo aquí dentro
+    /// dispararía la notificación de cambio, que provoca otra pasada de layout,
+    /// que vuelve a llamar a `apply`, que vuelve a no encontrar la imagen:
+    /// recursión infinita y la app al suelo.
+    private func fallBackToGradient(layer: CALayer, bounds: CGRect) {
+        let gradient = Wallpaper.Gradient.goldenGate
+        let base = CAGradientLayer()
+        base.frame = bounds
+        base.colors = gradient.colors.map(\.cgColor)
+        base.startPoint = CGPoint(x: 0.5, y: 0)
+        base.endPoint = CGPoint(x: 0.5, y: 1)
+        layer.addSublayer(base)
+
+        Task { @MainActor [weak self] in
+            self?.current = .gradient(gradient)
         }
     }
 
@@ -245,12 +281,15 @@ final class WallpaperStore {
     }
 
     private func loadImage(named name: String) -> UIImage? {
+        if let cachedImage, cachedImage.name == name { return cachedImage.image }
         guard let url = Bundle.main.url(
             forResource: (name as NSString).deletingPathExtension,
             withExtension: (name as NSString).pathExtension,
             subdirectory: "Wallpapers"
         ) else { return nil }
-        return UIImage(contentsOfFile: url.path)
+        guard let image = UIImage(contentsOfFile: url.path) else { return nil }
+        cachedImage = (name, image)
+        return image
     }
 
     /// Abre una imagen elegida desde el gestor de ficheros.

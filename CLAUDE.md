@@ -178,6 +178,31 @@ Afectaba a cualquier `CALayer` de la pantalla externa, no sólo al cursor. La so
 `UIColor.desktopCGColor` (en `Tokens.swift`), que resuelve explícitamente en oscuro. **Regla: en
 la pantalla externa, nunca `.cgColor` de un color dinámico; siempre `.desktopCGColor`.**
 
+### La app se cerraba al hacer varios clics
+
+Síntoma: pulsar el dock o el navegador varias veces y la app al suelo. Dos causas, las dos en el
+mismo sitio:
+
+1. **`WallpaperStore.apply` se llamaba en cada pasada de layout del escritorio**, o sea en cada
+   clic. Con un fondo de imagen, eso significaba **volver a decodificar un HEIC de 3840 px cada
+   vez**. Unos cuantos clics y iOS mataba la app por memoria. Ahora se recuerda lo último pintado
+   y la imagen decodificada se cachea.
+2. **Recursión infinita si la imagen de fondo faltaba**: `apply` cambiaba `current`, eso disparaba
+   la notificación de cambio, que provocaba otra pasada de layout, que volvía a llamar a `apply`.
+   El cambio va ahora aplazado a la siguiente vuelta del bucle de ejecución.
+
+Como red de seguridad, `layoutCanvas()` lleva un cerrojo de reentrada: varias cosas de dentro
+avisan de que han cambiado y esos avisos vuelven ahí. **Sin el cerrojo, cualquier aviso mal puesto
+se convierte en recursión y la app se cierra sin dejar rastro.**
+
+Había además un bucle latente en el lanzador: `addPane(.terminal)` llamaba a
+`openTerminalSession`, que con más de una máquina abría el lanzador, que al elegir llamaba a
+`addPane`... De ahí el parámetro `autoStart`.
+
+**Nota sobre diagnóstico**: sin el Modo de desarrollador activado en el iPhone no se pueden sacar
+los informes de fallo (`devicectl` no puede montar la imagen de desarrollo). Estos dos se
+encontraron leyendo el código.
+
 ### Todo lo que se ve tiene que poder pulsarse
 
 Principio que pidió Bruno y que se aplicó a todo: el dock, la barra superior (la marca abre el

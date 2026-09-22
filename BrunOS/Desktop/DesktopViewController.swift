@@ -162,7 +162,18 @@ final class DesktopViewController: UIViewController {
         }
     }
 
+    /// Evita que una maquetación dispare otra.
+    ///
+    /// Varias cosas de dentro avisan de que han cambiado —el dock, el fondo, el
+    /// foco— y esos avisos vuelven aquí. Sin este cerrojo, un aviso mal puesto
+    /// se convierte en recursión infinita y la app se cierra sin más.
+    private var isLayingOut = false
+
     private func layoutCanvas() {
+        guard !isLayingOut else { return }
+        isLayingOut = true
+        defer { isLayingOut = false }
+
         topBar.frame = CGRect(
             x: 0, y: 0,
             width: logicalSize.width,
@@ -371,7 +382,7 @@ final class DesktopViewController: UIViewController {
     ///
     /// El terminal ya es real; el navegador y los ficheros siguen siendo el
     /// andamio de la Fase 1 hasta que les toque su fase.
-    func addPane(kind: PaneKind) {
+    func addPane(kind: PaneKind, autoStart: Bool = true) {
         let workspace = services.desktop.active
         let id = PaneID()
         let focusedFrame = workspace.focused.flatMap { currentFrames()[$0] }
@@ -386,7 +397,10 @@ final class DesktopViewController: UIViewController {
         services.desktop.notifyChange()
 
         if let terminal = pane as? TerminalPane {
-            openTerminalSession(in: terminal)
+            // `autoStart` en false cuando el host ya lo eligió el lanzador: si
+            // no, abriría otro lanzador encima y, con varias máquinas, el ciclo
+            // no terminaba nunca.
+            if autoStart { openTerminalSession(in: terminal) }
         } else if let browser = pane as? BrowserPane {
             browser.newTab()
         }
@@ -446,7 +460,7 @@ final class DesktopViewController: UIViewController {
         if let terminal = workspace.focusedPane as? TerminalPane {
             terminal.openSession(to: host)
         } else {
-            addPane(kind: .terminal)
+            addPane(kind: .terminal, autoStart: false)
             if let terminal = services.desktop.active.focusedPane as? TerminalPane {
                 terminal.openSession(to: host)
             }

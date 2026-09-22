@@ -33,6 +33,7 @@ final class BrowserChrome: UIView {
     private var activeIndex = 0
     private var address = ""
     private var isEditing = false
+    private var isSelected = false
     private var canGoBack = false
     private var canGoForward = false
     private var isLoading = false
@@ -64,6 +65,7 @@ final class BrowserChrome: UIView {
         active: Int,
         address: String,
         isEditing: Bool,
+        isSelected: Bool,
         canGoBack: Bool,
         canGoForward: Bool,
         isLoading: Bool,
@@ -73,6 +75,7 @@ final class BrowserChrome: UIView {
         self.activeIndex = active
         self.address = address
         self.isEditing = isEditing
+        self.isSelected = isSelected
         self.canGoBack = canGoBack
         self.canGoForward = canGoForward
         self.isLoading = isLoading
@@ -227,7 +230,7 @@ final class BrowserChrome: UIView {
             .font: Tokens.sans(12),
             .foregroundColor: isPlaceholder ? Tokens.Color.textSecondary : Tokens.Color.text,
         ]
-        let text = (isEditing ? shown + "|" : shown) as NSString
+        let text = (isEditing && !isSelected ? shown + "|" : shown) as NSString
         let textSize = text.size(withAttributes: attributes)
 
         // Centrada cuando sólo se lee, a la izquierda mientras se escribe: si
@@ -236,6 +239,19 @@ final class BrowserChrome: UIView {
         let x = isEditing || !fits
             ? addressFrame.minX + 12
             : addressFrame.midX - textSize.width / 2
+        // Con todo seleccionado se pinta el resalte detrás, como en cualquier
+        // navegador: así se ve que la próxima tecla va a sustituirlo entero.
+        if isSelected {
+            let highlight = CGRect(
+                x: x - 3, y: addressFrame.midY - textSize.height / 2 - 1,
+                width: min(textSize.width + 6, addressFrame.width - 16),
+                height: textSize.height + 2
+            )
+            context.setFillColor(Tokens.Color.accent.withAlphaComponent(0.35).desktopCGColor)
+            context.addPath(UIBezierPath(roundedRect: highlight, cornerRadius: 3).cgPath)
+            context.fillPath()
+        }
+
         text.draw(
             in: CGRect(
                 x: x, y: addressFrame.midY - textSize.height / 2,
