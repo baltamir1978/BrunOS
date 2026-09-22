@@ -223,6 +223,27 @@ nunca. Ahora va en su propio `try?`.
 
 **Lección**: ante un error de WebKit, mirar siempre `(error as NSError).userInfo`.
 
+### Por qué las webs salían enormes
+
+Tres cosas, y la tercera era la de verdad:
+
+1. Faltaba el **user-agent de Safari de macOS**. `preferredContentMode = .desktop` pide la versión
+   de escritorio pero **no cambia el user-agent**.
+2. Aunque el user-agent sea de Mac, los sitios miran `navigator.maxTouchPoints` y `ontouchstart`,
+   y si los ven sirven su interfaz táctil, con todo más grande. Se anulan con un script: en BrunOS
+   el puntero **es** un ratón, así que no se engaña a nadie.
+3. **El viewport valía 980 px.** Cuando una página no declara `meta viewport` —lo normal en una web
+   de escritorio, y es el caso de la portada de Google— WebKit en iOS le asigna **980 px por
+   defecto** y estira el resultado hasta el ancho real de la vista. En un panel de 1690 puntos eso
+   es **1,72× de aumento sobre todo**. Se nota sólo en las portadas y no en las páginas sencillas,
+   porque aquéllas sí suelen declarar su viewport.
+
+Se corrige añadiendo `meta viewport` con `width=device-width` **sólo si la página no traía uno**:
+pisárselo a un sitio que ya se adapta sería romperlo. Comprobado con un programa de prueba contra
+google.com: `window.innerWidth` pasa de 980 a 1690.
+
+Con el viewport bien, el zoom por defecto vuelve a 1: ya no hay nada que compensar.
+
 ### El contador de bloqueados: quitado
 
 `WKContentRuleList` **no informa de cuántas peticiones detiene** — el filtrado ocurre dentro de

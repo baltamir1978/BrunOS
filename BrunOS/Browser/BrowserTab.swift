@@ -73,6 +73,16 @@ final class BrowserTab: NSObject {
         // Que la web decida si quiere modo oscuro por su cuenta, sin que se lo
         // imponga el estilo del escritorio.
         webView.overrideUserInterfaceStyle = .unspecified
+
+        // **User-agent de Safari de macOS.** `preferredContentMode = .desktop`
+        // pide la versión de escritorio, pero no cambia el user-agent: muchos
+        // sitios siguen viendo un iPhone y sirven su interfaz para dedos, con
+        // todo más grande. Se nota justo en las portadas, no en las páginas
+        // estáticas.
+        webView.customUserAgent = Self.desktopUserAgent
+
+        installDesktopHints()
+        installViewportFix()
         // El indicador de scroll estorba: el cursor ya dice dónde está uno.
         webView.scrollView.showsVerticalScrollIndicator = false
 
@@ -87,6 +97,73 @@ final class BrowserTab: NSObject {
         webView.pageZoom = pageZoom
         observeProperties()
         installInjector()
+    }
+
+    /// Safari de macOS. La versión se deja fija a propósito: seguir la del
+    /// sistema aquí no aporta nada y sí puede romper la detección de algún
+    /// sitio cuando iOS cambie de número.
+    private static let desktopUserAgent =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+        + "(KHTML, like Gecko) Version/18.6 Safari/605.1.15"
+
+    /// Convence a la página de que hay un ratón y no un dedo.
+    ///
+    /// **El user-agent no basta.** Google y compañía miran
+    /// `navigator.maxTouchPoints` y `ontouchstart`, y si los ven sirven su
+    /// interfaz táctil: botones enormes y mucho aire. En BrunOS el puntero es
+    /// un ratón de verdad, así que decirlo no es engañar a nadie, es describir
+    /// la realidad.
+    ///
+    /// Va en el mundo **de la página**, no en el propio de BrunOS: tiene que
+    /// verlo el JavaScript del sitio.
+    private func installDesktopHints() {
+        let source = """
+            (function () {
+                try {
+                    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
+                    Object.defineProperty(navigator, 'msMaxTouchPoints', { get: () => 0 });
+                    delete window.ontouchstart;
+                    delete window.ontouchmove;
+                    delete window.ontouchend;
+                } catch (error) {}
+            })();
+            """
+        webView.configuration.userContentController.addUserScript(
+            WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        )
+    }
+
+    /// Corrige el ancho del viewport en las páginas de escritorio.
+    ///
+    /// **Ésta era la causa de que todo se viera enorme.** Cuando una página no
+    /// declara `meta viewport` —lo normal en una web de escritorio, y es el
+    /// caso de la portada de Google— WebKit en iOS le asigna **980 px por
+    /// defecto** y luego estira el resultado hasta el ancho real de la vista.
+    /// En un panel de 1690 puntos eso son 1,72× de aumento sobre todo:
+    /// tipografías, botones, márgenes.
+    ///
+    /// Se nota sólo en las portadas y no en las páginas sencillas, porque
+    /// aquéllas sí suelen declarar su viewport.
+    ///
+    /// La corrección es añadir un `meta viewport` con `width=device-width`, que
+    /// en un `WKWebView` es el ancho de la vista en puntos. Así un píxel CSS
+    /// vuelve a ser un punto y la página se ve a su tamaño.
+    ///
+    /// **Sólo se añade si la página no traía uno**: pisarle el suyo a un sitio
+    /// que ya se adapta sería romperlo.
+    private func installViewportFix() {
+        let source = """
+            (function () {
+                if (document.querySelector('meta[name=viewport]')) return;
+                const meta = document.createElement('meta');
+                meta.name = 'viewport';
+                meta.content = 'width=device-width, initial-scale=1';
+                (document.head || document.documentElement).appendChild(meta);
+            })();
+            """
+        webView.configuration.userContentController.addUserScript(
+            WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        )
     }
 
     // MARK: - Navegación
@@ -493,8 +570,10 @@ enum BrowserZoom {
         if let stored = UserDefaults.standard.object(forKey: key) as? Double {
             return CGFloat(stored)
         }
-        let scale = AppServices.shared.externalDisplay.currentProfile?.scale.rawValue ?? 1
-        return max(0.7, min(1, CGFloat(1 / scale)))
+        // Arrancar en 1 ahora que el viewport es correcto: la página se ve a su
+        // tamaño, ni estirada ni encogida. Antes hacía falta compensar porque
+        // WebKit estiraba un viewport de 980 px hasta el ancho del panel.
+        return 1
     }
 
     static func remember(_ zoom: CGFloat) {
