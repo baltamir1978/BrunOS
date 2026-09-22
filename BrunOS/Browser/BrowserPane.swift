@@ -59,6 +59,12 @@ final class BrowserPane: UIView, Pane {
             name: ContentBlocker.didChangeNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(zoomChanged),
+            name: .brunosBrowserZoomChanged,
+            object: nil
+        )
     }
 
     @available(*, unavailable)
@@ -156,6 +162,12 @@ final class BrowserPane: UIView, Pane {
         }
     }
 
+    @objc private func zoomChanged() {
+        for tab in tabs {
+            tab.pageZoom = BrowserZoom.default
+        }
+    }
+
     @objc private func blockerChanged() {
         for tab in tabs {
             AppServices.shared.blocker.install(
@@ -183,8 +195,10 @@ final class BrowserPane: UIView, Pane {
         tab.pageZoom = min(max(tab.pageZoom + delta, 0.5), 3)
     }
 
+    /// Cmd+0 vuelve al zoom que corresponde a la escala de la pantalla, no a 1.
     func resetZoom() {
-        activeTab?.pageZoom = 1
+        BrowserZoom.reset()
+        activeTab?.pageZoom = BrowserZoom.default
     }
 
     func copySelection() {

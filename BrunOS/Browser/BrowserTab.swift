@@ -39,8 +39,11 @@ final class BrowserTab: NSObject {
     private var lastHoverTime: Date = .distantPast
 
     /// Zoom de la página. Cmd + / − / 0.
-    var pageZoom: CGFloat = 1 {
-        didSet { webView.pageZoom = pageZoom }
+    var pageZoom: CGFloat = BrowserZoom.default {
+        didSet {
+            webView.pageZoom = pageZoom
+            BrowserZoom.remember(pageZoom)
+        }
     }
 
     var onChange: (@MainActor () -> Void)?
@@ -81,6 +84,7 @@ final class BrowserTab: NSObject {
             host: nil
         )
 
+        webView.pageZoom = pageZoom
         observeProperties()
         installInjector()
     }
@@ -461,5 +465,43 @@ extension BrowserTab: WKUIDelegate {
             webView.load(URLRequest(url: url))
         }
         return nil
+    }
+}
+
+
+/// Zoom por defecto del navegador.
+///
+/// **Por qué no es siempre 1.** El escritorio se maqueta en puntos lógicos: en
+/// un monitor 2K a escala 1,5 son 1707 puntos que luego se estiran a 2560
+/// píxeles. La página recibe un viewport de 1707 y lo dibuja para ese ancho,
+/// así que sus 16 px por defecto acaban midiendo 24 px reales en el monitor.
+/// El resultado es una web desproporcionada frente al resto de la interfaz,
+/// que sí está pensada en puntos lógicos.
+///
+/// Se compensa **en parte**, no del todo: compensarlo entero (1/escala) dejaría
+/// el texto exactamente igual que a resolución nativa y anularía el sentido de
+/// haber elegido una escala. El suelo de 0,7 evita que a escala 3 la web quede
+/// ilegible.
+///
+/// Y se recuerda lo que Bruno ajuste a mano, que al final es lo que manda.
+@MainActor
+enum BrowserZoom {
+
+    private static let key = "browser.zoom"
+
+    static var `default`: CGFloat {
+        if let stored = UserDefaults.standard.object(forKey: key) as? Double {
+            return CGFloat(stored)
+        }
+        let scale = AppServices.shared.externalDisplay.currentProfile?.scale.rawValue ?? 1
+        return max(0.7, min(1, CGFloat(1 / scale)))
+    }
+
+    static func remember(_ zoom: CGFloat) {
+        UserDefaults.standard.set(Double(zoom), forKey: key)
+    }
+
+    static func reset() {
+        UserDefaults.standard.removeObject(forKey: key)
     }
 }

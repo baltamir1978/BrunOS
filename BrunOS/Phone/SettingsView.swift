@@ -12,6 +12,7 @@ struct SettingsView: View {
     private let services = AppServices.shared
 
     @State private var pointer = PointerSettings.load()
+    @State private var browserZoom = BrowserZoom.default
     @State private var scale: DisplayProfile.Scale = .x2
     @State private var overscan: DisplayProfile.Overscan = .none
 
@@ -138,6 +139,17 @@ struct SettingsView: View {
 
     private var browserSection: some View {
         Section {
+            VStack(alignment: .leading) {
+                Text("Zoom de las páginas: \(Int(browserZoom * 100)) %")
+                    .font(.brunosSans(14))
+                Slider(value: $browserZoom, in: 0.5...2, step: 0.05)
+                    .accessibilityLabel("Zoom de las páginas")
+            }
+            .onChange(of: browserZoom) { _, newValue in
+                BrowserZoom.remember(newValue)
+                NotificationCenter.default.post(name: .brunosBrowserZoomChanged, object: nil)
+            }
+
             Toggle("Bloquear anuncios", isOn: Binding(
                 get: { services.blocker.isEnabled },
                 set: { services.blocker.isEnabled = $0 }
@@ -164,7 +176,10 @@ struct SettingsView: View {
         } header: {
             Text("Navegador")
         } footer: {
-            Text("Las listas son EasyList y EasyPrivacy, y **no vienen incluidas**: tienen "
+            Text("El zoom arranca compensando la escala de la pantalla: el escritorio se "
+                 + "maqueta en puntos lógicos y, sin compensar, las páginas salen "
+                 + "desproporcionadas frente al resto de la interfaz.\n\n"
+                 + "Las listas son EasyList y EasyPrivacy, y **no vienen incluidas**: tienen "
                  + "licencia propia. Se generan con `Tools/fetch-blocklists.sh` en el Mac.\n\n"
                  + "No hay contador de bloqueados: WebKit no dice cuántas peticiones detiene, "
                  + "y enseñar un número inventado sería peor que no enseñar ninguno.")

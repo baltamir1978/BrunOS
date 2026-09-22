@@ -186,6 +186,8 @@ extension Notification.Name {
     static let brunosShowKeyboard = Notification.Name("BrunOSShowKeyboard")
     /// La pide el icono de ajustes del dock, desde la pantalla externa.
     static let brunosShowSettings = Notification.Name("BrunOSShowSettings")
+    /// Cambió el zoom del navegador desde los ajustes.
+    static let brunosBrowserZoomChanged = Notification.Name("BrunOSBrowserZoomChanged")
 }
 
 /// Aviso de que el ratón no va a funcionar hasta activar AssistiveTouch.
