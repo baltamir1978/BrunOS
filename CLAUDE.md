@@ -278,7 +278,6 @@ movimiento más incómodo que hay.
 
 ## Pendientes
 
-- **Claves ed25519** para SSH.
 - **`Tools/testflight.sh`**: subir con la clave de la API de App Store Connect e incremento
   automático de build. Hasta entonces, las subidas van a mano desde Xcode.
 - **Autorrelleno de contraseñas**, lo último por decisión de Bruno. El de Safari no está al

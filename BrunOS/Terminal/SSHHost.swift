@@ -14,11 +14,14 @@ struct SSHHost: Codable, Identifiable, Equatable, Sendable {
         case tailscale
         /// Contraseña, guardada en el Keychain de este dispositivo.
         case password
+        /// La clave ed25519 del iPhone (`SSHKeyStore`).
+        case key
 
         var label: String {
             switch self {
             case .tailscale: "Tailscale (sin contraseña)"
             case .password: "Contraseña"
+            case .key: "Clave ed25519"
             }
         }
     }

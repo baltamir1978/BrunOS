@@ -53,9 +53,6 @@ NIOSSH.
 
 ### Lo que queda fuera de la Fase 2, y por qué
 
-- **Claves ed25519**: aplazadas a propósito, primero por el prompt y luego por Bruno. Citadel las
-  admite (`ed25519`, `p256`, `p384`, `p521`, `rsa`), así que es añadir un caso a
-  `SSHHost.Authentication` y guardar la clave en el Keychain.
 - **`keyboard-interactive`**: **no es posible con NIOSSH**, ver arriba.
 - **Banner de autenticación del servidor** (`SSH_MSG_USERAUTH_BANNER`): NIOSSH sólo lo contempla
   **del lado servidor**, en `SSHServerConfiguration.banner`. Un cliente no tiene forma de leerlo.
@@ -80,6 +77,21 @@ poder cotejarla a ojo contra `ssh-keyscan`.
 `SSHHostKeyValidator.custom(_:)` de Citadel es público, así que no hizo falta rodearlo. El
 validador es `Sendable` y sin estado mutable a propósito: NIO lo llama desde su event loop, no
 desde el actor principal.
+
+### Clave ed25519 (22-sep-2026)
+
+Método «Clave ed25519» (`SSHHost.Authentication.key`), para terminal y SFTP. Hay **una clave del
+iPhone para todas las máquinas**, como `~/.ssh/id_ed25519` (`SSHKeyStore`): se genera en el
+teléfono con CryptoKit o se importa del portapapeles en formato OpenSSH, cifrada o no (la lectura
+es la de Citadel, `Curve25519.Signing.PrivateKey(sshEd25519:decryptionKey:)`). Va al Keychain con
+`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` y la privada no sale de ahí: la app sólo copia la
+pública, desde Ajustes del terminal › Clave SSH.
+
+Citadel usa `swift-crypto`, que en plataformas de Apple es CryptoKit por debajo: los tipos son los
+mismos y basta `import CryptoKit`.
+
+**Comprobado**: la línea pública que genera BrunOS la lee `ssh-keygen -l` y da la misma huella.
+**Sin probar**: la importación de una clave cifrada y la conexión contra un servidor real.
 
 ### Terminal: lista de conexiones y tema propio
 

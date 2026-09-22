@@ -20,7 +20,7 @@ enum SettingsPages {
         switch scope {
         case .global: ("Ajustes", "gearshape.fill", [general, display, mouse, about])
         case .browser: ("Navegador", "safari.fill", [browserGeneral, blocking, downloads])
-        case .terminal: ("Terminal", "terminal.fill", [machines, terminalLook, knownHosts])
+        case .terminal: ("Terminal", "terminal.fill", [machines, sshKey, terminalLook, knownHosts])
         case .files: ("Ficheros", "folder.fill", [filesView, locations])
         }
     }
@@ -388,6 +388,86 @@ enum SettingsPages {
                     rows: [SettingsRow("Estado", .value(tailscale ? "parece activo" : "no detectado"))]
                 ),
             ]
+        }
+    }
+
+    private static var sshKey: SettingsPage {
+        SettingsPage(title: "Clave SSH", symbol: "key.horizontal.fill", tint: green) {
+            guard let line = SSHKeyStore.publicKeyLine, let fingerprint = SSHKeyStore.fingerprint else {
+                return [SettingsGroup(
+                    footer: "Una clave ed25519, como la de ssh-keygen: se genera aquí y se guarda en el "
+                        + "llavero del iPhone, sin pasar por iCloud. También puedes importar la tuya: "
+                        + "copia el contenido de ~/.ssh/id_ed25519 al portapapeles del iPhone y pulsa "
+                        + "Importar.",
+                    rows: [
+                        SettingsRow("Todavía no hay clave", .buttons([
+                            SettingsButton("Importar…") { importKey() },
+                            SettingsButton("Generar", style: .accent) { SSHKeyStore.generate() },
+                        ])),
+                    ]
+                )]
+            }
+            let short = line.count > 46 ? String(line.prefix(26)) + "…" + String(line.suffix(18)) : line
+            return [
+                SettingsGroup(
+                    footer: "Pega la clave pública en ~/.ssh/authorized_keys de cada máquina y elige "
+                        + "«Clave ed25519» como método al darla de alta. Hay una sola para todas, como "
+                        + "en un Mac. La privada no sale nunca del llavero.",
+                    rows: [
+                        SettingsRow("Clave pública", subtitle: short, symbol: "key", .buttons([
+                            SettingsButton("Copiar", style: .accent) { UIPasteboard.general.string = line },
+                        ])),
+                        SettingsRow("Huella", .value(fingerprint)),
+                    ]
+                ),
+                SettingsGroup(
+                    footer: "Cambiarla deja fuera a las máquinas que tenían la anterior hasta que se les "
+                        + "ponga la nueva.",
+                    rows: [
+                        SettingsRow("Cambiar la clave", .buttons([
+                            SettingsButton("Importar…") { importKey() },
+                            SettingsButton("Generar otra", style: .destructive) {
+                                desktop?.presentConfirm(
+                                    title: "¿Generar una clave nueva?",
+                                    message: "Las máquinas que tienen la actual dejarán de aceptarla.",
+                                    destructive: "Generar"
+                                ) { confirmed in
+                                    if confirmed { SSHKeyStore.generate() }
+                                }
+                            },
+                        ])),
+                    ]
+                ),
+            ]
+        }
+    }
+
+    /// Importa la clave del portapapeles del iPhone. Si está cifrada, pide la
+    /// frase de paso.
+    private static func importKey() {
+        guard let text = UIPasteboard.general.string, text.contains("OPENSSH PRIVATE KEY") else {
+            desktop?.presentConfirm(
+                title: "No hay clave en el portapapeles",
+                message: "Copia al portapapeles del iPhone el contenido de ~/.ssh/id_ed25519 y vuelve a pulsar Importar.",
+                destructive: "Entendido"
+            ) { _ in }
+            return
+        }
+        do {
+            try SSHKeyStore.importOpenSSH(text, passphrase: nil)
+        } catch {
+            desktop?.presentPrompt(title: "Frase de paso de la clave", value: "") { passphrase in
+                guard let passphrase else { return }
+                do {
+                    try SSHKeyStore.importOpenSSH(text, passphrase: passphrase)
+                } catch {
+                    desktop?.presentConfirm(
+                        title: "No se pudo importar",
+                        message: error.localizedDescription,
+                        destructive: "Entendido"
+                    ) { _ in }
+                }
+            }
         }
     }
 

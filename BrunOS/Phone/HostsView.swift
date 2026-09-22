@@ -156,6 +156,10 @@ struct HostEditorView: View {
                          ? "Tailscale autentica por la identidad del tailnet, así que no hace "
                            + "falta contraseña. Requiere que Tailscale SSH esté activado en esa "
                            + "máquina."
+                         : host.authentication == .key
+                         ? "Usa la clave ed25519 del iPhone. Su parte pública se copia desde los "
+                           + "ajustes del terminal en el monitor, y va en el authorized_keys de "
+                           + "la máquina."
                          : "La contraseña se guarda en el Keychain de este iPhone. **No se "
                            + "sincroniza con iCloud y no se puede leer con el teléfono "
                            + "bloqueado.**")

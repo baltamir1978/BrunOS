@@ -3,6 +3,7 @@
 // aviso. Es legítimo porque todo lo que cruza de hilo aquí pasa por
 // `MainActor.run`, y el cliente lo maneja el event loop de NIO en el suyo.
 @preconcurrency import Citadel
+import CryptoKit
 import Foundation
 @preconcurrency import NIOCore
 @preconcurrency import NIOSSH
@@ -95,6 +96,16 @@ final class SSHSession {
         let password = host.authentication == .password
             ? SSHKeychain.password(for: host) ?? ""
             : ""
+        let key: Curve25519.Signing.PrivateKey?
+        if host.authentication == .key {
+            guard let stored = SSHKeyStore.privateKey() else {
+                throw FileError.failed("Esta máquina usa la clave del iPhone y todavía no hay "
+                                       + "ninguna. Genérala en Ajustes del terminal › Clave SSH.")
+            }
+            key = stored
+        } else {
+            key = nil
+        }
 
         let knownHosts = AppServices.shared.knownHosts
         let known = knownHosts.entry(host: host.host, port: host.port)?.fingerprint
@@ -122,6 +133,7 @@ final class SSHSession {
         try await Self.runSession(
             host: host,
             password: password,
+            key: key,
             knownFingerprint: known,
             size: size,
             input: input,
@@ -147,15 +159,22 @@ final class SSHSession {
     private nonisolated static func runSession(
         host: SSHHost,
         password: String,
+        key: Curve25519.Signing.PrivateKey?,
         knownFingerprint: String?,
         size: (cols: Int, rows: Int),
         input: AsyncStream<Input>,
         output: AsyncStream<[UInt8]>.Continuation,
         onHostKey: @escaping @Sendable (Bool, String) -> Void
     ) async throws {
-        let authentication: SSHAuthenticationMethod = switch host.authentication {
-        case .tailscale: .tailscale(username: host.username)
-        case .password: .passwordBased(username: host.username, password: password)
+        let authentication: SSHAuthenticationMethod
+        switch host.authentication {
+        case .tailscale:
+            authentication = .tailscale(username: host.username)
+        case .password:
+            authentication = .passwordBased(username: host.username, password: password)
+        case .key:
+            guard let key else { throw FileError.failed("Falta la clave SSH del iPhone.") }
+            authentication = .ed25519(username: host.username, privateKey: key)
         }
 
         let client = try await SSHClient.connect(

@@ -1,4 +1,5 @@
 @preconcurrency import Citadel
+import CryptoKit
 import Foundation
 @preconcurrency import NIOCore
 
@@ -23,12 +24,24 @@ final class SFTPProvider: FileProvider, @unchecked Sendable {
         private var client: SSHClient?
         private var sftp: SFTPClient?
 
-        func session(for host: SSHHost, password: String) async throws -> SFTPClient {
+        func session(
+            for host: SSHHost,
+            password: String,
+            key: Curve25519.Signing.PrivateKey?
+        ) async throws -> SFTPClient {
             if let sftp, sftp.isActive { return sftp }
 
-            let authentication: SSHAuthenticationMethod = switch host.authentication {
-            case .tailscale: .tailscale(username: host.username)
-            case .password: .passwordBased(username: host.username, password: password)
+            let authentication: SSHAuthenticationMethod
+            switch host.authentication {
+            case .tailscale:
+                authentication = .tailscale(username: host.username)
+            case .password:
+                authentication = .passwordBased(username: host.username, password: password)
+            case .key:
+                guard let key else {
+                    throw FileError.failed("No hay clave SSH: genérala en Ajustes del terminal › Clave SSH.")
+                }
+                authentication = .ed25519(username: host.username, privateKey: key)
             }
 
             let known = await MainActor.run {
@@ -85,8 +98,9 @@ final class SFTPProvider: FileProvider, @unchecked Sendable {
         let password = await MainActor.run {
             host.authentication == .password ? SSHKeychain.password(for: host) ?? "" : ""
         }
+        let key = host.authentication == .key ? SSHKeyStore.privateKey() : nil
         do {
-            return try await connection.session(for: host, password: password)
+            return try await connection.session(for: host, password: password, key: key)
         } catch {
             throw FileError.failed("No se pudo conectar con \(host.host): \(error.localizedDescription)")
         }
