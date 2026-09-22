@@ -14,6 +14,8 @@ ubicaciones más lista) en lugar de los dos paneles de Total Commander.
 - **Ubicaciones del iPhone**: iOS no deja recorrer el teléfono entero. Cualquier carpeta que se
   vea en la app Archivos (En mi iPhone, las de otras apps, iCloud, USB) se añade una vez con el
   selector del sistema, que **sólo puede salir en la pantalla del iPhone**.
+- **La cabecera enseña el nombre de la carpeta**, como la barra de título del Finder. «Nombre» no
+  sale: se ordena por nombre al volver a pulsar Tamaño o Fecha, o desde el botón derecho.
 - **Tres vistas**: lista, iconos pequeños e iconos grandes, con el selector en la cabecera o desde
   el clic derecho. Se recuerda la elegida. En iconos, las flechas se mueven en rejilla y las
   imágenes **locales** llevan miniatura (por SFTP habría que descargar cada foto entera).

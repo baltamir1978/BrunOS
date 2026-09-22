@@ -55,6 +55,24 @@ final class PhoneRootViewController: UIViewController {
         services.externalDisplay.register(from: self)
     }
 
+    /// **Al quitar el cable, iOS no siempre desconecta la escena externa
+    /// enseguida**: puede dejarla en segundo plano un buen rato, y mientras
+    /// tanto `sceneDidDisconnect` no llega. El iPhone se quedaba en modo mando,
+    /// en negro, sin monitor delante.
+    ///
+    /// La fuente fiable es la del propio accesorio: `isAvailable` dice si el
+    /// sistema puede mostrarlo, y UIKit vuelve a llamar aquí cada vez que
+    /// cambia, porque se lee dentro de `updateProperties`.
+    override func updateProperties() {
+        super.updateProperties()
+        let manager = services.externalDisplay
+        guard let registration = manager.registration else { return }
+        if !registration.isAvailable, manager.currentProfile != nil {
+            Log.display.info("El accesorio externo ya no está disponible")
+            manager.detach()
+        }
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         becomeFirstResponder()

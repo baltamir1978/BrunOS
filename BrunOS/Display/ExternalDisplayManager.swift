@@ -1,3 +1,4 @@
+import Observation
 import UIKit
 
 /// Encapsula todo lo que iOS 27 cambió en la pantalla externa.
@@ -17,18 +18,25 @@ import UIKit
 ///    que conservar**. Si se descarta, se pierde el control de `isEnabled` y no se
 ///    puede desregistrar. Su propiedad `isAvailable` sólo es observable dentro de
 ///    `updateProperties()` y `layoutSubviews()`.
+///
+/// **Es `@Observable` por la interfaz del iPhone**, que decide entre la pantalla
+/// normal y el modo mando mirando `currentProfile`. Sin observación, SwiftUI no
+/// se enteraba del cambio: al conectar funcionaba de rebote, porque cambiaba a la
+/// vez otra cosa que sí era observable, pero al desconectar el iPhone se quedaba
+/// en modo mando, en negro.
 @MainActor
+@Observable
 final class ExternalDisplayManager {
 
     /// Se avisa cuando el sistema conecta o desconecta la pantalla externa, para
     /// que el escritorio recalcule el mosaico y recoloque el cursor.
     static let didChangeNotification = Notification.Name("BrunOSExternalDisplayDidChange")
 
-    private(set) var registration: UISceneAccessoryRegistration?
-    private(set) weak var externalWindow: UIWindow?
+    @ObservationIgnored private(set) var registration: UISceneAccessoryRegistration?
+    @ObservationIgnored private(set) weak var externalWindow: UIWindow?
     /// Se conserva para poder enseñar el diagnóstico en los ajustes del iPhone.
-    private(set) weak var currentScreen: UIScreen?
-    private let store = DisplayProfileStore()
+    @ObservationIgnored private(set) weak var currentScreen: UIScreen?
+    @ObservationIgnored private let store = DisplayProfileStore()
 
     /// Perfil de la pantalla conectada ahora mismo, si la hay.
     private(set) var currentProfile: DisplayProfile?
@@ -112,7 +120,11 @@ final class ExternalDisplayManager {
     /// No se tira el estado de los paneles: al volver a enchufar el monitor todo
     /// tiene que reaparecer como estaba.
     func detach() {
+        // Llega por dos vías —`sceneDidDisconnect` y la disponibilidad del
+        // accesorio— y la segunda no tiene que hacer nada.
+        guard externalWindow != nil || currentProfile != nil else { return }
         Log.display.info("Pantalla externa desconectada; se conserva el estado de los paneles")
+        AppServices.shared.pointer.detach()
         externalWindow = nil
         currentScreen = nil
         currentProfile = nil

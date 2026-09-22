@@ -180,6 +180,26 @@ de BrunOS quedan para el trackpad táctil y para `GCMouse`, que sigue siendo rel
 entera (por ejemplo, si iOS la limita al área segura), el cursor no llegaría a los bordes del
 monitor: es lo primero que hay que mirar.
 
+### Arrastrar con el ratón: el toque de AssistiveTouch es el botón
+
+Arrastrar no funcionaba en ningún sitio. Con AssistiveTouch, el botón izquierdo llega como **un
+toque en la pantalla del iPhone** donde esté el puntero, y mantenerlo mientras se mueve es un dedo
+que se desliza. El trackpad a pantalla completa descartaba ese movimiento (para no mover el cursor
+el doble) y sólo el clic suelto llegaba, por el reconocedor de toques. Ahora, con ratón y en modo
+mando, `TrackpadUIView` trata ese toque como el ratón: al tocar, cursor a ese punto y botón
+pulsado; al mover, arrastre; al soltar, botón suelto. Funciona porque el cursor va en absoluto y
+el toque cae justo donde está. Un dedo de verdad, con ratón conectado, hace lo mismo: clic en ese
+punto del monitor.
+
+### Al desconectar, el iPhone se quedaba en modo mando
+
+Dos causas. **`ExternalDisplayManager` no era `@Observable`**: la interfaz del iPhone decide el modo
+por `currentProfile`, y al conectar funcionaba de rebote (cambiaba otra cosa observable a la vez),
+pero al desconectar nada la repintaba. Y **al quitar el cable, iOS puede tardar en llamar a
+`sceneDidDisconnect`**: ahora `PhoneRootViewController.updateProperties()` mira también
+`UISceneAccessoryRegistration.isAvailable`, que es la fuente que iOS 27 da para esto. `detach()`
+aguanta que le lleguen las dos.
+
 ### Atenuar
 
 Baja el brillo del iPhone al mínimo (`ScreenDimmer`) y pone un velo que **no recibe toques**: el

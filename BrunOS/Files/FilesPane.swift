@@ -313,8 +313,10 @@ final class FilesPane: UIView, Pane {
         let listX = Self.sidebarWidth
         let listWidth = bounds.width - listX
         upFrame = CGRect(x: listX + 6, y: 4, width: 22, height: 22)
+        // «Nombre» ya no va en la cabecera: ahí va el nombre de la carpeta,
+        // que es lo que se busca al mirar arriba. Se ordena por nombre al
+        // volver a pulsar Tamaño o Fecha cuando ya están elegidos.
         sortFrames = [
-            .name: CGRect(x: listX + 34, y: 6, width: 140, height: 18),
             .size: CGRect(x: bounds.width - Self.sizeColumnInset, y: 6, width: 70, height: 18),
             .date: CGRect(x: bounds.width - Self.dateColumnInset, y: 6, width: 110, height: 18),
         ]
@@ -464,6 +466,26 @@ final class FilesPane: UIView, Pane {
                 color: isActive ? Tokens.Color.accent : Tokens.Color.textSecondary
             )
         }
+
+        // El nombre de la carpeta, como la barra de título del Finder.
+        let folder = path == services.files.currentProvider.rootPath
+            ? services.files.currentProvider.name
+            : (path as NSString).lastPathComponent
+        (folder as NSString).draw(
+            in: CGRect(
+                x: upFrame.maxX + 8, y: 6,
+                width: max(0, bounds.width - Self.sizeColumnInset - upFrame.maxX - 20), height: 18
+            ),
+            withAttributes: [
+                .font: Tokens.sans(13, weight: .semibold),
+                .foregroundColor: Tokens.Color.text,
+                .paragraphStyle: {
+                    let paragraph = NSMutableParagraphStyle()
+                    paragraph.lineBreakMode = .byTruncatingMiddle
+                    return paragraph
+                }(),
+            ]
+        )
 
         for (kind, frame) in sortFrames {
             let isActive = kind == sort
@@ -761,7 +783,7 @@ final class FilesPane: UIView, Pane {
                 return
             }
             for (kind, frame) in sortFrames where frame.insetBy(dx: -6, dy: -6).contains(event.location) {
-                sort = kind
+                sort = sort == kind ? .name : kind
                 allItems = sorted(allItems)
                 items = filtered(allItems)
                 setNeedsDisplay()
@@ -879,6 +901,19 @@ final class FilesPane: UIView, Pane {
         entries.append(ContextMenu.Entry(title: "Nueva carpeta", symbol: "folder.badge.plus") { [weak self] in
             self?.createFolder()
         })
+        for kind in [Sort.name, .size, .date] where kind != sort {
+            entries.append(ContextMenu.Entry(
+                title: "Ordenar por \(kind.label.lowercased())",
+                symbol: "arrow.up.arrow.down"
+            ) { [weak self] in
+                guard let self else { return }
+                self.sort = kind
+                self.allItems = self.sorted(self.allItems)
+                self.items = self.filtered(self.allItems)
+                self.setNeedsLayout()
+                self.setNeedsDisplay()
+            })
+        }
         for mode in ViewMode.allCases where mode != self.mode {
             entries.append(ContextMenu.Entry(
                 title: "Ver como \(mode.label.lowercased())",

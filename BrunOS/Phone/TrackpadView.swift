@@ -31,6 +31,8 @@ final class TrackpadUIView: UIView {
     private let services = AppServices.shared
     private var lastPoint: CGPoint?
     private var isDragging = false
+    /// El toque es el del botón del ratón, no un dedo. Ver `touchesBegan`.
+    private var isMouseButton = false
 
     /// Cuánto se multiplica el dedo. Por debajo de 1 el cursor se queda corto
     /// en un monitor grande; por encima de 2 se vuelve imposible apuntar.
@@ -77,14 +79,51 @@ final class TrackpadUIView: UIView {
 
     // MARK: - Dedos
 
+    /// **Con ratón, el toque es el botón.** AssistiveTouch no entrega el
+    /// botón izquierdo como botón: lo convierte en un toque en la pantalla del
+    /// iPhone, justo donde está su puntero. Mantener pulsado y mover es, para
+    /// iOS, un dedo que se desliza.
+    ///
+    /// Antes ese toque se trataba como un dedo sobre el trackpad y se
+    /// descartaba el movimiento, para no mover el cursor el doble: el clic
+    /// suelto funcionaba, pero **arrastrar no hacía nada**. Como el cursor del
+    /// monitor sigue en absoluto al puntero del iPhone (`IndirectPointerSource`),
+    /// ese toque cae exactamente donde está el cursor, y se puede tratar como
+    /// el ratón mismo: tocar es pulsar, mover es arrastrar y soltar es soltar.
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        lastPoint = centroid(of: event?.allTouches ?? touches)
+        let all = event?.allTouches ?? touches
+        lastPoint = centroid(of: all)
+        isMouseButton = isFullScreen && services.assistiveTouch.isPointerWorking && all.count == 1
+        guard isMouseButton, let touch = all.first else { return }
+        moveCursor(to: touch.location(in: self))
+        services.desktopViewController?.deliverPointer(.down(button: .left), modifiers: [])
+    }
+
+    /// El cursor, al punto del toque, que es donde está el puntero del iPhone.
+    private func moveCursor(to point: CGPoint) {
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        services.pointer.move(toNormalized: CGPoint(
+            x: min(max(point.x / bounds.width, 0), 1),
+            y: min(max(point.y / bounds.height, 0), 1)
+        ))
+    }
+
+    override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+        // El clic ya se entregó al tocar: el toque y la pulsación larga
+        // sobrarían, y harían dos clics.
+        !isMouseButton
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         let all = event?.allTouches ?? touches
         let point = centroid(of: all)
         defer { lastPoint = point }
+
+        if isMouseButton, all.count == 1, let touch = all.first {
+            moveCursor(to: touch.location(in: self))
+            services.desktopViewController?.deliverPointer(.moved, modifiers: [])
+            return
+        }
         guard let previous = lastPoint else { return }
 
         let delta = CGVector(
@@ -111,13 +150,21 @@ final class TrackpadUIView: UIView {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        releaseMouseButtonIfNeeded()
         finishDragIfNeeded()
         lastPoint = nil
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        releaseMouseButtonIfNeeded()
         finishDragIfNeeded()
         lastPoint = nil
+    }
+
+    private func releaseMouseButtonIfNeeded() {
+        guard isMouseButton else { return }
+        isMouseButton = false
+        services.desktopViewController?.deliverPointer(.up(button: .left), modifiers: [])
     }
 
     private func centroid(of touches: Set<UITouch>) -> CGPoint {
