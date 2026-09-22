@@ -21,6 +21,7 @@ enum DesktopCommand: Equatable {
     case copy
     case paste
     case addressBar
+    case bookmark
     case reload
     case find
     case zoomIn
@@ -43,6 +44,7 @@ enum DesktopCommand: Equatable {
         case .copy: "Copiar"
         case .paste: "Pegar"
         case .addressBar: "Barra de direcciones"
+        case .bookmark: "Añadir a favoritos"
         case .reload: "Recargar"
         case .find: "Buscar"
         case .zoomIn: "Aumentar"
@@ -115,6 +117,7 @@ enum Shortcuts {
             Entry(input: "c", modifiers: .command, command: .copy, title: "Copiar"),
             Entry(input: "v", modifiers: .command, command: .paste, title: "Pegar"),
             Entry(input: "l", modifiers: .command, command: .addressBar, title: "Dirección"),
+            Entry(input: "d", modifiers: .command, command: .bookmark, title: "Favorito"),
             Entry(input: "r", modifiers: .command, command: .reload, title: "Recargar"),
             Entry(input: "f", modifiers: .command, command: .find, title: "Buscar"),
             Entry(input: "+", modifiers: .command, command: .zoomIn, title: "Aumentar"),

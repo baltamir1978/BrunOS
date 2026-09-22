@@ -39,10 +39,11 @@ final class FileService {
     func rebuild() {
         var providers: [any FileProvider] = [LocalProvider()]
 
-        for bookmark in externalFolders.bookmarks {
-            if let provider = ExternalFolderProvider(bookmark: bookmark) {
-                providers.append(provider)
-            }
+        // Se crean todas, disponibles o no: un servidor de red desmontado
+        // tiene que seguir viéndose en la barra lateral, en gris, y no
+        // desaparecer como si nunca se hubiera añadido.
+        for folder in externalFolders.folders {
+            providers.append(ExternalFolderProvider(folder: folder))
         }
 
         // Las máquinas SSH salen solas: si ya están configuradas para el

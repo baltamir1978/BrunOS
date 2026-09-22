@@ -28,6 +28,7 @@ final class AppServices {
     let blocker = ContentBlocker()
     let files = FileService()
     let history = BrowserHistory()
+    let favicons = FaviconStore()
     let passwords = PasswordBridge()
 
     /// El escritorio de la pantalla externa, si está conectada.

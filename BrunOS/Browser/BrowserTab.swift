@@ -50,11 +50,23 @@ final class BrowserTab: NSObject {
     /// Abrir algo en una pestaña nueva: lo resuelve el panel.
     var onOpenInNewTab: (@MainActor (URL) -> Void)?
 
-    enum DownloadState { case started, finished(URL), failed }
+    enum DownloadState {
+        case started
+        /// Cuánto lleva: fracción y bytes. Un vídeo tarda, y sin esto el aviso
+        /// se queda en «Descargando…» sin dar señales de vida.
+        case progress(Double, Int64, Int64)
+        case finished(URL)
+        case failed
+    }
     var onDownloadChange: (@MainActor (String, DownloadState) -> Void)?
 
     /// Dónde va a parar cada descarga, para poder decir luego cuál terminó.
     private var destinations: [ObjectIdentifier: URL] = [:]
+    /// El nombre que le queremos poner, cuando lo elegimos nosotros y no el
+    /// servidor: un vídeo suele llegar como `videoplayback` o `index.mp4`.
+    private var preferredNames: [ObjectIdentifier: String] = [:]
+    private var progressObservations: [ObjectIdentifier: NSKeyValueObservation] = [:]
+    private var lastReportedFraction: [ObjectIdentifier: Double] = [:]
 
     init(configuration: WKWebViewConfiguration) {
         // Mundo propio con acceso a shadow roots cerrados, nuevo en Safari 27.
@@ -227,8 +239,21 @@ final class BrowserTab: NSObject {
               td { padding: 5px 14px; }
               td:first-child { text-align: right; color: var(--text);
                                font-family: ui-monospace, monospace; }
+              .favorites { display: flex; flex-wrap: wrap; justify-content: center;
+                           gap: 10px; max-width: 720px; }
+              .favorites a { display: flex; align-items: center; gap: 8px;
+                             padding: 8px 12px; border-radius: 9px; text-decoration: none;
+                             background: color-mix(in srgb, var(--text) 7%, transparent);
+                             color: var(--text); font-size: 12.5px; max-width: 190px; }
+              .favorites a:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+              .favorites img, .favorites .letter {
+                             width: 16px; height: 16px; border-radius: 4px; flex: none; }
+              .favorites .letter { display: flex; align-items: center; justify-content: center;
+                             color: #fff; font-size: 9px; font-weight: 700; }
+              .favorites span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             </style></head><body>
               <h1>brunOS<span>_</span></h1>
+              \(Self.favoritesHTML())
               <table>
                 <tr><td>Cmd+L</td><td>escribir una dirección</td></tr>
                 <tr><td>Cmd+T</td><td>pestaña nueva</td></tr>
@@ -240,6 +265,49 @@ final class BrowserTab: NSObject {
             </body></html>
             """
         webView.loadHTMLString(html, baseURL: nil)
+    }
+
+    /// Los favoritos, como la rejilla de la página de inicio de Safari.
+    ///
+    /// Los iconos van **incrustados en base64**: la página se carga sin
+    /// `baseURL`, así que no hay desde dónde pedir un fichero local, y pedirlos
+    /// a la red en cada pestaña nueva sería una ristra de peticiones para algo
+    /// que ya está en disco.
+    private static func favoritesHTML() -> String {
+        let pages = AppServices.shared.history.bookmarks.prefix(12)
+        guard !pages.isEmpty else { return "" }
+
+        let items = pages.map { page -> String in
+            let host = URL(string: page.url)?.host() ?? ""
+            let icon: String
+            if let image = AppServices.shared.favicons.icon(for: host), let data = image.pngData() {
+                icon = "<img src=\"data:image/png;base64,\(data.base64EncodedString())\">"
+            } else {
+                let letter = host.replacingOccurrences(of: "www.", with: "").first.map(String.init)?.uppercased() ?? "·"
+                icon = "<span class=\"letter\" style=\"background:\(colorHex(for: host))\">\(escape(letter))</span>"
+            }
+            return "<a href=\"\(escape(page.url))\">\(icon)<span>\(escape(page.title))</span></a>"
+        }
+        return "<div class=\"favorites\">" + items.joined() + "</div>"
+    }
+
+    /// El mismo color por dominio que usa la barra de favoritos.
+    private static func colorHex(for seed: String) -> String {
+        var hash: UInt64 = 5381
+        for byte in seed.utf8 { hash = hash &* 33 &+ UInt64(byte) }
+        let hue = Double(hash % 360)
+        return "hsl(\(Int(hue)) 55% 45%)"
+    }
+
+    /// Nada de lo que viene de una web se mete en el HTML sin escapar: un
+    /// título con comillas rompería la página, y con una etiqueta dentro haría
+    /// algo peor.
+    private static func escape(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 
     func goBack() { webView.goBack() }
@@ -448,6 +516,100 @@ final class BrowserTab: NSObject {
         var cursor: String
     }
 
+    // MARK: - Medios
+
+    /// Un vídeo o un audio de la página.
+    ///
+    /// Se devuelve un tipo propio y no el diccionario de JavaScript por lo
+    /// mismo que `Hit`: `[String: Any]` no es `Sendable`.
+    struct Media: Sendable, Equatable {
+        var url: URL
+        var isAudio: Bool
+        var fileExtension: String
+        /// No es un fichero que se pueda guardar: un `blob:` de la propia
+        /// pestaña o una lista de trozos (HLS, DASH).
+        var isStream: Bool
+        var width: Int
+        var height: Int
+        var duration: Int
+        var pageTitle: String
+
+        var symbol: String { isAudio ? "waveform" : "film" }
+
+        /// Lo que se lee en el menú: «1920×1080 · 4:12 · mp4».
+        var label: String {
+            var parts: [String] = []
+            if width > 0, height > 0 { parts.append("\(width)×\(height)") }
+            if duration > 0 {
+                parts.append("\(duration / 60):" + String(format: "%02d", duration % 60))
+            }
+            if !fileExtension.isEmpty { parts.append(fileExtension) }
+            if parts.isEmpty { parts.append(url.host() ?? "medio") }
+            return parts.joined(separator: " · ")
+        }
+
+        /// El nombre del fichero: el título de la página, que es lo que uno
+        /// reconoce después en Descargas, y no el `videoplayback` del servidor.
+        var suggestedName: String {
+            let title = pageTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            let base = title.isEmpty ? (url.deletingPathExtension().lastPathComponent) : title
+            let clean = base
+                .components(separatedBy: CharacterSet(charactersIn: "/\\:*?\"<>|"))
+                .joined(separator: " ")
+                .prefix(80)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let ext = fileExtension.isEmpty ? (isAudio ? "m4a" : "mp4") : fileExtension
+            return "\(clean.isEmpty ? "vídeo" : clean).\(ext)"
+        }
+    }
+
+    /// Todos los medios de la página.
+    func media() async -> [Media] {
+        await mediaList(from: "window.__brunos.media();")
+    }
+
+    /// El medio que hay bajo el cursor, para el clic derecho.
+    func media(at point: CGPoint) async -> Media? {
+        await mediaList(from: "[window.__brunos.mediaAt(\(point.x), \(point.y))].filter(Boolean);").first
+    }
+
+    private func mediaList(from script: String) async -> [Media] {
+        await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript(script, in: nil, in: world) { result in
+                guard case .success(let value) = result,
+                      let array = value as? [[String: Any]]
+                else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                continuation.resume(returning: array.compactMap { entry in
+                    guard let text = entry["url"] as? String, let url = URL(string: text) else { return nil }
+                    return Media(
+                        url: url,
+                        isAudio: (entry["kind"] as? String) == "audio",
+                        fileExtension: entry["extension"] as? String ?? "",
+                        isStream: entry["stream"] as? Bool ?? false,
+                        width: entry["width"] as? Int ?? 0,
+                        height: entry["height"] as? Int ?? 0,
+                        duration: entry["duration"] as? Int ?? 0,
+                        pageTitle: entry["title"] as? String ?? ""
+                    )
+                })
+            }
+        }
+    }
+
+    /// El icono que declara la página, para la barra de favoritos.
+    private func reportIcon() {
+        guard let host = webView.url?.host() else { return }
+        webView.evaluateJavaScript("window.__brunos.iconURL();", in: nil, in: world) { result in
+            guard case .success(let value) = result else { return }
+            MainActor.assumeIsolated {
+                AppServices.shared.favicons.remember(host: host, iconURL: value as? String)
+            }
+        }
+    }
+
     /// Pregunta qué hay bajo el cursor: enlace, imagen, campo de texto.
     func describe(at point: CGPoint) async -> Hit? {
         await withCheckedContinuation { continuation in
@@ -540,6 +702,7 @@ extension BrowserTab: WKNavigationDelegate {
             webView.scrollView.setContentOffset(suspendedScroll, animated: false)
             suspendedScroll = .zero
         }
+        reportIcon()
         refresh()
     }
 
@@ -614,7 +777,8 @@ extension BrowserTab: WKDownloadDelegate {
         decideDestinationUsing response: URLResponse,
         suggestedFilename: String
     ) async -> URL? {
-        var url = Self.downloadsDirectory.appendingPathComponent(suggestedFilename)
+        let preferred = preferredNames.removeValue(forKey: ObjectIdentifier(download))
+        var url = Self.downloadsDirectory.appendingPathComponent(preferred ?? suggestedFilename)
 
         // Nunca se pisa un fichero ya descargado: se numera, como hace
         // cualquier navegador.
@@ -627,13 +791,18 @@ extension BrowserTab: WKDownloadDelegate {
             counter += 1
         }
 
-        destinations[ObjectIdentifier(download)] = url
+        let id = ObjectIdentifier(download)
+        destinations[id] = url
+        watchProgress(of: download)
         onDownloadChange?(url.lastPathComponent, .started)
         return url
     }
 
     func downloadDidFinish(_ download: WKDownload) {
-        guard let url = destinations.removeValue(forKey: ObjectIdentifier(download)) else { return }
+        let id = ObjectIdentifier(download)
+        progressObservations.removeValue(forKey: id)
+        lastReportedFraction.removeValue(forKey: id)
+        guard let url = destinations.removeValue(forKey: id) else { return }
         onDownloadChange?(url.lastPathComponent, .finished(url))
     }
 
@@ -642,14 +811,67 @@ extension BrowserTab: WKDownloadDelegate {
         didFailWithError error: any Error,
         resumeData: Data?
     ) {
-        destinations.removeValue(forKey: ObjectIdentifier(download))
+        let id = ObjectIdentifier(download)
+        destinations.removeValue(forKey: id)
+        progressObservations.removeValue(forKey: id)
+        lastReportedFraction.removeValue(forKey: id)
         onDownloadChange?(error.localizedDescription, .failed)
     }
 
-    /// Descarga una URL a propósito: «Descargar enlace» y «Guardar imagen».
-    func download(_ url: URL) {
-        webView.startDownload(using: URLRequest(url: url)) { [weak self] download in
+    /// Sigue una descarga para poder enseñar cuánto lleva.
+    ///
+    /// El aviso se refresca **sólo cada punto porcentual**: `fractionCompleted`
+    /// cambia con cada trozo que llega, y repintar el panel a ese ritmo se nota
+    /// en el cursor.
+    ///
+    /// El observador de KVO puede llegar en cualquier hilo, así que sólo cruza
+    /// números al actor principal, nunca el `Progress`, que no es `Sendable`.
+    private func watchProgress(of download: WKDownload) {
+        let id = ObjectIdentifier(download)
+        progressObservations[id] = download.progress.observe(
+            \.fractionCompleted,
+            options: [.new]
+        ) { [weak self] progress, _ in
+            let fraction = progress.fractionCompleted
+            let done = progress.completedUnitCount
+            let total = progress.totalUnitCount
+            Task { @MainActor [weak self] in
+                guard let self, let url = self.destinations[id] else { return }
+                let last = self.lastReportedFraction[id] ?? -1
+                guard fraction - last >= 0.01 || fraction >= 1 else { return }
+                self.lastReportedFraction[id] = fraction
+                self.onDownloadChange?(url.lastPathComponent, .progress(fraction, done, total))
+            }
+        }
+    }
+
+    /// Descarga una URL a propósito: «Descargar enlace», «Guardar imagen» y
+    /// «Descargar vídeo».
+    ///
+    /// Va por `startDownload` del propio `WKWebView` y no por `URLSession`
+    /// aposta: así la petición lleva **las cookies y la sesión de la pestaña**.
+    /// Un vídeo detrás de un inicio de sesión, pedido por fuera, devuelve una
+    /// página de error.
+    func download(_ url: URL, named name: String? = nil) {
+        var request = URLRequest(url: url)
+        // **De dónde viene la petición.** Muchos sitios que sirven vídeo
+        // (RedGifs, Imgur, medios con CDN propio) responden 403 a un mp4
+        // pedido «a pelo», para que nadie lo enlace desde fuera. Pidiéndolo
+        // como lo pide la propia página —mismo `Referer`, mismo origen— el
+        // servidor ve lo mismo que vería con el reproductor y lo entrega.
+        if let page = webView.url, page.scheme == "http" || page.scheme == "https" {
+            request.setValue(page.absoluteString, forHTTPHeaderField: "Referer")
+            if let origin = page.host().map({ "\(page.scheme ?? "https")://\($0)" }) {
+                request.setValue(origin, forHTTPHeaderField: "Origin")
+            }
+        }
+        if let agent = webView.customUserAgent {
+            request.setValue(agent, forHTTPHeaderField: "User-Agent")
+        }
+
+        webView.startDownload(using: request) { [weak self] download in
             download.delegate = self
+            if let name { self?.preferredNames[ObjectIdentifier(download)] = name }
         }
     }
 }

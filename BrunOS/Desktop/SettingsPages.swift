@@ -19,7 +19,7 @@ enum SettingsPages {
     static func window(for scope: SettingsScope) -> (title: String, symbol: String, pages: [SettingsPage]) {
         switch scope {
         case .global: ("Ajustes", "gearshape.fill", [general, display, mouse, about])
-        case .browser: ("Navegador", "safari.fill", [browserGeneral, blocking, downloads])
+        case .browser: ("Navegador", "safari.fill", [browserGeneral, bookmarks, blocking, downloads])
         case .terminal: ("Terminal", "terminal.fill", [machines, sshKey, terminalLook, knownHosts])
         case .files: ("Ficheros", "folder.fill", [filesView, locations])
         }
@@ -222,6 +222,68 @@ enum SettingsPages {
                     ]
                 ),
             ]
+        }
+    }
+
+    private static var bookmarks: SettingsPage {
+        SettingsPage(title: "Favoritos", symbol: "star.fill", tint: orange) {
+            let history = services.history
+            var groups: [SettingsGroup] = [
+                SettingsGroup(
+                    footer: "La barra va debajo de la de direcciones y se come 28 puntos de página. "
+                        + "Se añade la página que se esté viendo con Cmd+D o con la estrella de la "
+                        + "barra del panel, y los que no caben salen en el menú » del final.",
+                    rows: [
+                        SettingsRow("Enseñar la barra de favoritos",
+                                    .toggle(BookmarksBar.isVisible) { BookmarksBar.isVisible = $0 }),
+                    ]
+                ),
+            ]
+
+            let pages = history.bookmarks
+            groups.append(SettingsGroup(
+                "Favoritos",
+                footer: pages.isEmpty
+                    ? nil
+                    : "El nombre es tuyo, no el de la web: el título de muchas páginas es una frase "
+                        + "entera y en la barra no cabe. Las flechas los ordenan.",
+                rows: pages.isEmpty
+                    ? [SettingsRow("Todavía no hay ninguno")]
+                    : pages.map { page in
+                        SettingsRow(
+                            page.title,
+                            subtitle: URL(string: page.url)?.host() ?? page.url,
+                            symbol: "star.fill",
+                            .buttons([
+                                SettingsButton("←") { history.moveBookmark(page, by: -1) },
+                                SettingsButton("→") { history.moveBookmark(page, by: 1) },
+                                SettingsButton("Renombrar…") {
+                                    desktop?.presentPrompt(title: "Nombre del favorito", value: page.title) { text in
+                                        guard let text else { return }
+                                        history.renameBookmark(page, to: text)
+                                    }
+                                },
+                                SettingsButton("Quitar", style: .destructive) { history.removeBookmark(page) },
+                            ])
+                        )
+                    }
+            ))
+
+            groups.append(SettingsGroup(
+                "Historial",
+                footer: "Se guarda una entrada por dirección, como mucho 500, y no sale del iPhone. "
+                    + "Sirve para el lanzador (Cmd+P).",
+                rows: [
+                    SettingsRow(
+                        "Páginas recordadas",
+                        subtitle: "\(history.visits.count)",
+                        .buttons([
+                            SettingsButton("Borrar", style: .destructive) { history.clearHistory() },
+                        ])
+                    ),
+                ]
+            ))
+            return groups
         }
     }
 
@@ -570,10 +632,24 @@ enum SettingsPages {
                     rows.append(SettingsRow(provider.name, subtitle: "La carpeta de BrunOS, con Descargas",
                                             symbol: provider.symbol))
                 case let external as ExternalFolderProvider:
-                    rows.append(SettingsRow(provider.name, subtitle: "Carpeta con permiso", symbol: provider.symbol,
+                    let folder = external.folder
+                    let subtitle = external.isAvailable
+                        ? folder.kind.label
+                        : "No disponible · \(folder.kind.unavailableHint)"
+                    rows.append(SettingsRow(provider.name, subtitle: subtitle, symbol: provider.symbol,
                                             .buttons([
+                                                SettingsButton("Renombrar…") {
+                                                    desktop?.presentPrompt(
+                                                        title: "Nombre de la ubicación",
+                                                        value: folder.name
+                                                    ) { text in
+                                                        guard let text else { return }
+                                                        files.externalFolders.rename(id: folder.id, to: text)
+                                                        files.rebuild()
+                                                    }
+                                                },
                                                 SettingsButton("Quitar", style: .destructive) {
-                                                    files.externalFolders.remove(bookmark: external.bookmark)
+                                                    files.externalFolders.remove(id: folder.id)
                                                     files.rebuild()
                                                 },
                                             ])))
@@ -587,14 +663,51 @@ enum SettingsPages {
                     NotificationCenter.default.post(name: .brunosPickFolder, object: nil)
                 },
             ])))
-            return [SettingsGroup(
-                footer: "iOS no deja a ninguna app recorrer el iPhone entero: cada carpeta de fuera "
-                    + "de BrunOS hay que abrirla una vez con el selector del sistema, y a partir de "
-                    + "ahí queda a mano. Vale cualquier carpeta que se vea en la app Archivos, "
-                    + "incluidas las de otras apps y los discos USB. El selector sale en la "
-                    + "pantalla del iPhone, que es la única donde iOS lo deja aparecer.",
-                rows: rows
-            )]
+
+            return [
+                SettingsGroup(
+                    "Ubicaciones",
+                    footer: "iOS no deja a ninguna app recorrer el iPhone entero: cada carpeta de fuera "
+                        + "de BrunOS hay que abrirla una vez con el selector del sistema, y a partir de "
+                        + "ahí queda a mano. Vale cualquier carpeta que se vea en la app Archivos, "
+                        + "incluidas las de otras apps, los discos USB y los servidores de red. El "
+                        + "selector sale en la pantalla del iPhone, que es la única donde iOS lo deja "
+                        + "aparecer.",
+                    rows: rows
+                ),
+                SettingsGroup(
+                    "Servidores de red (SMB)",
+                    footer: "El SDK de iOS no trae cliente SMB, así que quien se conecta es la app "
+                        + "Archivos del iPhone y BrunOS entra por la puerta que deja abierta. Se hace "
+                        + "una sola vez:\n"
+                        + "1. Abre Archivos › Examinar › ⋯ › Conectar a servidor.\n"
+                        + "2. Escribe smb://dirección, con usuario y contraseña; iOS las guarda.\n"
+                        + "3. Vuelve aquí, pulsa Añadir… y elige el servidor dentro del selector.\n"
+                        + "A partir de ahí es una ubicación más: se copia y se pega con cualquier otra. "
+                        + "Si el servidor no está montado, la ubicación sigue en la lista en gris, y "
+                        + "vuelve sola en cuanto Archivos se reconecta.",
+                    rows: [
+                        SettingsRow("Conectar un servidor", subtitle: "Se hace en la app Archivos", .buttons([
+                            SettingsButton("Abrir Archivos") { openFilesApp() },
+                            SettingsButton("Añadir…", style: .accent) {
+                                NotificationCenter.default.post(name: .brunosPickFolder, object: nil)
+                            },
+                        ])),
+                    ]
+                ),
+            ]
+        }
+    }
+
+    /// Abre la app Archivos del iPhone, que es la que sabe conectarse a un SMB.
+    ///
+    /// **Sin `canOpenURL`**: quedó obsoleto exactamente en iOS 27. Se abre y se
+    /// mira el resultado, que es lo que Apple pide ahora.
+    private static func openFilesApp() {
+        guard let url = URL(string: "shareddocuments://") else { return }
+        UIApplication.shared.open(url) { opened in
+            guard !opened else { return }
+            Log.desktop.error("No se pudo abrir la app Archivos")
         }
     }
 }

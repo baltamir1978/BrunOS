@@ -1,12 +1,85 @@
 import Foundation
-import UIKit
+import Observation
+
+/// De dónde viene una carpeta añadida, para el icono y para poder explicar qué
+/// hacer cuando no está disponible.
+///
+/// **No hay API para preguntárselo a iOS.** No existe forma pública de saber si
+/// una carpeta está en iCloud, en un USB o en un servidor de red, pero sus
+/// rutas se distinguen: acertar con el icono y con el mensaje ayuda mucho más
+/// que un genérico para todo.
+enum ExternalFolderKind: String, Codable, Sendable {
+    case iCloud
+    case usb
+    case server
+    case folder
+
+    var symbol: String {
+        switch self {
+        case .iCloud: "icloud"
+        case .usb: "externaldrive"
+        case .server: "externaldrive.connected.to.line.below"
+        case .folder: "folder"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .iCloud: "iCloud Drive"
+        case .usb: "Disco conectado"
+        case .server: "Servidor de red"
+        case .folder: "Carpeta con permiso"
+        }
+    }
+
+    /// Qué hacer cuando la carpeta no responde. Cada origen se cae por un
+    /// motivo distinto y con una solución distinta.
+    var unavailableHint: String {
+        switch self {
+        case .iCloud: "iCloud no responde. Mira que el iPhone tenga conexión."
+        case .usb: "El disco no está conectado al iPhone."
+        case .server:
+            "El servidor no está conectado. Ábrelo una vez en la app Archivos del iPhone "
+            + "(Examinar › ⋯ › Conectar a servidor) y vuelve aquí."
+        case .folder: "La carpeta ya no está donde estaba."
+        }
+    }
+
+    /// Los servidores de red montados por la app Archivos viven bajo
+    /// `LiveFiles/com.apple.filesystems.smbclientd`; iCloud, en `Mobile
+    /// Documents`; los discos, en `/Volumes`.
+    static func detect(_ url: URL) -> Self {
+        let path = url.path.lowercased()
+        if path.contains("smbclientd") || path.contains("netfs") { return .server }
+        if path.contains("mobile documents") || path.contains("icloud") { return .iCloud }
+        if path.contains("/volumes/") { return .usb }
+        return .folder
+    }
+}
+
+/// Una ubicación añadida con el selector del sistema.
+///
+/// **El nombre y el tipo se guardan, no se deducen al vuelo.** Si un servidor
+/// SMB no está montado, el marcador de seguridad no resuelve y antes la
+/// ubicación desaparecía de la barra lateral sin decir nada: parecía que no se
+/// hubiera añadido nunca. Con el nombre guardado sigue ahí, en gris, diciendo
+/// qué hacer.
+struct ExternalFolder: Codable, Sendable, Equatable, Identifiable {
+    var id = UUID()
+    var bookmark: Data
+    var name: String
+    var kind: ExternalFolderKind
+    /// La ruta que tenía al añadirla, para el subtítulo de los ajustes.
+    var location: String
+}
 
 /// Una carpeta de fuera del contenedor de la app: iCloud Drive, una carpeta de
-/// Archivos o la unidad USB del adaptador.
+/// Archivos, un disco USB o un servidor SMB montado en la app Archivos.
 ///
-/// **En iOS las tres son lo mismo.** Se añaden con el selector de documentos en
-/// modo carpeta y, a partir de ahí, se manejan igual: no hay una API de «montar
-/// un USB», hay carpetas a las que el usuario ha dado permiso.
+/// **En iOS las cuatro son lo mismo.** Se añaden con el selector de documentos
+/// en modo carpeta y, a partir de ahí, se manejan igual: no hay API de «montar
+/// un USB» ni cliente SMB en el SDK; hay carpetas a las que el usuario ha dado
+/// permiso.
 ///
 /// **El marcador de seguridad no es opcional.** Sin guardarlo, el permiso se
 /// pierde al cerrar la app y a la vuelta la carpeta ya no se puede leer. Y cada
@@ -18,49 +91,63 @@ final class ExternalFolderProvider: FileProvider, @unchecked Sendable {
     let name: String
     let symbol: String
     let rootPath: String
+    let kind: ExternalFolderKind
 
-    let bookmark: Data
+    let folder: ExternalFolder
 
-    init?(bookmark: Data) {
+    /// Se resolvió el marcador la última vez que se intentó.
+    ///
+    /// No es `let`: un servidor puede montarse y desmontarse mientras la app
+    /// está abierta, y la barra lateral lo pinta en gris cuando no responde.
+    private(set) var isAvailable: Bool
+
+    /// **No es falible a propósito.** Antes, si el marcador no resolvía, el
+    /// proveedor no se creaba y la ubicación se esfumaba de la interfaz. Ahora
+    /// se crea igual y es `list` quien explica qué pasa.
+    init(folder: ExternalFolder) {
+        self.folder = folder
+        self.name = folder.name
+        self.kind = folder.kind
+        self.symbol = folder.kind.symbol
+
         var isStale = false
-        guard let url = try? URL(
-            resolvingBookmarkData: bookmark,
+        let url = try? URL(
+            resolvingBookmarkData: folder.bookmark,
             options: [],
             bookmarkDataIsStale: &isStale
-        ) else { return nil }
-
-        self.bookmark = bookmark
-        self.rootPath = url.path
-        self.name = url.lastPathComponent
-
-        // El icono se deduce de la ruta. No hay forma de preguntarle a iOS si
-        // una carpeta está en iCloud o en un USB, pero sus rutas se distinguen
-        // y acertar con el icono ayuda más que un genérico para todo.
-        let path = url.path.lowercased()
-        if path.contains("mobile documents") || path.contains("icloud") {
-            symbol = "icloud"
-        } else if path.contains("/volumes/") {
-            symbol = "externaldrive"
-        } else {
-            symbol = "folder"
-        }
+        )
+        self.rootPath = url?.path ?? folder.location
+        self.isAvailable = url != nil
     }
 
     /// Ejecuta algo con la carpeta accesible, y siempre suelta el permiso.
     private func withAccess<T>(_ work: (URL) throws -> T) throws -> T {
         var isStale = false
         guard let url = try? URL(
-            resolvingBookmarkData: bookmark,
+            resolvingBookmarkData: folder.bookmark,
             options: [],
             bookmarkDataIsStale: &isStale
         ) else {
-            throw FileError.notFound(name)
+            isAvailable = false
+            throw FileError.failed("«\(name)» no está disponible. \(kind.unavailableHint)")
         }
 
         guard url.startAccessingSecurityScopedResource() else {
+            isAvailable = false
             throw FileError.notPermitted(name)
         }
         defer { url.stopAccessingSecurityScopedResource() }
+        isAvailable = true
+
+        // Un marcador caducado (el volumen se movió, el servidor se remontó en
+        // otro punto) se renueva aquí mismo: si no, al siguiente arranque la
+        // ubicación estaría muerta y habría que volver a añadirla a mano.
+        if isStale, let renewed = try? url.bookmarkData() {
+            Task { @MainActor [id = folder.id] in
+                AppServices.shared.files.externalFolders.refresh(id: id, bookmark: renewed)
+            }
+        }
+
         return try work(url)
     }
 
@@ -136,17 +223,42 @@ final class ExternalFolderProvider: FileProvider, @unchecked Sendable {
 @Observable
 final class ExternalFolderStore {
 
-    private static let key = "files.externalFolders"
+    private static let key = "files.externalFolders.v2"
+    /// La primera versión guardaba sólo los marcadores, sin nombre ni tipo.
+    private static let legacyKey = "files.externalFolders"
 
-    private(set) var bookmarks: [Data] = []
+    private(set) var folders: [ExternalFolder] = []
 
     init() {
-        if let stored = UserDefaults.standard.array(forKey: Self.key) as? [Data] {
-            bookmarks = stored
+        if let data = UserDefaults.standard.data(forKey: Self.key),
+           let stored = try? JSONDecoder().decode([ExternalFolder].self, from: data) {
+            folders = stored
+        } else if let legacy = UserDefaults.standard.array(forKey: Self.legacyKey) as? [Data] {
+            folders = legacy.compactMap(Self.migrate)
+            save()
+            UserDefaults.standard.removeObject(forKey: Self.legacyKey)
         }
     }
 
-    func add(_ url: URL) throws {
+    /// Un marcador suelto de la primera versión: se resuelve una vez para
+    /// sacarle el nombre y el tipo, y se guarda ya completo.
+    private static func migrate(_ bookmark: Data) -> ExternalFolder? {
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmark,
+            options: [],
+            bookmarkDataIsStale: &isStale
+        ) else { return nil }
+        return ExternalFolder(
+            bookmark: bookmark,
+            name: url.lastPathComponent,
+            kind: ExternalFolderKind.detect(url),
+            location: url.path
+        )
+    }
+
+    @discardableResult
+    func add(_ url: URL) throws -> ExternalFolder {
         guard url.startAccessingSecurityScopedResource() else {
             throw FileError.notPermitted(url.lastPathComponent)
         }
@@ -159,23 +271,44 @@ final class ExternalFolderStore {
         )
         // Sin repetir: añadir dos veces la misma carpeta llenaría la barra
         // lateral de duplicados.
-        guard !bookmarks.contains(bookmark) else { return }
-        bookmarks.append(bookmark)
+        if let existing = folders.first(where: { $0.bookmark == bookmark || $0.location == url.path }) {
+            return existing
+        }
+
+        let folder = ExternalFolder(
+            bookmark: bookmark,
+            name: url.lastPathComponent,
+            kind: ExternalFolderKind.detect(url),
+            location: url.path
+        )
+        folders.append(folder)
+        save()
+        return folder
+    }
+
+    func remove(id: UUID) {
+        folders.removeAll { $0.id == id }
         save()
     }
 
-    func remove(bookmark: Data) {
-        bookmarks.removeAll { $0 == bookmark }
+    func rename(id: UUID, to name: String) {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, let index = folders.firstIndex(where: { $0.id == id }) else { return }
+        folders[index].name = clean
         save()
     }
 
-    func remove(at index: Int) {
-        guard bookmarks.indices.contains(index) else { return }
-        bookmarks.remove(at: index)
+    /// Renueva un marcador caducado sin perder el nombre que tuviera puesto.
+    func refresh(id: UUID, bookmark: Data) {
+        guard let index = folders.firstIndex(where: { $0.id == id }),
+              folders[index].bookmark != bookmark
+        else { return }
+        folders[index].bookmark = bookmark
         save()
     }
 
     private func save() {
-        UserDefaults.standard.set(bookmarks, forKey: Self.key)
+        guard let data = try? JSONEncoder().encode(folders) else { return }
+        UserDefaults.standard.set(data, forKey: Self.key)
     }
 }

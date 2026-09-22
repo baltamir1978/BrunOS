@@ -407,6 +407,10 @@ final class DesktopViewController: UIViewController {
             guard let browser = workspace.focusedPane as? BrowserPane else { return false }
             browser.focusAddressBar()
 
+        case .bookmark:
+            guard let browser = workspace.focusedPane as? BrowserPane else { return false }
+            browser.toggleBookmark()
+
         case .reload:
             guard let browser = workspace.focusedPane as? BrowserPane else { return false }
             browser.reload()
@@ -560,6 +564,15 @@ final class DesktopViewController: UIViewController {
         }
         canvas.addSubview(menu)
         contextMenu = menu
+    }
+
+    /// Lo mismo, pero desde dentro de un panel.
+    ///
+    /// El lienzo va escalado con un `CGAffineTransform`, así que un panel no
+    /// puede convertir sus coordenadas a las del escritorio por su cuenta: se
+    /// las pide aquí, que es quien conoce la jerarquía.
+    func presentContextMenu(_ entries: [ContextMenu.Entry], from view: UIView, at point: CGPoint) {
+        presentContextMenu(entries, at: canvas.convert(point, from: view))
     }
 
     private var prompt: PromptWindow?

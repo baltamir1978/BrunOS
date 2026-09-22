@@ -26,6 +26,8 @@ final class BrowserChrome: UIView {
         case reload
         case address
         case blocker
+        case bookmark
+        case media
         case settings
         case window(WindowControls.Button)
         case none
@@ -40,6 +42,10 @@ final class BrowserChrome: UIView {
     private var canGoForward = false
     private var isLoading = false
     private var blockerOn = true
+    private var isBookmarked = false
+    /// La página tiene vídeo o audio que se puede guardar: entonces, y sólo
+    /// entonces, aparece el botón de descargar medios.
+    private var hasMedia = false
 
     private var tabFrames: [CGRect] = []
     private var closeFrames: [CGRect] = []
@@ -49,6 +55,8 @@ final class BrowserChrome: UIView {
     private var reloadFrame: CGRect = .zero
     private var addressFrame: CGRect = .zero
     private var blockerFrame: CGRect = .zero
+    private var bookmarkFrame: CGRect = .zero
+    private var mediaFrame: CGRect = .zero
     private var settingsFrame: CGRect = .zero
     /// El cursor está sobre los botones de ventana, que es cuando enseñan sus
     /// símbolos.
@@ -76,7 +84,9 @@ final class BrowserChrome: UIView {
         canGoBack: Bool,
         canGoForward: Bool,
         isLoading: Bool,
-        blockerOn: Bool
+        blockerOn: Bool,
+        isBookmarked: Bool,
+        hasMedia: Bool
     ) {
         self.titles = tabs
         self.activeIndex = active
@@ -87,6 +97,8 @@ final class BrowserChrome: UIView {
         self.canGoForward = canGoForward
         self.isLoading = isLoading
         self.blockerOn = blockerOn
+        self.isBookmarked = isBookmarked
+        self.hasMedia = hasMedia
         recomputeFrames()
         setNeedsDisplay()
     }
@@ -106,6 +118,12 @@ final class BrowserChrome: UIView {
         settingsFrame = CGRect(x: bounds.width - size - 4, y: y, width: size, height: size)
         newTabFrame = CGRect(x: settingsFrame.minX - size, y: y, width: size, height: size)
         blockerFrame = CGRect(x: newTabFrame.minX - size, y: y, width: size, height: size)
+        bookmarkFrame = CGRect(x: blockerFrame.minX - size, y: y, width: size, height: size)
+        // El de medios sólo ocupa sitio cuando hay algo que descargar: un
+        // botón permanentemente apagado sería un adorno.
+        mediaFrame = hasMedia
+            ? CGRect(x: bookmarkFrame.minX - size, y: y, width: size, height: size)
+            : .zero
 
         // Las pestañas sólo aparecen con más de una: con una sola, su título ya
         // está en la barra superior del escritorio y aquí sólo robaría sitio.
@@ -114,7 +132,8 @@ final class BrowserChrome: UIView {
             let gap: CGFloat = 3
             let tabWidth = min(150, (bounds.width * 0.42) / CGFloat(titles.count))
             let tabsWidth = tabWidth * CGFloat(titles.count) + gap * CGFloat(titles.count - 1)
-            let start = blockerFrame.minX - tabsWidth - 6
+            let rightmost = hasMedia ? mediaFrame.minX : bookmarkFrame.minX
+            let start = rightmost - tabsWidth - 6
             tabFrames = titles.indices.map { index in
                 CGRect(
                     x: start + CGFloat(index) * (tabWidth + gap), y: 4,
@@ -133,7 +152,7 @@ final class BrowserChrome: UIView {
         // centrada en su hueco, a los lados queda sitio vacío para agarrar el
         // panel y arrastrarlo, como la barra de título de Safari.
         let addressStart = reloadFrame.maxX + 6
-        let addressEnd = (tabFrames.first?.minX ?? blockerFrame.minX) - 8
+        let addressEnd = (tabFrames.first?.minX ?? (hasMedia ? mediaFrame.minX : bookmarkFrame.minX)) - 8
         let available = max(60, addressEnd - addressStart)
         let width = min(available, max(420, available * 0.72))
         addressFrame = CGRect(
@@ -168,6 +187,8 @@ final class BrowserChrome: UIView {
             return .tab(index)
         }
         if newTabFrame.contains(point) { return .newTab }
+        if bookmarkFrame.contains(point) { return .bookmark }
+        if hasMedia, mediaFrame.contains(point) { return .media }
         if settingsFrame.contains(point) { return .settings }
         if backFrame.contains(point) { return .back }
         if forwardFrame.contains(point) { return .forward }
@@ -194,6 +215,14 @@ final class BrowserChrome: UIView {
             in: blockerFrame,
             color: blockerOn ? Tokens.Color.accentAlt : Tokens.Color.textSecondary
         )
+        drawSymbol(
+            isBookmarked ? "star.fill" : "star",
+            in: bookmarkFrame,
+            color: isBookmarked ? Tokens.Color.accent : Tokens.Color.textSecondary
+        )
+        if hasMedia {
+            drawSymbol("arrow.down.circle.fill", in: mediaFrame, color: Tokens.Color.accentAlt, size: 13)
+        }
         drawSymbol("plus", in: newTabFrame, color: Tokens.Color.textSecondary)
         drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.text.withAlphaComponent(0.72), size: 13.5)
 

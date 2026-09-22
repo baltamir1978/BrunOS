@@ -53,14 +53,52 @@ final class BrowserHistory {
         bookmarks.contains { $0.url == url.absoluteString }
     }
 
-    func toggleBookmark(url: URL, title: String?) {
+    /// Aviso para la barra de favoritos y la página de inicio, que se dibujan
+    /// solas y no tienen forma de enterarse de otro modo.
+    static let bookmarksDidChange = Notification.Name("BrunOSBookmarksDidChange")
+
+    @discardableResult
+    func toggleBookmark(url: URL, title: String?) -> Bool {
         let address = url.absoluteString
+        let added: Bool
         if isBookmarked(url) {
             bookmarks.removeAll { $0.url == address }
+            added = false
         } else {
             bookmarks.append(Page(url: address, title: Self.clean(title, url: url), visited: Date()))
+            added = true
         }
+        saveBookmarks()
+        return added
+    }
+
+    func removeBookmark(_ page: Page) {
+        bookmarks.removeAll { $0.url == page.url }
+        saveBookmarks()
+    }
+
+    /// El nombre del favorito es de Bruno, no de la web: el `<title>` de
+    /// muchas páginas es una frase entera y en la barra no cabe.
+    func renameBookmark(_ page: Page, to title: String) {
+        let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, let index = bookmarks.firstIndex(where: { $0.url == page.url }) else { return }
+        bookmarks[index].title = clean
+        saveBookmarks()
+    }
+
+    /// Mueve un favorito una posición: así se ordena la barra sin arrastrar,
+    /// que con un cursor propio es incómodo.
+    func moveBookmark(_ page: Page, by offset: Int) {
+        guard let index = bookmarks.firstIndex(where: { $0.url == page.url }) else { return }
+        let target = index + offset
+        guard bookmarks.indices.contains(target) else { return }
+        bookmarks.swapAt(index, target)
+        saveBookmarks()
+    }
+
+    private func saveBookmarks() {
         save()
+        NotificationCenter.default.post(name: Self.bookmarksDidChange, object: nil)
     }
 
     func clearHistory() {

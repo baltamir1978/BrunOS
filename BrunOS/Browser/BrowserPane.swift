@@ -17,7 +17,16 @@ final class BrowserPane: UIView, Pane {
     private static let maxLiveTabs = 8
 
     private let chrome = BrowserChrome()
+    private let bookmarksBar = BookmarksBar()
     private let content = UIView()
+
+    /// Los medios de la página, para el botón de descargar vídeo.
+    ///
+    /// Se vuelven a pedir cada pocos segundos y no sólo al cargar: casi ningún
+    /// reproductor tiene el `<video>` puesto cuando la página termina; aparece
+    /// después, al pulsar el play o al cargar el guion del reproductor.
+    private var media: [BrowserTab.Media] = []
+    private var mediaTimer: Timer?
 
     private var tabs: [BrowserTab] = []
     private var activeIndex = 0
@@ -55,6 +64,7 @@ final class BrowserPane: UIView, Pane {
 
         addSubview(content)
         addSubview(chrome)
+        addSubview(bookmarksBar)
         addSubview(findBar)
         findBar.isHidden = true
         findBar.placeholder = "Buscar en la página"
@@ -84,6 +94,30 @@ final class BrowserPane: UIView, Pane {
             name: .brunosBrowserZoomChanged,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(bookmarksChanged),
+            name: BrowserHistory.bookmarksDidChange,
+            object: nil
+        )
+        // Un icono que acaba de llegar de la red: la barra lo dibuja en cuanto
+        // se repinta, pero nadie le ha dicho que se repinte.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(faviconsChanged),
+            name: FaviconStore.didChange,
+            object: nil
+        )
+
+        mediaTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshMedia() }
+        }
+    }
+
+    /// El `Timer` guarda una referencia fuerte hasta que se invalida, y sin
+    /// esto el panel cerrado seguiría preguntándole a una pestaña muerta.
+    isolated deinit {
+        mediaTimer?.invalidate()
     }
 
     @available(*, unavailable)
@@ -96,10 +130,19 @@ final class BrowserPane: UIView, Pane {
     override func layoutSubviews() {
         super.layoutSubviews()
         chrome.frame = CGRect(x: 0, y: 0, width: bounds.width, height: BrowserChrome.height)
+
+        let showBookmarks = BookmarksBar.isVisible
+        bookmarksBar.isHidden = !showBookmarks
+        bookmarksBar.frame = CGRect(
+            x: 0, y: chrome.frame.maxY,
+            width: bounds.width, height: showBookmarks ? BookmarksBar.height : 0
+        )
+
+        let findY = showBookmarks ? bookmarksBar.frame.maxY : chrome.frame.maxY
         let findHeight = isFinding ? FindBar.height : 0
         findBar.isHidden = !isFinding
-        findBar.frame = CGRect(x: 0, y: chrome.frame.maxY, width: bounds.width, height: FindBar.height)
-        let top = chrome.frame.maxY + findHeight
+        findBar.frame = CGRect(x: 0, y: findY, width: bounds.width, height: FindBar.height)
+        let top = findY + findHeight
         content.frame = CGRect(
             x: 0,
             y: top,
@@ -119,6 +162,13 @@ final class BrowserPane: UIView, Pane {
         switch state {
         case .started:
             downloadToast.text = "Descargando \(name)…"
+        case .progress(let fraction, let done, let total):
+            let percent = Int((fraction * 100).rounded())
+            let sizes = total > 0
+                ? " · \(ByteCountFormatter.string(fromByteCount: done, countStyle: .file)) de "
+                    + ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
+                : ""
+            downloadToast.text = "Descargando \(name) · \(percent) %\(sizes)"
         case .finished(let url):
             lastDownload = url
             downloadToast.text = "\(name) en Descargas · pulsa para verlo"
@@ -129,6 +179,7 @@ final class BrowserPane: UIView, Pane {
         UIView.animate(withDuration: 0.2) { self.downloadToast.alpha = 1 }
 
         downloadToastTimer?.invalidate()
+        if case .progress = state { return }
         guard case .started = state else {
             downloadToastTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: false) { [weak self] _ in
                 MainActor.assumeIsolated {
@@ -136,6 +187,21 @@ final class BrowserPane: UIView, Pane {
                 }
             }
             return
+        }
+    }
+
+    /// Un aviso corto abajo del panel, que se va solo. El mismo sitio que las
+    /// descargas: si no, cada mensaje aparecería en una esquina distinta.
+    private func toast(_ text: String) {
+        downloadToast.text = text
+        lastDownload = nil
+        layoutDownloadToast()
+        UIView.animate(withDuration: 0.2) { self.downloadToast.alpha = 1 }
+        downloadToastTimer?.invalidate()
+        downloadToastTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                UIView.animate(withDuration: 0.3) { self?.downloadToast.alpha = 0 }
+            }
         }
     }
 
@@ -159,6 +225,7 @@ final class BrowserPane: UIView, Pane {
     }
 
     private func refreshChrome() {
+        let url = activeTab?.webView.url
         chrome.update(
             tabs: tabs.map(\.title),
             active: activeIndex,
@@ -168,8 +235,124 @@ final class BrowserPane: UIView, Pane {
             canGoBack: activeTab?.canGoBack ?? false,
             canGoForward: activeTab?.canGoForward ?? false,
             isLoading: activeTab?.isLoading ?? false,
-            blockerOn: AppServices.shared.blocker.isEnabled(for: activeTab?.webView.url?.host())
+            blockerOn: AppServices.shared.blocker.isEnabled(for: url?.host()),
+            isBookmarked: url.map { AppServices.shared.history.isBookmarked($0) } ?? false,
+            hasMedia: !media.isEmpty
         )
+        bookmarksBar.update(pages: AppServices.shared.history.bookmarks)
+    }
+
+    @objc private func bookmarksChanged() {
+        setNeedsLayout()
+        refreshChrome()
+    }
+
+    @objc private func faviconsChanged() {
+        bookmarksBar.setNeedsDisplay()
+    }
+
+    // MARK: - Favoritos
+
+    /// Cmd+D, la estrella de la barra y el clic derecho: los tres pasan por
+    /// aquí para que el aviso y el icono digan siempre lo mismo.
+    func toggleBookmark() {
+        guard let tab = activeTab, let url = tab.webView.url,
+              url.scheme == "http" || url.scheme == "https"
+        else { return }
+        let added = AppServices.shared.history.toggleBookmark(url: url, title: tab.title)
+        AppServices.shared.favicons.remember(host: url.host(), iconURL: nil)
+        toast(added ? "Añadido a favoritos" : "Quitado de favoritos")
+        refreshChrome()
+    }
+
+    private func openBookmark(_ page: BrowserHistory.Page, inNewTab: Bool) {
+        guard !page.url.isEmpty else { return }
+        if inNewTab {
+            newTab(url: page.url)
+        } else {
+            activeTab?.load(page.url)
+        }
+    }
+
+    /// El menú de un favorito: abrir, renombrar, ordenar y quitar.
+    private func bookmarkMenu(for page: BrowserHistory.Page) -> [ContextMenu.Entry] {
+        let history = AppServices.shared.history
+        return [
+            ContextMenu.Entry(title: "Abrir", symbol: "arrow.forward") { [weak self] in
+                self?.openBookmark(page, inNewTab: false)
+            },
+            ContextMenu.Entry(title: "Abrir en pestaña nueva", symbol: "plus.square.on.square") { [weak self] in
+                self?.openBookmark(page, inNewTab: true)
+            },
+            ContextMenu.Entry(title: "Copiar enlace", symbol: "link") {
+                UIPasteboard.general.string = page.url
+            },
+            ContextMenu.Entry(title: "Renombrar…", symbol: "pencil") {
+                AppServices.shared.desktopViewController?.presentPrompt(
+                    title: "Nombre del favorito",
+                    value: page.title
+                ) { text in
+                    guard let text else { return }
+                    history.renameBookmark(page, to: text)
+                }
+            },
+            ContextMenu.Entry(title: "Mover a la izquierda", symbol: "arrow.left") {
+                history.moveBookmark(page, by: -1)
+            },
+            ContextMenu.Entry(title: "Mover a la derecha", symbol: "arrow.right") {
+                history.moveBookmark(page, by: 1)
+            },
+            ContextMenu.Entry(title: "Quitar de favoritos", symbol: "trash", isDestructive: true) {
+                history.removeBookmark(page)
+            },
+        ]
+    }
+
+    // MARK: - Medios
+
+    /// Vuelve a mirar qué vídeos hay en la página.
+    private func refreshMedia() {
+        guard window != nil, !isHidden, let tab = activeTab, !tab.isSuspended else { return }
+        Task { [weak self] in
+            let found = await tab.media()
+            guard let self, self.activeTab === tab, found != self.media else { return }
+            self.media = found
+            self.refreshChrome()
+        }
+    }
+
+    /// El menú del botón de medios.
+    ///
+    /// Lo que no se puede guardar **también sale**, apagado y diciendo por qué:
+    /// enterarse de que un vídeo va por trozos vale más que un menú vacío que
+    /// parece un fallo.
+    private func mediaMenu() -> [ContextMenu.Entry] {
+        guard let tab = activeTab else { return [] }
+        var entries: [ContextMenu.Entry] = []
+        for item in media {
+            if item.isStream {
+                entries.append(ContextMenu.Entry(
+                    title: "\(item.label) · por trozos",
+                    symbol: "exclamationmark.triangle",
+                    isEnabled: false
+                ) {})
+            } else {
+                entries.append(ContextMenu.Entry(
+                    title: "Descargar \(item.label)",
+                    symbol: item.symbol
+                ) {
+                    tab.download(item.url, named: item.suggestedName)
+                })
+            }
+        }
+        if media.contains(where: \.isStream) {
+            entries.append(ContextMenu.Entry(
+                title: "Los de «por trozos» no son un fichero",
+                symbol: "info.circle",
+                isEnabled: false
+            ) {})
+        }
+        return entries
     }
 
     // MARK: - Pestañas
@@ -426,6 +609,25 @@ final class BrowserPane: UIView, Pane {
     func contextMenuEntries(at location: CGPoint) async -> [ContextMenu.Entry] {
         if chrome.frame.contains(location) { return [] }
         guard let tab = activeTab else { return [] }
+
+        // El botón derecho sobre la barra de favoritos: el menú del favorito
+        // que haya debajo, o el de la barra si se pulsa en el hueco.
+        if !bookmarksBar.isHidden, bookmarksBar.frame.contains(location) {
+            let point = CGPoint(x: location.x, y: location.y - bookmarksBar.frame.minY)
+            if case .bookmark(let index) = bookmarksBar.hit(at: point),
+               bookmarksBar.pages.indices.contains(index) {
+                return bookmarkMenu(for: bookmarksBar.pages[index])
+            }
+            return [
+                ContextMenu.Entry(title: "Añadir esta página", symbol: "star") { [weak self] in
+                    self?.toggleBookmark()
+                },
+                ContextMenu.Entry(title: "Ocultar la barra de favoritos", symbol: "eye.slash") { [weak self] in
+                    BookmarksBar.isVisible = false
+                    self?.setNeedsLayout()
+                },
+            ]
+        }
         guard content.frame.contains(location) else { return [] }
         let point = CGPoint(x: location.x, y: location.y - content.frame.minY)
         let hit = await tab.describe(at: point)
@@ -454,6 +656,29 @@ final class BrowserPane: UIView, Pane {
             entries.append(ContextMenu.Entry(title: "Copiar dirección de la imagen", symbol: "doc.on.doc") {
                 UIPasteboard.general.url = url
             })
+        }
+
+        // Vídeo o audio bajo el cursor: se ofrece guardarlo. Lo que va por
+        // trozos (HLS, o un `blob:` montado por el reproductor) no es un
+        // fichero, y se dice en vez de dejar el menú sin la opción.
+        if let found = await tab.media(at: point) {
+            if found.isStream {
+                entries.append(ContextMenu.Entry(
+                    title: "El vídeo va por trozos: no se puede guardar",
+                    symbol: "exclamationmark.triangle",
+                    isEnabled: false
+                ) {})
+            } else {
+                entries.append(ContextMenu.Entry(
+                    title: found.isAudio ? "Descargar audio" : "Descargar vídeo",
+                    symbol: found.symbol
+                ) {
+                    tab.download(found.url, named: found.suggestedName)
+                })
+                entries.append(ContextMenu.Entry(title: "Copiar dirección del vídeo", symbol: "link") {
+                    UIPasteboard.general.url = found.url
+                })
+            }
         }
 
         if let selection = hit?.selection {
@@ -492,10 +717,10 @@ final class BrowserPane: UIView, Pane {
             let history = AppServices.shared.history
             let saved = history.isBookmarked(url)
             entries.append(ContextMenu.Entry(
-                title: saved ? "Quitar de marcadores" : "Añadir a marcadores",
-                symbol: saved ? "bookmark.slash" : "bookmark"
-            ) {
-                history.toggleBookmark(url: url, title: tab.title)
+                title: saved ? "Quitar de favoritos" : "Añadir a favoritos",
+                symbol: saved ? "star.slash" : "star"
+            ) { [weak self] in
+                self?.toggleBookmark()
             })
         }
         if let host = tab.webView.url?.host() {
@@ -526,6 +751,12 @@ final class BrowserPane: UIView, Pane {
             return
         }
         chrome.hover(at: nil)
+
+        if !bookmarksBar.isHidden, bookmarksBar.frame.contains(event.location) {
+            handleBookmarksPointer(event)
+            return
+        }
+        bookmarksBar.hover(at: nil)
 
         if isFinding, findBar.frame.contains(event.location) {
             findBar.handlePointer(event.kind, at: CGPoint(
@@ -571,6 +802,35 @@ final class BrowserPane: UIView, Pane {
         }
     }
 
+    private func handleBookmarksPointer(_ event: PointerEvent) {
+        let point = CGPoint(x: event.location.x, y: event.location.y - bookmarksBar.frame.minY)
+        bookmarksBar.hover(at: point)
+        guard case .down(let button) = event.kind else { return }
+
+        switch bookmarksBar.hit(at: point) {
+        case .bookmark(let index):
+            guard bookmarksBar.pages.indices.contains(index) else { return }
+            // Cmd+clic y el botón central, a una pestaña nueva, como un
+            // enlace. El derecho no llega aquí: el escritorio lo desvía a
+            // `contextMenuEntries`, que es quien monta el menú.
+            openBookmark(
+                bookmarksBar.pages[index],
+                inNewTab: button == .middle || event.modifiers.contains(.command)
+            )
+        case .overflow:
+            let entries = bookmarksBar.overflowPages.map { page in
+                ContextMenu.Entry(title: page.title, symbol: "star") { [weak self] in
+                    self?.openBookmark(page, inNewTab: false)
+                }
+            }
+            AppServices.shared.desktopViewController?.presentContextMenu(
+                entries, from: self, at: event.location
+            )
+        case .none:
+            break
+        }
+    }
+
     private func handleChromePointer(_ event: PointerEvent) {
         let point = CGPoint(x: event.location.x, y: event.location.y - chrome.frame.minY)
         chrome.hover(at: point)
@@ -594,6 +854,12 @@ final class BrowserPane: UIView, Pane {
             focusAddressBar()
         case .blocker:
             toggleBlockerForCurrentSite()
+        case .bookmark:
+            toggleBookmark()
+        case .media:
+            AppServices.shared.desktopViewController?.presentContextMenu(
+                mediaMenu(), from: self, at: event.location
+            )
         case .settings:
             AppServices.shared.desktopViewController?.presentSettings(.browser)
         case .window(let button):

@@ -416,6 +416,11 @@ final class FilesPane: UIView, Pane {
             guard index < sidebarFrames.count else { break }
             let frame = sidebarFrames[index]
             let isActive = provider === services.files.currentProvider
+            // Un servidor de red desmontado, o un USB desenchufado, se queda
+            // en la lista **apagado**: sigue ahí, pero se ve que no responde.
+            // Desaparecer sin más parecía que la ubicación no se hubiera
+            // añadido nunca.
+            let isOffline = (provider as? ExternalFolderProvider)?.isAvailable == false
 
             if isActive {
                 context.setFillColor(Tokens.Color.accent.withAlphaComponent(0.2).desktopCGColor)
@@ -423,16 +428,18 @@ final class FilesPane: UIView, Pane {
                 context.fillPath()
             }
 
+            let tint = isActive ? Tokens.Color.accent : Tokens.Color.textSecondary
             drawSymbol(
                 provider.symbol,
                 in: CGRect(x: frame.minX + 6, y: frame.midY - 8, width: 16, height: 16),
-                color: isActive ? Tokens.Color.accent : Tokens.Color.textSecondary
+                color: isOffline ? tint.withAlphaComponent(0.45) : tint
             )
+            let label = isActive ? Tokens.Color.text : Tokens.Color.textSecondary
             (provider.name as NSString).draw(
                 at: CGPoint(x: frame.minX + 28, y: frame.midY - 8),
                 withAttributes: [
                     .font: Tokens.sans(13),
-                    .foregroundColor: isActive ? Tokens.Color.text : Tokens.Color.textSecondary,
+                    .foregroundColor: isOffline ? label.withAlphaComponent(0.45) : label,
                 ]
             )
         }

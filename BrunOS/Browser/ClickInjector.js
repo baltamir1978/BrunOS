@@ -239,6 +239,115 @@ function describe(x, y) {
     };
 }
 
+/// Los medios de la página que se pueden descargar.
+///
+/// **No vale con `video.src`.** Un reproductor moderno casi nunca lo usa: mete
+/// `<source>` dentro del `<video>`, o monta el vídeo por trozos con Media
+/// Source Extensions y entonces `src` es un `blob:`, que fuera de la página no
+/// significa nada. Se recogen las tres cosas y es la app quien decide: lo
+/// directo se descarga, y de lo demás se dice por qué no.
+///
+/// `currentSrc` va primero porque es lo que el navegador **está** reproduciendo
+/// de verdad, ya resuelto entre todos los `<source>` disponibles.
+function mediaItems() {
+    const found = [];
+    const seen = new Set();
+
+    function add(raw, element, kind) {
+        if (!raw) return;
+        let url;
+        try {
+            url = new URL(raw, location.href).href;
+        } catch (error) {
+            return;
+        }
+        if (seen.has(url)) return;
+        seen.add(url);
+
+        const path = url.split('?')[0].split('#')[0];
+        const dot = path.lastIndexOf('.');
+        const extension = dot > path.lastIndexOf('/') ? path.slice(dot + 1).toLowerCase() : '';
+
+        found.push({
+            url: url,
+            kind: kind,
+            extension: extension,
+            // Un `blob:` es memoria de la pestaña y un `.m3u8` es una lista de
+            // trozos, no un fichero: ninguno de los dos se puede guardar tal
+            // cual, y conviene decirlo en vez de fallar luego.
+            stream: url.startsWith('blob:') || extension === 'm3u8' || extension === 'mpd',
+            width: element && element.videoWidth ? element.videoWidth : 0,
+            height: element && element.videoHeight ? element.videoHeight : 0,
+            duration: element && isFinite(element.duration) ? Math.round(element.duration) : 0,
+            title: document.title || '',
+        });
+    }
+
+    for (const element of document.querySelectorAll('video, audio')) {
+        const kind = element.tagName.toLowerCase() === 'audio' ? 'audio' : 'video';
+        add(element.currentSrc, element, kind);
+        add(element.getAttribute('src'), element, kind);
+        for (const source of element.querySelectorAll('source')) {
+            add(source.getAttribute('src'), element, kind);
+        }
+    }
+
+    // Lo que la página declara para las redes sociales: muchos sitios ponen
+    // ahí el fichero directo aunque el reproductor use otra cosa.
+    for (const meta of document.querySelectorAll('meta[property="og:video"], meta[property="og:video:url"], meta[property="og:video:secure_url"]')) {
+        add(meta.getAttribute('content'), null, 'video');
+    }
+
+    return found;
+}
+
+/// El medio que hay bajo el cursor, para «Descargar vídeo» del clic derecho.
+function mediaAt(x, y) {
+    let node = deepElementFromPoint(x, y);
+    let guard = 0;
+    while (node && guard++ < 10) {
+        const tag = node.tagName ? node.tagName.toLowerCase() : '';
+        if (tag === 'video' || tag === 'audio') {
+            const items = mediaItems();
+            const own = new Set();
+            if (node.currentSrc) own.add(node.currentSrc);
+            for (const item of items) {
+                if (own.has(item.url)) return item;
+            }
+            return items.length > 0 ? items[0] : null;
+        }
+        node = node.parentElement || (node.getRootNode() || {}).host;
+    }
+    return null;
+}
+
+/// El icono del sitio que declara la página, para la barra de favoritos.
+function iconURL() {
+    const links = document.querySelectorAll('link[rel~="icon" i]');
+    let best = null;
+    let bestSize = -1;
+    for (const link of links) {
+        const href = link.getAttribute('href');
+        if (!href) continue;
+        const sizes = (link.getAttribute('sizes') || '').split('x')[0];
+        const size = parseInt(sizes, 10) || 0;
+        // El más grande que no sea enorme: escalar hacia abajo se ve bien,
+        // hacia arriba no.
+        if (size > bestSize && size <= 256) {
+            bestSize = size;
+            best = href;
+        } else if (best === null) {
+            best = href;
+        }
+    }
+    if (!best) return null;
+    try {
+        return new URL(best, location.href).href;
+    } catch (error) {
+        return null;
+    }
+}
+
 /// Escribe texto en el elemento con foco.
 ///
 /// Primero con `execCommand('insertText')`, que es lo que hace el propio
@@ -597,4 +706,7 @@ window.__brunos = {
     insertText: insertText,
     key: key,
     fillLogin: fillLogin,
+    media: mediaItems,
+    mediaAt: mediaAt,
+    iconURL: iconURL,
 };
