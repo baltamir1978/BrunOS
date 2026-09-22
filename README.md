@@ -12,7 +12,7 @@ BrunOS convierte un iPhone en un ordenador de sobremesa: conectas un monitor, un
 proyector por USB-C, emparejas ratón y teclado Bluetooth, y trabajas en una pantalla de verdad.
 
 No es duplicar la pantalla del teléfono. BrunOS **dibuja directamente en la pantalla externa a su
-resolución nativa**, con su propio escritorio de ventanas en mosaico, sin bandas negras y sin la
+resolución nativa**, con su propio escritorio de ventanas en mosaico o flotantes, sin bandas negras y sin la
 silueta de un iPhone en mitad del monitor. El teléfono se queda de mando: trackpad de emergencia,
 teclado en pantalla, dictado y ajustes.
 
@@ -23,14 +23,21 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | | Estado |
 | --- | --- |
 | **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | ✅ |
-| **Ratón y teclado** Bluetooth, cursor propio y atajos de ventanas | ✅ |
-| **Escritorio** en mosaico estilo i3, con 3 espacios, dock y fondos | ✅ |
-| **Terminal SSH** por Tailscale o contraseña, con tmux, selección y `known_hosts` | ✅ |
-| **Navegador** con pestañas, bloqueo de anuncios y descargas | 🚧 escrito, a falta de rodaje |
-| **Ficheros**: iPhone, iCloud, USB y SFTP, con vista previa | 🚧 escrito, a falta de rodaje |
+| **Ratón y teclado** Bluetooth, cursor propio que no se atasca en los bordes, atajos | ✅ |
+| **Escritorio** en mosaico estilo i3 o con ventanas flotantes, 3 espacios, dock y pantalla completa | 🚧 flotantes sin rodaje |
+| **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él | ✅ |
+| **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
+| **Navegador** con pestañas, bloqueo de anuncios editable, descargas y contraseñas de iOS | ✅ YouTube probado |
+| **Ficheros**: iPhone, iCloud, USB y SFTP, con vistas, vista previa, copiar carpetas y arrastrar | 🚧 a falta de rodaje |
+| **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | 🚧 a falta de rodaje |
 
-El escritorio, el ratón, el teclado y la conexión SSH están probados con un monitor y una máquina
-de verdad. El navegador y el gestor de ficheros están enteros pero recién hechos.
+El escritorio, el ratón, el teclado, la conexión SSH y el navegador están probados con un monitor
+de verdad. Lo más reciente —ventanas flotantes, arrastrar ficheros, el lanzador— está escrito y
+compilado, pero sin rodaje.
+
+Cada panel lleva los tres botones de macOS: **rojo** cierra, **amarillo** lo manda al dock y
+**verde** lo pone a pantalla completa. Los ajustes globales están en la rueda del dock, y los de
+cada panel en la rueda de su propia barra.
 
 **Con el monitor conectado, el iPhone se apaga** y queda como superficie táctil: todo —ajustes
 incluidos— se maneja desde el monitor. No es estético, es necesario: con AssistiveTouch, el botón
@@ -65,8 +72,20 @@ Opcionales, porque lo que descargan no se versiona:
 ```
 
 El `.xcodeproj` **no está versionado**: lo genera XcodeGen desde `project.yml`. El equipo de firma
-se configura en Xcode; `DEVELOPMENT_TEAM` se deja vacío a propósito para no meter datos de la
-cuenta de desarrollador en un repositorio público.
+va en `Local.xcconfig`, que tampoco se versiona, para no meter datos de la cuenta de desarrollador
+en un repositorio público.
+
+## Instalar por TestFlight
+
+```bash
+./Tools/testflight.sh --dry-run   # comprueba que encuentra todo
+./Tools/testflight.sh             # archiva, firma y sube a App Store Connect
+```
+
+Hace falta una clave de la API de App Store Connect, que **no está en el repositorio**: el `.p8`
+en `~/.appstoreconnect/private_keys/` y su ID y el del emisor en
+`~/.config/appstoreconnect/testflight.env`. El número de build es la fecha y la hora. Como tester
+interno, la build no pasa por la revisión de Apple.
 
 ## Limitaciones conocidas
 
@@ -76,14 +95,15 @@ Son de iOS, no del programa, y no hay intención de pelearse con ellas:
 - **En segundo plano, iOS vuelve a duplicar la pantalla.** La app tiene que quedarse delante.
 - **El círculo del puntero de AssistiveTouch no se puede ocultar.**
 - **Los clics sintéticos no entran en iframes de otro dominio** (avisos de cookies, pasarelas de
-  pago, logins de terceros). Para eso está "Traer ventana": la página se muestra en el iPhone para
-  tocarla con el dedo y vuelve al monitor.
+  pago, logins de terceros): la política del mismo origen impide llegar a ellos.
+- **Las contraseñas de Safari se eligen tocando el iPhone**: iOS sólo las ofrece en su teclado,
+  sobre un campo nativo. Al pinchar un campo de acceso en una web, sale en el teléfono.
 - **El contenido con DRM puede salir en negro** en la salida externa.
 - **El botón izquierdo del ratón no llega a la app como tal**: con AssistiveTouch, iOS lo convierte
   en un toque en la pantalla del teléfono. Por eso, con monitor conectado, todo el iPhone hace de
   trackpad.
-- **El puntero se para al llegar al borde de la pantalla del iPhone**, porque ése es el recorrido
-  físico disponible. Se compensa con proporción y aceleración, pero no desaparece.
+- **La velocidad del ratón se ajusta en iOS** (Accesibilidad › Control del puntero): el cursor del
+  monitor sigue la posición del puntero del iPhone, así que la pone el sistema.
 - **El fondo de pantalla del iPhone no se puede reutilizar**: iOS no se lo enseña a las apps.
 - **`keyboard-interactive` no funciona**: la librería SSH que usa BrunOS no habla ese método. Los
   servidores configurados sólo con él no admitirán la contraseña.
