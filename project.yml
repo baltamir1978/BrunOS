@@ -73,6 +73,11 @@ targets:
       - package: SwiftTerm
       - package: Citadel
       - package: AMSMB2
+        # Es un framework dinámico (por la LGPL): si no se embebe, la app enlaza
+        # contra él pero no lo lleva dentro, y en el iPhone dyld la cierra antes
+        # de dibujar nada. En el simulador no se nota, porque en Debug el
+        # framework está al lado, en la carpeta de compilación.
+        embed: true
     info:
       path: BrunOS/App/Info.plist
       properties:

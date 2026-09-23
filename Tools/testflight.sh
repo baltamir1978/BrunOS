@@ -117,6 +117,20 @@ xcodebuild archive \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   "${AUTH[@]}"
 
+# Cada framework dinámico que enlaza la app tiene que ir dentro de ella. Si falta
+# uno, compila y se sube sin quejarse, pero en el iPhone no llega ni a arrancar:
+# pasó con AMSMB2 en la 2609232025. En el simulador no se ve, así que se mira aquí.
+say "Comprobando los frameworks embebidos"
+APP="$ARCHIVE/Products/Applications/BrunOS.app"
+MISSING=0
+for LIB in $(otool -L "$APP/BrunOS" | awk '/@rpath\// {print $1}'); do
+  if [ ! -e "$APP/Frameworks/${LIB#@rpath/}" ]; then
+    echo "ERROR: la app enlaza $LIB y no lo lleva en Frameworks/ (¿falta embed: true en project.yml?)" >&2
+    MISSING=1
+  fi
+done
+[ "$MISSING" -eq 0 ] || exit 1
+
 say "Firmando y subiendo a App Store Connect"
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \

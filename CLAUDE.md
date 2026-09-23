@@ -19,7 +19,12 @@ parece un proceso de conexión muy complicado. Queda abierto: el reCAPTCHA de Go
 en la siguiente build, ver `BrunOS/Browser/CLAUDE.md`) y unas esquinas que salen mal en los
 ajustes de Ficheros, aún sin localizar.
 
-**Última build subida: 2609232025 (23-sep-2026, tarde)**, con todo lo del día: reCAPTCHA
+**La 2609232025 no arranca en el iPhone** (lo vio Bruno el 23-sep por la noche): enlazaba
+`AMSMB2.framework` pero no lo llevaba dentro, y dyld la cerraba al abrirla. En el simulador no se
+nota. Arreglado con `embed: true` en `project.yml`, y `testflight.sh` ahora se niega a subir si
+falta un framework. **Hay que subir otra build** (avisando antes) para que pruebe todo lo de abajo.
+
+**Última build subida: 2609232025 (23-sep-2026, tarde), rota por lo de arriba**, con todo lo del día: reCAPTCHA
 (reenvío a iframes por Swift), SMB propio, menú del dock, copia por trozos, cursor de
 redimensionar, HLS, historial y los arreglos de la revisión.
 
@@ -423,7 +428,8 @@ MetalToolchain`. Sin él, SwiftTerm falla con `cannot execute tool 'metal'`.
 - Swift 6 en modo estricto (`SWIFT_STRICT_CONCURRENCY: complete`) desde el primer día.
 - UIKit para la escena externa y el gestor de ventanas; SwiftUI para la interfaz del iPhone.
 - **iOS 27 mínimo**, sólo iPhone, sólo vertical en el teléfono.
-- Dependencias: **SwiftTerm**, **Citadel** y **AMSMB2** (el cliente SMB, aprobada el 23-sep-2026),
+- Dependencias: **SwiftTerm**, **Citadel** y **AMSMB2** (el cliente SMB, aprobada el 23-sep-2026;
+  es dinámica y **necesita `embed: true`**, o la app no arranca en el iPhone),
   y ninguna más sin preguntar. **Citadel fijado a la
   serie 0.11** (22-sep-2026), por el fork de `swift-nio-ssh` del que tira: ver "Cadena de
   suministro".
