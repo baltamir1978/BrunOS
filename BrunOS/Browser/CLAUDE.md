@@ -71,6 +71,30 @@ y lo entienden React y compañía. **Comprobado con un programa de prueba en mac
 `WKWebView` real con el inyector): Intro en google.com navega a `/search?q=…`, Retroceso borra y
 la flecha mueve el cursor.
 
+### Iframes de otro dominio: el reCAPTCHA no se podía pulsar (23-sep-2026)
+
+Bruno abrió Google, salió el «no soy un robot» y la casilla no respondía: está en un iframe de
+`google.com/recaptcha`, y el inyector sólo actuaba en el documento principal. **No es un límite
+sin arreglo**, como decía el comentario antiguo: el inyector corre también dentro de cada iframe
+(`forMainFrameOnly: false`). Cuando bajo el cursor hay un `<iframe>`, se le reenvía el clic, el
+hover o la rueda por `postMessage`, con las coordenadas pasadas a las suyas (marco menos borde y
+relleno), y el de dentro lo dispara allí; si hay iframes anidados, se repite. El teclado va al
+último iframe pinchado (`focusedFrame`).
+
+- **La clave** (`BRUNOS_TOKEN`) la antepone Swift al script, una por pestaña. Vive sólo en el
+  mundo de contenido de BrunOS, así que la página no puede fabricar mensajes para hacer clics en
+  un iframe ajeno. El oyente va en captura, antes que los scripts de la página, y corta la
+  propagación.
+- **Duda que queda**: los eventos siguen siendo sintéticos (`isTrusted = false`). Puede que
+  reCAPTCHA acepte el clic y luego pida el reto de las imágenes, que también es un iframe y
+  también debería ir.
+- **El user-agent decía Safari 18.6**, y un Safari de hace años con un motor de ahora es de lo
+  que hace sospechar a Google. Ahora lleva la versión del sistema (Safari va con el mismo número
+  que iOS desde la 26).
+
+**Cookies y sesiones**: no se configura `websiteDataStore`, así que es el `default()`, que guarda
+en disco. Las sesiones iniciadas se mantienen entre arranques y todas las pestañas las comparten.
+
 ### Descargas, pestañas y el botón derecho del navegador
 
 - **Las descargas no funcionaban** por dos cosas: faltaba

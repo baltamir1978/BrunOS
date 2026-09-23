@@ -10,29 +10,24 @@ emergencia, teclado, dictado y ajustes.
 
 ---
 
-## ⚠ ESTADO ACTUAL — LEER PRIMERO (22-sep-2026)
+## ⚠ ESTADO ACTUAL — LEER PRIMERO (23-sep-2026)
 
-**Para retomar (cierre del 22-sep-2026, noche):**
+**23-sep-2026**: subida la 2609231826. Bruno confirma que **el ratón funciona** (clic y
+arrastre) y que **lo pendiente de antes también** (ratón conectado que se desmarca, salir del
+modo mando al quitar el monitor, nombre de carpeta). El SMB por la app Archivos funciona, pero le
+parece un proceso de conexión muy complicado. Queda abierto: el reCAPTCHA de Google (arreglado
+en la siguiente build, ver `BrunOS/Browser/CLAUDE.md`) y unas esquinas que salen mal en los
+ajustes de Ficheros, aún sin localizar.
 
-1. **Subir a TestFlight lo que hay en `main`**: `./Tools/testflight.sh`, **lo primero y sin
-   preguntar**. El 22-sep saltó el límite diario de subidas de App Store Connect, así que no
-   llegaron al iPhone ni el arreglo del clic (`bdacb54`) ni nada de lo escrito después. La build
-   que Bruno tiene instalada, la 2609221604, **tiene el clic roto** (cada clic hacía saltar el
-   cursor). Tarda 5–15 minutos en aparecer en TestFlight.
-2. **Que Bruno pruebe con ratón**: clic, arrastrar ventanas, divisores y ficheros, y seleccionar
-   texto. Es lo más delicado de todo: con AssistiveTouch el botón llega como un toque en el
-   iPhone, y **la posición de ese toque no es fiable; su desplazamiento, sí** (ver «Arrastrar con
-   el ratón» más abajo).
-3. Luego, lo nuevo del navegador: barra de favoritos e iconos, sugerencias al escribir, modo
-   lectura, descargar un vídeo de una web (RedGifs va con mp4 directo; YouTube no puede),
-   el ⤓ de descargas y guardar como PDF. Y en Ficheros, montar un SMB desde la app Archivos y
-   añadirlo como ubicación.
-4. Pendiente de antes, también sin probar: «ratón conectado» que se desmarca al desconectar,
-   volver del modo mando al quitar el monitor y el nombre de carpeta en Ficheros.
-5. Cuando Bruno quiera seguir escribiendo: el navegador va hacia «un Safari». Lo siguiente
-   propuesto, por orden: restaurar la sesión al arrancar, navegación privada, zoom por sitio,
-   ventana de historial, silenciar y fijar pestañas.
+**Para retomar:**
 
+1. Que Bruno pruebe lo nuevo del navegador: el reCAPTCHA, barra de favoritos e iconos,
+   sugerencias al escribir, modo lectura, descargar un vídeo, el ⤓ de descargas y guardar como PDF.
+2. Localizar las esquinas mal dibujadas en los ajustes de Ficheros (pedirle una foto o el sitio exacto).
+3. SMB más sencillo: la única salida real es un cliente propio (AMSMB2), que es una dependencia
+   nueva y hay que preguntársela.
+4. Navegador hacia «un Safari», por orden: restaurar la sesión al arrancar, navegación privada,
+   zoom por sitio, ventana de historial, silenciar y fijar pestañas.
 
 **Las cuatro fases están escritas. Terminal y navegador se usan ya en el iPhone con monitor; el
 gestor de ficheros está a medias.**

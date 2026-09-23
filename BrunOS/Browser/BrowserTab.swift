@@ -118,12 +118,18 @@ final class BrowserTab: NSObject {
         installInjector()
     }
 
-    /// Safari de macOS. La versión se deja fija a propósito: seguir la del
-    /// sistema aquí no aporta nada y sí puede romper la detección de algún
-    /// sitio cuando iOS cambie de número.
-    private static let desktopUserAgent =
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
-        + "(KHTML, like Gecko) Version/18.6 Safari/605.1.15"
+    /// Safari de macOS, **con la versión de Safari que trae este iOS**.
+    ///
+    /// Antes iba fija en la 18.6, y Google, al ver un Safari de hace años con
+    /// un motor que se comporta como el de ahora, sacaba el reCAPTCHA de «no
+    /// soy un robot» sólo con abrir la portada. Safari lleva el mismo número
+    /// que el sistema desde la 26, y «Mac OS X 10_15_7» es lo que sigue
+    /// poniendo el Safari de verdad: no se cambia.
+    private static let desktopUserAgent: String = {
+        let major = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+            + "(KHTML, like Gecko) Version/\(major).0 Safari/605.1.15"
+    }()
 
     /// Convence a la página de que hay un ratón y no un dedo.
     ///
@@ -762,8 +768,11 @@ final class BrowserTab: NSObject {
             return
         }
 
+        // La clave con la que los inyectores de los iframes reconocen a su
+        // marco padre. Nueva en cada pestaña; ver `forwardToFrame` en el JS.
+        let token = UUID().uuidString
         let script = WKUserScript(
-            source: source,
+            source: "const BRUNOS_TOKEN = '\(token)';\n" + source,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false,
             in: world
