@@ -24,13 +24,15 @@ ajustes de Ficheros, aún sin localizar.
 nota. Arreglado con `embed: true` en `project.yml`, y `testflight.sh` ahora se niega a subir si
 falta un framework. **Hay que subir otra build** (avisando antes) para que pruebe todo lo de abajo.
 
-**Última build subida: 2609232025 (23-sep-2026, tarde), rota por lo de arriba**, con todo lo del día: reCAPTCHA
+**Última build subida: 2609232124 (23-sep-2026, noche)**: arregla el arranque y añade un solo
+escritorio con las tres apps juntas, las esquinas de las ventanas y la descarga de RedGifs. La
+anterior, 2609232025, no arrancaba y llevaba todo lo del día: reCAPTCHA
 (reenvío a iframes por Swift), SMB propio, menú del dock, copia por trozos, cursor de
 redimensionar, HLS, historial y los arreglos de la revisión.
 
 **Para retomar:**
 
-1. Que Bruno pruebe la 2609232025: el reCAPTCHA, el SMB propio, varias ventanas desde el dock,
+1. Que Bruno pruebe la 2609232124 (lleva todo lo de la 2609232025): el reCAPTCHA, el SMB propio, varias ventanas desde el dock,
    el historial (Cmd+Y), descargar un vídeo HLS, el cursor de redimensionar y, de antes, barra de
    favoritos, sugerencias, modo lectura, el ⤓ de descargas y guardar como PDF.
 2. Las esquinas de los ajustes de Ficheros y ver varias apps a la vez (arreglados el 23-sep por la
