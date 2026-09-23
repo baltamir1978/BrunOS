@@ -89,6 +89,9 @@ marco menos borde y relleno), y `BrowserTab.send` se lo manda al inyector de ese
   iframe sin inyector (un `about:blank` que crea la propia página) la clave le llegaba igual, la
   página la leía y podía fabricar clics en otro iframe, como el de un pago. **Nada de este camino
   puede pasar por la página.**
+- **Comprobado en un `WKWebView` de macOS** con dos servidores locales en puertos distintos (otro
+  origen): el iframe se registra, un clic en (170, 155) de la página llega al botón del iframe
+  como (65, 50) —su borde de 5 px incluido— y pinchar su campo y escribir mete el texto.
 - **Duda que queda**: los eventos siguen siendo sintéticos (`isTrusted = false`). Puede que
   reCAPTCHA acepte el clic y luego pida el reto de las imágenes, que también es un iframe y
   también debería ir.
