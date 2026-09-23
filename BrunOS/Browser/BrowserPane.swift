@@ -56,6 +56,15 @@ final class BrowserPane: UIView, Pane {
     var title: String { activeTab?.title ?? "Navegador" }
     var view: UIView { self }
 
+    /// Abre una dirección en la pestaña que se está viendo.
+    func openInCurrentTab(_ url: URL) {
+        guard let activeTab else {
+            newTab(url: url.absoluteString)
+            return
+        }
+        activeTab.load(url.absoluteString)
+    }
+
     private var activeTab: BrowserTab? {
         tabs.indices.contains(activeIndex) ? tabs[activeIndex] : nil
     }

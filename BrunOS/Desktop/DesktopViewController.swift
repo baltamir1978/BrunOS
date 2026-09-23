@@ -203,6 +203,7 @@ final class DesktopViewController: UIViewController {
         quickLook?.frame = CGRect(origin: .zero, size: logicalSize)
         prompt?.frame = CGRect(origin: .zero, size: logicalSize)
         launcher?.frame = CGRect(origin: .zero, size: logicalSize)
+        historyWindow?.frame = CGRect(origin: .zero, size: logicalSize)
 
         let dockHidden = fullScreen && !dockRevealed
         dock.frame = CGRect(
@@ -402,6 +403,9 @@ final class DesktopViewController: UIViewController {
 
         case .launcher:
             presentLauncher()
+
+        case .history:
+            presentHistory()
 
         case .addressBar:
             guard let browser = workspace.focusedPane as? BrowserPane else { return false }
@@ -741,6 +745,29 @@ final class DesktopViewController: UIViewController {
     }
 
     /// Abre un fichero local en el navegador.
+    private var historyWindow: HistoryWindow?
+
+    /// Cmd+Y: todo el historial, como en Safari.
+    func presentHistory() {
+        historyWindow?.removeFromSuperview()
+        let window = HistoryWindow(frame: CGRect(origin: .zero, size: logicalSize))
+        window.onDismiss = { [weak self] in
+            self?.historyWindow?.removeFromSuperview()
+            self?.historyWindow = nil
+        }
+        window.onOpen = { [weak self] url, newTab in
+            guard let self else { return }
+            if !newTab, let browser = self.services.desktop.active.focusedPane as? BrowserPane {
+                browser.openInCurrentTab(url)
+            } else {
+                self.openInBrowser(url)
+            }
+        }
+        canvas.addSubview(window)
+        historyWindow = window
+        applyContentsScale(to: window)
+    }
+
     func openInBrowser(_ url: URL) {
         services.desktop.activate(number: PaneKind.browser.preferredWorkspace)
         if let browser = services.desktop.active.focusedPane as? BrowserPane {
@@ -834,6 +861,9 @@ final class DesktopViewController: UIViewController {
             },
             Launcher.Entry(title: "Pantalla completa", subtitle: "Acción · Ctrl+Cmd+F", symbol: "arrow.up.left.and.arrow.down.right") {
                 [weak self] in self?.perform(.toggleFullScreen)
+            },
+            Launcher.Entry(title: "Historial", subtitle: "Acción · Cmd+Y", symbol: "clock.arrow.circlepath") {
+                [weak self] in self?.presentHistory()
             },
             Launcher.Entry(title: "Ajustes", subtitle: "Acción", symbol: "gearshape") {
                 [weak self] in self?.presentSettings(.global)
@@ -964,6 +994,7 @@ final class DesktopViewController: UIViewController {
         if let quickLook, quickLook.handlePointer(kind, at: position) { return }
         if let hostEditor, hostEditor.handlePointer(kind, at: position) { return }
         if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
+        if let historyWindow, historyWindow.handlePointer(kind, at: position) { return }
         if let launcher, launcher.handlePointer(kind, at: position) { return }
 
         if fileDrag != nil, handleFileDrag(kind, at: position) { return }
@@ -1064,7 +1095,7 @@ final class DesktopViewController: UIViewController {
         // por encima de todo, incluidas las barras.
         canvas.bringSubviewToFront(topBar)
         canvas.bringSubviewToFront(dock)
-        let modals: [UIView?] = [launcher, settingsWindow, hostEditor, quickLook, prompt, contextMenu]
+        let modals: [UIView?] = [launcher, settingsWindow, historyWindow, hostEditor, quickLook, prompt, contextMenu]
         for modal in modals.compactMap({ $0 }) {
             canvas.bringSubviewToFront(modal)
         }
@@ -1228,7 +1259,7 @@ final class DesktopViewController: UIViewController {
         if let divider = activeDivider { return Self.shape(for: divider.axis) }
         guard windowDrag == nil, fileDrag == nil else { return .arrow }
 
-        let modals: [UIView?] = [launcher, settingsWindow, hostEditor, quickLook, prompt, contextMenu]
+        let modals: [UIView?] = [launcher, settingsWindow, historyWindow, hostEditor, quickLook, prompt, contextMenu]
         guard modals.allSatisfy({ $0 == nil }) else { return .arrow }
 
         if let (_, frame) = floatingWindow(at: position, margin: Self.resizeMargin) {
@@ -1592,6 +1623,7 @@ final class DesktopViewController: UIViewController {
         if let quickLook, quickLook.handleKey(event) { return }
         if let hostEditor, hostEditor.handleKey(event) { return }
         if let settingsWindow, settingsWindow.handleKey(event) { return }
+        if let historyWindow, historyWindow.handleKey(event) { return }
         if launcherHandlesKey(event) { return }
         services.desktop.active.focusedPane?.handleKey(event)
     }

@@ -100,6 +100,46 @@ final class FaviconStore {
     }
 }
 
+
+extension FaviconStore {
+    /// El icono del sitio si se tiene; si no, un cuadrado con su inicial.
+    ///
+    /// **El hueco no se deja vacío**: una lista donde unos tienen icono y
+    /// otros no se ve desordenada, y el color por dominio ya distingue uno de
+    /// otro de un vistazo.
+    static func drawSiteIcon(for address: String, in frame: CGRect, context: CGContext) {
+        let host = URL(string: address)?.host()
+        if let icon = AppServices.shared.favicons.icon(for: host) {
+            icon.draw(in: frame)
+            return
+        }
+
+        let letter = (host?.replacingOccurrences(of: "www.", with: "").first).map(String.init)?.uppercased() ?? "·"
+        context.setFillColor(color(for: host ?? address).cgColor)
+        context.addPath(UIBezierPath(roundedRect: frame, cornerRadius: frame.width / 4).cgPath)
+        context.fillPath()
+        let fontSize = frame.height * 0.62
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        (letter as NSString).draw(
+            in: CGRect(x: frame.minX, y: frame.midY - fontSize * 0.62, width: frame.width, height: fontSize * 1.3),
+            withAttributes: [
+                .font: Tokens.sans(fontSize, weight: .semibold),
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: paragraph,
+            ]
+        )
+    }
+
+    /// Un color estable por dominio: el mismo sitio siempre del mismo color.
+    private static func color(for seed: String) -> UIColor {
+        var hash: UInt64 = 5381
+        for byte in seed.utf8 { hash = hash &* 33 &+ UInt64(byte) }
+        let hue = CGFloat(hash % 360) / 360
+        return UIColor(hue: hue, saturation: 0.55, brightness: 0.72, alpha: 1)
+    }
+}
+
 extension UIImage {
     /// Cuadrado de lado `side`, sin deformar: los favicons vienen en todos los
     /// tamaños y algunos no son cuadrados.

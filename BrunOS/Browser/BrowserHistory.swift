@@ -1,6 +1,7 @@
 import Foundation
 
-/// Historial y marcadores del navegador, para el lanzador (Cmd+P).
+/// Historial y marcadores del navegador, para el lanzador (Cmd+P) y la
+/// ventana de historial (Cmd+Y).
 ///
 /// Se guardan en un JSON en Application Support y no salen del iPhone. Del
 /// historial se queda **una entrada por dirección**, la última visita, y como
@@ -103,6 +104,17 @@ final class BrowserHistory {
 
     func clearHistory() {
         visits.removeAll()
+        save()
+    }
+
+    func removeVisit(_ page: Page) {
+        visits.removeAll { $0.url == page.url }
+        save()
+    }
+
+    /// Borra lo visitado desde una fecha: «la última hora», «hoy», como Safari.
+    func clearHistory(since date: Date) {
+        visits.removeAll { $0.visited >= date }
         save()
     }
 

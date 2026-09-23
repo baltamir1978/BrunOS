@@ -177,41 +177,7 @@ final class BookmarksBar: UIView {
         }
     }
 
-    /// El icono del sitio si se tiene; si no, un cuadrado con su inicial.
-    ///
-    /// **El hueco no se deja vacío**: una fila de favoritos donde unos tienen
-    /// icono y otros no se ve desordenada, y el color por dominio ya distingue
-    /// uno de otro de un vistazo.
     private func drawIcon(for page: BrowserHistory.Page, in frame: CGRect, context: CGContext) {
-        let host = URL(string: page.url)?.host()
-        if let icon = AppServices.shared.favicons.icon(for: host) {
-            icon.draw(in: frame)
-            return
-        }
-
-        let letter = (host?.replacingOccurrences(of: "www.", with: "").first).map(String.init)?.uppercased() ?? "·"
-        context.setFillColor(Self.color(for: host ?? page.url).cgColor)
-        context.addPath(UIBezierPath(roundedRect: frame, cornerRadius: 3.5).cgPath)
-        context.fillPath()
-        (letter as NSString).draw(
-            in: CGRect(x: frame.minX, y: frame.midY - 5.5, width: frame.width, height: 12),
-            withAttributes: [
-                .font: Tokens.sans(9, weight: .semibold),
-                .foregroundColor: UIColor.white,
-                .paragraphStyle: {
-                    let style = NSMutableParagraphStyle()
-                    style.alignment = .center
-                    return style
-                }(),
-            ]
-        )
-    }
-
-    /// Un color estable por dominio: el mismo sitio siempre del mismo color.
-    private static func color(for seed: String) -> UIColor {
-        var hash: UInt64 = 5381
-        for byte in seed.utf8 { hash = hash &* 33 &+ UInt64(byte) }
-        let hue = CGFloat(hash % 360) / 360
-        return UIColor(hue: hue, saturation: 0.55, brightness: 0.72, alpha: 1)
+        FaviconStore.drawSiteIcon(for: page.url, in: frame, context: context)
     }
 }

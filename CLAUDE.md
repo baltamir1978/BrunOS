@@ -27,7 +27,7 @@ ajustes de Ficheros, aún sin localizar.
 3. Probar el SMB propio (AMSMB2, 23-sep-2026): Ajustes de Ficheros › Ubicaciones › Nuevo
    servidor. Escrito y compilado, **sin probar contra un servidor de verdad**.
 4. Navegador hacia «un Safari», por orden: restaurar la sesión al arrancar, navegación privada,
-   zoom por sitio, ventana de historial, silenciar y fijar pestañas.
+   zoom por sitio, silenciar y fijar pestañas. La ventana de historial (Cmd+Y) ya está.
 
 **Las cuatro fases están escritas. Terminal y navegador se usan ya en el iPhone con monitor; el
 gestor de ficheros está a medias.**
@@ -360,7 +360,7 @@ movimiento más incómodo que hay.
 ## Pendientes
 
 - **Navegador, para parecerse más a Safari**: navegación privada, silenciar una pestaña, zoom por
-  sitio, ventana de historial, fijar pestañas y buscadores propios.
+  sitio, fijar pestañas y buscadores propios.
 - **YouTube**: sólo saldría lanzando yt-dlp en una máquina del tailnet por SSH. HLS ya se baja
   (`HLSDownloader`, 23-sep-2026).
 

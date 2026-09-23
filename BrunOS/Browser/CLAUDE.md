@@ -240,6 +240,16 @@ HTML del artículo no está en ningún servidor y recargarlo no significa nada.
   diccionario aparte, para que el modelo que se compara y se copia no arrastre closures.
 - «Guardar como PDF» usa `WKWebView.createPDF`: lo pagina WebKit entero, no es una captura.
 
+### Ventana de historial (Cmd+Y, 23-sep-2026)
+
+`HistoryWindow`, como «Mostrar todo el historial» de Safari: agrupado por días, con buscador que
+filtra según se escribe (por partes, como el lanzador), Intro o clic abre en la pestaña actual y
+Cmd+Intro o el botón central en otra. Se borra una visita (el aspa sale al pasar el cursor, o
+Cmd+⌫), la última hora, hoy o todo; «Borrar todo» pide un segundo clic. También desde el lanzador.
+El icono de cada fila es el de la barra de favoritos, ahora en `FaviconStore.drawSiteIcon`.
+
+**Sin probar en el iPhone.**
+
 ### Pestañas
 
 Menú del clic derecho sobre una pestaña (recargar, duplicar, cerrar, cerrar las demás) y

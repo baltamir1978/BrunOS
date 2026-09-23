@@ -29,6 +29,7 @@ enum DesktopCommand: Equatable {
     case zoomIn
     case zoomOut
     case zoomReset
+    case history
 
     /// Lo que se rotula en la ayuda y en los ajustes.
     var label: String {
@@ -54,6 +55,7 @@ enum DesktopCommand: Equatable {
         case .zoomIn: "Aumentar"
         case .zoomOut: "Reducir"
         case .zoomReset: "Tamaño normal"
+        case .history: "Historial"
         }
     }
 }
@@ -130,6 +132,8 @@ enum Shortcuts {
             Entry(input: "=", modifiers: .command, command: .zoomIn, title: "Aumentar"),
             Entry(input: "-", modifiers: .command, command: .zoomOut, title: "Reducir"),
             Entry(input: "0", modifiers: .command, command: .zoomReset, title: "Tamaño normal"),
+            // El de Safari.
+            Entry(input: "y", modifiers: .command, command: .history, title: "Historial"),
         ]
 
         return entries
