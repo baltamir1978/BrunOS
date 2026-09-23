@@ -86,6 +86,10 @@ protocol FileProvider: AnyObject, Sendable {
 
     /// Sube un fichero local, también a trozos.
     func upload(from url: URL, to path: String) async throws
+
+    /// Mueve algo dentro del mismo origen, en el propio servidor o disco: sin
+    /// bajarlo y volverlo a subir. `destination` es la ruta completa nueva.
+    func move(_ path: String, to destination: String) async throws
 }
 
 extension FileProvider {
@@ -96,6 +100,22 @@ extension FileProvider {
 
     func upload(from url: URL, to path: String) async throws {
         try await write(Data(contentsOf: url, options: .mappedIfSafe), to: path)
+    }
+
+    /// Dónde dejar la copia de un fichero remoto para la vista previa.
+    ///
+    /// **Una carpeta por fichero y versión**, no una por servidor: con sólo el
+    /// nombre, `2025/IMG_0001.jpg` y `2026/IMG_0001.jpg` se pisaban y salía la
+    /// foto que no era; y un fichero cambiado en el servidor seguía enseñando
+    /// la copia vieja.
+    func previewURL(for item: FileItem, prefix: String) -> URL {
+        let version = "\(item.path)|\(item.size)|\(item.modified?.timeIntervalSince1970 ?? 0)"
+        var hash: UInt64 = 5381
+        for byte in version.utf8 { hash = hash &* 33 &+ UInt64(byte) }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(prefix)-\(String(hash, radix: 36))", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appendingPathComponent(item.name)
     }
 
     /// Sube un nivel, o `nil` si ya se está en la raíz.

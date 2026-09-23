@@ -66,7 +66,14 @@ incluido**: se lee de uno y se escribe en el otro (`FileService.transfer`).
   por un temporal en disco. SFTP en trozos de 256 KB, SMB con `downloadItem`/`uploadItem`, y los
   locales con `copyItem`, que no pasa por memoria. Antes un vídeo de varios gigas por SFTP se
   cargaba entero y iOS mataba la app. La vista previa también descarga así. `read` y `write`
-  siguen para lo pequeño.
+  siguen para lo pequeño. Si uno de los dos es el propio iPhone no hay copia intermedia: un
+  vídeo de 4 GB al servidor no necesita otros 4 GB libres.
+- **Mover dentro de un origen** va por `move(_:to:)`, en el propio servidor o disco (SFTP
+  `rename`, SMB `moveItem`); antes se bajaba y se volvía a subir todo. Si no se puede (SMB entre
+  compartidas distintas), copia y borra.
+- **La vista previa de lo remoto** se guarda en una carpeta por fichero y versión
+  (`previewURL`: ruta, tamaño y fecha). Con sólo el nombre, dos `IMG_0001.jpg` de carpetas
+  distintas se pisaban.
 
 ### SMB: cliente propio con AMSMB2 (23-sep-2026)
 
@@ -79,8 +86,11 @@ el 23-sep aprobó AMSMB2.
   `SMBKeychain`, sobre el mismo `PasswordVault` que las de SSH.
 - `SMBProvider`: **las rutas empiezan por la compartida** (`/Fotos/2026/a.jpg`). Sin compartida
   en el alta, la raíz lista todas las del servidor (`listShares`, sin las ocultas con `$`). Una
-  conexión (`SMB2Manager`) por compartida, porque cada una es su propio árbol; tras un error se
-  tira y la siguiente petición abre otra.
+  conexión (`SMB2Manager`) por compartida, porque cada una es su propio árbol. Tras un error de
+  conexión se cierra y la siguiente petición abre otra; un «no existe» o un «sin permiso» no la
+  tiran. **Dos peticiones a la vez a la misma compartida esperan a la misma conexión**
+  (`connecting`): el actor no basta, porque entre mirar la caché y conectar hay un `await`.
+- Espera 20 segundos a que conteste el servidor, no el minuto que trae AMSMB2.
 - Alta y edición con `FormWindow`, que antes era el editor de máquinas SSH y ahora pinta
   cualquier `EditorForm`. Se puede pegar `smb://nas/Fotos` en el campo del servidor: al guardar se
   reparte entre servidor y compartida.

@@ -76,15 +76,19 @@ la flecha mueve el cursor.
 Bruno abrió Google, salió el «no soy un robot» y la casilla no respondía: está en un iframe de
 `google.com/recaptcha`, y el inyector sólo actuaba en el documento principal. **No es un límite
 sin arreglo**, como decía el comentario antiguo: el inyector corre también dentro de cada iframe
-(`forMainFrameOnly: false`). Cuando bajo el cursor hay un `<iframe>`, se le reenvía el clic, el
-hover o la rueda por `postMessage`, con las coordenadas pasadas a las suyas (marco menos borde y
-relleno), y el de dentro lo dispara allí; si hay iframes anidados, se repite. El teclado va al
-último iframe pinchado (`focusedFrame`).
+(`forMainFrameOnly: false`). Cuando bajo el cursor hay un `<iframe>`, el inyector de fuera no
+dispara nada: devuelve `{frame, args}` (a qué iframe y con las coordenadas ya pasadas a las suyas,
+marco menos borde y relleno), y `BrowserTab.send` se lo manda al inyector de ese iframe con
+`evaluateJavaScript(in: frameInfo)`. Anidados, se repite. El teclado va al último iframe pinchado.
 
-- **La clave** (`BRUNOS_TOKEN`) la antepone Swift al script, una por pestaña. Vive sólo en el
-  mundo de contenido de BrunOS, así que la página no puede fabricar mensajes para hacer clics en
-  un iframe ajeno. El oyente va en captura, antes que los scripts de la página, y corta la
-  propagación.
+- **Cada iframe se presenta a Swift** al cargar, por el canal `brunosFrame`, que sólo existe en el
+  mundo de contenido de BrunOS; Swift guarda su `WKFrameInfo` (`FrameRegistrar`, con referencia
+  débil: el controlador retiene al manejador). Se busca por el `src`, o por el sitio si el iframe
+  ha navegado por dentro.
+- **La primera versión reenviaba por `postMessage` con una clave, y la revisión lo tumbó**: a un
+  iframe sin inyector (un `about:blank` que crea la propia página) la clave le llegaba igual, la
+  página la leía y podía fabricar clics en otro iframe, como el de un pago. **Nada de este camino
+  puede pasar por la página.**
 - **Duda que queda**: los eventos siguen siendo sintéticos (`isTrusted = false`). Puede que
   reCAPTCHA acepte el clic y luego pida el reto de las imágenes, que también es un iframe y
   también debería ir.

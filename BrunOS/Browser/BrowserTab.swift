@@ -372,15 +372,7 @@ final class BrowserTab: NSObject {
         case .middle: 1
         case .right: 2
         }
-        let script = """
-            window.__brunos.click(\(point.x), \(point.y), \(code), {
-                ctrl: \(modifiers.contains(.control)),
-                alt: \(modifiers.contains(.alternate)),
-                shift: \(modifiers.contains(.shift)),
-                meta: \(modifiers.contains(.command))
-            });
-            """
-        run(script)
+        send("click", [point.x, point.y, code, Self.modifiersObject(modifiers)])
     }
 
     /// Hover limitado a unas 30 veces por segundo.
@@ -391,11 +383,11 @@ final class BrowserTab: NSObject {
         let now = Date()
         guard now.timeIntervalSince(lastHoverTime) > 0.033 else { return }
         lastHoverTime = now
-        run("window.__brunos.hover(\(point.x), \(point.y));")
+        send("hover", [point.x, point.y])
     }
 
     func scroll(at point: CGPoint, delta: CGVector) {
-        run("window.__brunos.wheel(\(point.x), \(point.y), \(-delta.dx), \(-delta.dy));")
+        send("wheel", [point.x, point.y, -delta.dx, -delta.dy])
     }
 
     /// Manda una tecla a la página.
@@ -422,9 +414,9 @@ final class BrowserTab: NSObject {
         default: nil
         }
 
-        let modifiers = Self.modifiersLiteral(key.modifierFlags)
+        let modifiers = Self.modifiersObject(key.modifierFlags)
         if let name {
-            run("window.__brunos.key('\(name)', \(modifiers), null);")
+            send("key", [name, modifiers, NSNull()])
             return
         }
 
@@ -434,18 +426,19 @@ final class BrowserTab: NSObject {
         // página (la espaciadora de un vídeo, la «k» de YouTube). Lo que llega
         // de golpe, como una composición de acentos, se escribe tal cual.
         if characters.count == 1 {
-            let literal = Self.jsString(characters)
-            run("window.__brunos.key(\(literal), \(modifiers), \(literal));")
+            send("key", [characters, modifiers, characters])
         } else {
             insertText(characters)
         }
     }
 
-    private static func modifiersLiteral(_ flags: UIKeyModifierFlags) -> String {
-        """
-        {ctrl: \(flags.contains(.control)), alt: \(flags.contains(.alternate)), \
-        shift: \(flags.contains(.shift)), meta: \(flags.contains(.command))}
-        """
+    private static func modifiersObject(_ flags: UIKeyModifierFlags) -> [String: Bool] {
+        [
+            "ctrl": flags.contains(.control),
+            "alt": flags.contains(.alternate),
+            "shift": flags.contains(.shift),
+            "meta": flags.contains(.command),
+        ]
     }
 
     /// Un texto cualquiera como literal de JavaScript, bien escapado.
@@ -526,7 +519,7 @@ final class BrowserTab: NSObject {
     }
 
     func insertText(_ text: String) {
-        run("window.__brunos.insertText(\(Self.jsString(text)));")
+        send("insertText", [text])
     }
 
     /// Lo que hay bajo el cursor.
@@ -774,16 +767,63 @@ final class BrowserTab: NSObject {
             return
         }
 
-        // La clave con la que los inyectores de los iframes reconocen a su
-        // marco padre. Nueva en cada pestaña; ver `forwardToFrame` en el JS.
-        let token = UUID().uuidString
         let script = WKUserScript(
-            source: "const BRUNOS_TOKEN = '\(token)';\n" + source,
+            source: source,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false,
             in: world
         )
-        webView.configuration.userContentController.addUserScript(script)
+        let controller = webView.configuration.userContentController
+        controller.addUserScript(script)
+        // El canal por el que se presenta cada iframe. Sólo existe en el mundo
+        // de BrunOS: la página no lo ve. Con un intermediario débil, porque el
+        // controlador retiene lo que se le da y la pestaña no se liberaría.
+        controller.add(FrameRegistrar(tab: self), contentWorld: world, name: "brunosFrame")
+    }
+
+    // MARK: - Iframes
+
+    /// Los iframes que se han presentado, con la dirección que tenían. Los
+    /// más recientes, al final. Uno que ya no existe no molesta: WebKit
+    /// devuelve error al hablarle y ya está.
+    private var frames: [(info: WKFrameInfo, url: String)] = []
+
+    fileprivate func register(_ frame: WKFrameInfo, url: String) {
+        frames.removeAll { $0.url == url }
+        frames.append((frame, url))
+        if frames.count > 40 { frames.removeFirst(frames.count - 40) }
+    }
+
+    /// El iframe al que apunta el `src` que ha visto la página. Si el iframe
+    /// ha navegado por dentro, su dirección ya no es la del `src`: entonces
+    /// vale el último del mismo sitio.
+    private func frame(for target: [String: Any]) -> WKFrameInfo? {
+        let src = target["src"] as? String ?? ""
+        guard !src.isEmpty else { return nil }
+        if let exact = frames.last(where: { $0.url == src }) { return exact.info }
+        let host = URL(string: src)?.host()
+        return frames.last { host != nil && URL(string: $0.url)?.host() == host }?.info
+    }
+
+    /// Manda un evento al inyector y, si cae en un iframe, se lo pasa al del
+    /// iframe con las coordenadas que ha calculado el de fuera. Anidados,
+    /// tantas veces como haga falta (con un tope).
+    private func send(_ operation: String, _ arguments: [Any], in frame: WKFrameInfo? = nil, depth: Int = 0) {
+        guard let data = try? JSONSerialization.data(withJSONObject: arguments) else { return }
+        let json = String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
+            .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+        let script = "window.__brunos.op('\(operation)', \(json));"
+        webView.evaluateJavaScript(script, in: frame, in: world) { [weak self] result in
+            guard depth < 6, let self,
+                  case .success(let value) = result,
+                  let forward = value as? [String: Any],
+                  let target = forward["frame"] as? [String: Any],
+                  let next = forward["args"] as? [Any],
+                  let info = self.frame(for: target)
+            else { return }
+            self.send(operation, next, in: info, depth: depth + 1)
+        }
     }
 
     // MARK: - Estado
@@ -907,12 +947,15 @@ extension BrowserTab: WKDownloadDelegate {
 
     /// Dónde guardar una descarga en Descargas. Nunca se pisa un fichero ya
     /// descargado: se numera, como hace cualquier navegador.
-    static func uniqueDownloadURL(named name: String) -> URL {
+    ///
+    /// `reserved` son nombres ya prometidos a descargas en curso que todavía no
+    /// han escrito nada en disco (un HLS no escribe el `.mp4` hasta el final).
+    static func uniqueDownloadURL(named name: String, reserved: Set<String> = []) -> URL {
         var url = downloadsDirectory.appendingPathComponent(name)
         var counter = 2
         let base = url.deletingPathExtension().lastPathComponent
         let ext = url.pathExtension
-        while FileManager.default.fileExists(atPath: url.path) {
+        while FileManager.default.fileExists(atPath: url.path) || reserved.contains(url.lastPathComponent) {
             let numbered = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
             url = downloadsDirectory.appendingPathComponent(numbered)
             counter += 1
@@ -1101,5 +1144,22 @@ enum BrowserZoom {
 
     static func reset() {
         UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
+/// Recibe la presentación de cada iframe. Intermediario débil: el
+/// `WKUserContentController` retiene a quien se le da, y si fuera la pestaña
+/// no se liberaría nunca.
+@MainActor
+private final class FrameRegistrar: NSObject, WKScriptMessageHandler {
+    weak var tab: BrowserTab?
+
+    init(tab: BrowserTab) {
+        self.tab = tab
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard !message.frameInfo.isMainFrame, let url = message.body as? String else { return }
+        tab?.register(message.frameInfo, url: url)
     }
 }

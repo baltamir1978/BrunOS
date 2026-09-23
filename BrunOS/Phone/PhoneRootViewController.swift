@@ -169,7 +169,7 @@ final class PhoneRootViewController: UIViewController {
 extension PhoneRootViewController: KeyboardRouterDelegate {
 
     func keyboardRouter(_ router: KeyboardRouter, didReceive command: DesktopCommand) -> Bool {
-        services.desktopViewController?.perform(command) ?? false
+        services.desktopViewController?.performShortcut(command) ?? false
     }
 
     func keyboardRouter(_ router: KeyboardRouter, didReceiveKey event: KeyEvent) {

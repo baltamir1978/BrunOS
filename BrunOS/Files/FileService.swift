@@ -205,6 +205,16 @@ final class FileService {
         to destination: String,
         in target: any FileProvider
     ) async throws {
+        // Sin copia intermedia cuando uno de los dos es el propio iPhone: un
+        // vídeo de 4 GB al servidor no necesita otros 4 GB libres en el tmp.
+        if source is LocalProvider {
+            try await target.upload(from: URL(fileURLWithPath: path), to: destination)
+            return
+        }
+        if target is LocalProvider {
+            try await source.download(path, to: URL(fileURLWithPath: destination))
+            return
+        }
         let staging = FileManager.default.temporaryDirectory
             .appendingPathComponent("brunos-copy-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: staging) }
@@ -218,6 +228,11 @@ final class FileService {
         // un fichero cada vez.
         let parent = (item.path as NSString).deletingLastPathComponent
         if parent == directory { return }
+
+        // En el propio servidor o disco, que es instantáneo. Si no se puede
+        // (SMB entre compartidas distintas), se copia y se borra.
+        if (try? await provider.move(item.path, to: Self.join(directory, item.name))) != nil { return }
+
         let plan = try await collect(item, from: provider)
         let root = Self.join(directory, item.name)
         for entry in plan {

@@ -211,9 +211,18 @@ final class ExternalFolderProvider: FileProvider, @unchecked Sendable {
         // Se copia a un temporal en lugar de devolver la ruta original: el
         // visor abre el fichero más tarde, fuera del `withAccess`, y para
         // entonces el permiso ya estaría cerrado.
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(item.name)
+        let url = previewURL(for: item, prefix: "external")
         try await download(item.path, to: url)
         return url
+    }
+
+    func move(_ path: String, to destination: String) async throws {
+        try withAccess { _ in
+            guard !FileManager.default.fileExists(atPath: destination) else {
+                throw FileError.failed("Ya existe algo con ese nombre.")
+            }
+            try FileManager.default.moveItem(atPath: path, toPath: destination)
+        }
     }
 
     func download(_ path: String, to url: URL) async throws {

@@ -10,10 +10,11 @@
 //
 // La política del mismo origen impide alcanzar su DOM desde la página, pero
 // este inyector corre también **dentro** de cada iframe (`forMainFrameOnly:
-// false`). Así que, cuando lo que hay bajo el cursor es un iframe, el evento se
-// le reenvía por `postMessage` con las coordenadas pasadas a las suyas, y el
-// inyector de dentro lo dispara allí. Es lo que hace pulsable la casilla de
-// reCAPTCHA, los avisos de cookies o las pasarelas de pago. Ver `forwardToFrame`.
+// false`). Cuando lo que hay bajo el cursor es un iframe, en vez de disparar el
+// evento se devuelve a Swift a qué iframe va y con qué coordenadas, ya pasadas
+// a las suyas, y Swift se lo manda al inyector de ese iframe. Es lo que hace
+// pulsable la casilla de reCAPTCHA, los avisos de cookies o las pasarelas de
+// pago. Ver `forwardToFrame` y `BrowserTab.send`.
 
 'use strict';
 
@@ -91,7 +92,7 @@ function click(x, y, button, modifiers) {
 
     if (isFrame(target)) {
         BrunOS.focusedFrame = target;
-        return forwardToFrame(target, 'click', x, y, [button, modifiers]);
+        return forwardToFrame(target, x, y, [button, modifiers]);
     }
     BrunOS.focusedFrame = null;
 
@@ -147,16 +148,20 @@ function focusIfEditable(element) {
 function hover(x, y) {
     const target = deepElementFromPoint(x, y);
     if (!target) return false;
-    if (isFrame(target)) return forwardToFrame(target, 'hover', x, y, []);
 
     const base = makeMouseInit(x, y, 0, null);
     base.buttons = 0;
 
+    // Al entrar en un iframe, lo de fuera tiene que enterarse de que el ratón
+    // se ha ido: si no, un menú desplegable junto a un anuncio se quedaba
+    // abierto para siempre.
+    if (isFrame(target)) {
+        leaveHovered(base);
+        return forwardToFrame(target, x, y, []);
+    }
+
     if (BrunOS.lastHovered !== target) {
-        if (BrunOS.lastHovered) {
-            BrunOS.lastHovered.dispatchEvent(new MouseEvent('mouseout', base));
-            BrunOS.lastHovered.dispatchEvent(new MouseEvent('mouseleave', base));
-        }
+        leaveHovered(base);
         target.dispatchEvent(new MouseEvent('mouseover', base));
         target.dispatchEvent(new MouseEvent('mouseenter', base));
         BrunOS.lastHovered = target;
@@ -167,6 +172,13 @@ function hover(x, y) {
     return true;
 }
 
+function leaveHovered(base) {
+    if (!BrunOS.lastHovered) return;
+    BrunOS.lastHovered.dispatchEvent(new MouseEvent('mouseout', base));
+    BrunOS.lastHovered.dispatchEvent(new MouseEvent('mouseleave', base));
+    BrunOS.lastHovered = null;
+}
+
 /// Rueda del ratón.
 ///
 /// Se busca el ancestro que de verdad pueda desplazarse y se le mueve a él. Ir
@@ -174,7 +186,7 @@ function hover(x, y) {
 /// internos, que son casi todas las modernas.
 function wheel(x, y, deltaX, deltaY) {
     const target = deepElementFromPoint(x, y) || document.body;
-    if (isFrame(target)) return forwardToFrame(target, 'wheel', x, y, [deltaX, deltaY]);
+    if (isFrame(target)) return forwardToFrame(target, x, y, [deltaX, deltaY]);
     const scrollable = findScrollable(target, deltaY);
 
     if (scrollable === document.scrollingElement || !scrollable) {
@@ -469,7 +481,7 @@ function iconURL() {
 /// deshacer y lo entienden React y compañía, que vigilan el valor a su manera.
 /// Si el campo no lo admite, se escribe el valor a mano y se avisa con `input`.
 function insertText(text) {
-    if (focusedFrameAlive()) return postToFrame(BrunOS.focusedFrame, 'insertText', [text]);
+    if (focusedFrameAlive()) return { frame: frameTarget(BrunOS.focusedFrame), args: [text] };
     const active = deepActiveElement();
     if (!active) return false;
 
@@ -575,7 +587,7 @@ function keyEvent(type, key, modifiers) {
 ///
 /// `text` es el carácter que se escribe, si la tecla escribe alguno.
 function key(name, modifiers, text) {
-    if (focusedFrameAlive()) return postToFrame(BrunOS.focusedFrame, 'key', [name, modifiers, text]);
+    if (focusedFrameAlive()) return { frame: frameTarget(BrunOS.focusedFrame), args: [name, modifiers, text] };
     const target = deepActiveElement() || document.body;
 
     const down = keyEvent('keydown', name, modifiers);
@@ -827,47 +839,49 @@ function focusedFrameAlive() {
     return false;
 }
 
-/// Reenvía un evento con posición al inyector de dentro del iframe.
+/// A qué iframe va un evento y con qué argumentos, para que Swift se lo mande.
 ///
 /// Las coordenadas se pasan a las del documento del iframe: se resta dónde
 /// empieza su contenido, que es el marco menos el borde y el relleno.
-function forwardToFrame(frame, op, x, y, rest) {
+///
+/// **Nada viaja por la página.** Antes se reenviaba con `postMessage` y una
+/// clave, pero un iframe sin inyector (un `about:blank` que crea la propia
+/// página) recibía la clave y la página podía usarla para fabricar clics en
+/// otro iframe, como el de un pago. Ahora el camino es Swift, que la página
+/// no puede tocar.
+function forwardToFrame(frame, x, y, rest) {
     const rect = frame.getBoundingClientRect();
     const style = window.getComputedStyle(frame);
     const left = rect.left + frame.clientLeft + (parseFloat(style.paddingLeft) || 0);
     const top = rect.top + frame.clientTop + (parseFloat(style.paddingTop) || 0);
-    return postToFrame(frame, op, [x - left, y - top].concat(rest));
+    return { frame: frameTarget(frame), args: [x - left, y - top].concat(rest) };
 }
 
-function postToFrame(frame, op, args) {
-    const target = frame.contentWindow;
-    if (!target) return false;
-    target.postMessage({ brunos: BRUNOS_TOKEN, op: op, args: args }, '*');
-    return true;
+/// Lo que Swift necesita para encontrar el iframe entre los registrados.
+function frameTarget(frame) {
+    return { src: frame.src || '', name: frame.name || '' };
 }
 
-/// Lo que se puede pedir desde el marco de arriba. Nada más.
+/// Lo que se puede reenviar a un iframe.
 const FRAME_OPS = { click: click, hover: hover, wheel: wheel, key: key, insertText: insertText };
 
-/// Recibe lo que manda el inyector del marco padre.
-///
-/// **La clave** (`BRUNOS_TOKEN`) la pone Swift, distinta en cada pestaña, y
-/// vive sólo en el mundo de contenido de BrunOS: la página no la puede leer,
-/// así que no puede fabricarse mensajes para hacer clics en un iframe ajeno.
-/// El oyente va en captura y se registra al empezar el documento, antes que
-/// cualquier script de la página, y corta la propagación: el mensaje no llega
-/// a los oyentes del sitio, que tampoco llegan a ver la clave.
-window.addEventListener('message', function (event) {
-    const data = event.data;
-    if (!data || typeof data !== 'object' || data.brunos !== BRUNOS_TOKEN) return;
-    event.stopImmediatePropagation();
-    if (event.source !== window.parent || window.parent === window) return;
-    const operation = FRAME_OPS[data.op];
-    if (operation && Array.isArray(data.args)) operation.apply(null, data.args);
-}, true);
+/// Cada iframe se presenta a Swift al cargar, por un canal que sólo existe en
+/// el mundo de contenido de BrunOS: la página ni lo ve ni puede escribir en él.
+/// Swift se queda con su `WKFrameInfo` para poder hablarle luego.
+if (window.top !== window) {
+    try {
+        window.webkit.messageHandlers.brunosFrame.postMessage(location.href);
+    } catch (error) {}
+}
 
 // Lo que Swift puede llamar.
 window.__brunos = {
+    /// La entrada de los eventos que pueden acabar en un iframe: devuelve
+    /// `{frame, args}` si hay que reenviarlo.
+    op: function (name, args) {
+        const operation = FRAME_OPS[name];
+        return operation ? operation.apply(null, args) : null;
+    },
     click: click,
     hover: hover,
     wheel: wheel,

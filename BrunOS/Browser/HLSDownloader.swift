@@ -38,17 +38,47 @@ final class HLSDownloader: NSObject {
         let configuration = URLSessionConfiguration.background(
             withIdentifier: (Bundle.main.bundleIdentifier ?? "brunos") + ".hls"
         )
-        return AVAssetDownloadURLSession(
+        let session = AVAssetDownloadURLSession(
             configuration: configuration,
             assetDownloadDelegate: self,
             delegateQueue: .main
         )
+        discardOrphans(of: session)
+        return session
     }()
+
+    /// **Lo que quedó de otra ejecución se tira.** La sesión es de fondo y
+    /// sobrevive a la app: si iOS la cerró a media descarga, al volver a
+    /// crear la sesión reaparecen sus tareas, pero la lista de trabajos, que
+    /// vive en memoria, ya no sabe de ellas, y el `.movpkg` —que pueden ser
+    /// gigas— se quedaría para siempre. Al crear la sesión todavía no ha
+    /// empezado ninguna descarga, así que lo que haya en disco es de antes.
+    private func discardOrphans(of session: AVAssetDownloadURLSession) {
+        // La respuesta llega más tarde, cuando la primera descarga nueva ya ha
+        // empezado: sólo se cancela lo que no está en la lista.
+        session.getAllTasks { [weak self] tasks in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                for task in tasks where self.jobs[task.taskIdentifier] == nil { task.cancel() }
+            }
+        }
+        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+        let leftovers = (try? FileManager.default.contentsOfDirectory(at: library, includingPropertiesForKeys: nil)) ?? []
+        for directory in leftovers where directory.lastPathComponent.hasPrefix("com.apple.UserManagedAssets") {
+            try? FileManager.default.removeItem(at: directory)
+        }
+    }
 
     func download(_ url: URL, named name: String, cookies: [HTTPCookie], userAgent: String?) {
         // Siempre `.mp4`, aunque el nombre sugerido dijera `.m3u8`.
         let base = (name as NSString).deletingPathExtension
-        let destination = BrowserTab.uniqueDownloadURL(named: base + ".mp4")
+        // Dos descargas del mismo vídeo a la vez acababan en el mismo fichero
+        // y con la misma fila en el ⤓, porque el `.mp4` no existe hasta que
+        // termina: se tienen en cuenta los nombres de las que están en curso.
+        let destination = BrowserTab.uniqueDownloadURL(
+            named: base + ".mp4",
+            reserved: Set(jobs.values.map(\.name))
+        )
 
         var options: [String: Any] = [AVURLAssetHTTPCookiesKey: cookies]
         if let userAgent { options[AVURLAssetHTTPUserAgentKey] = userAgent }

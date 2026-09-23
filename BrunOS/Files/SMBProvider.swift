@@ -19,6 +19,11 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
     /// `SMB2Manager` sólo sabe estar en una a la vez.
     private actor Connection {
         private var managers: [String: SMB2Manager] = [:]
+        /// Las que se están abriendo. **El actor no protege de esto solo**:
+        /// entre mirar la caché y terminar `connectShare` hay un `await`, y
+        /// dos peticiones a la vez (el listado y una copia) abrían dos sesiones
+        /// y una se quedaba colgada en el servidor.
+        private var connecting: [String: Task<SMB2Manager, any Error>] = [:]
         private var browser: SMB2Manager?
 
         /// Para listar las compartidas no hace falta estar dentro de ninguna.
@@ -31,8 +36,16 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
 
         func manager(share: String, url: URL, credential: URLCredential?) async throws -> SMB2Manager {
             if let manager = managers[share] { return manager }
-            let manager = try Self.make(url: url, credential: credential)
-            try await manager.connectShare(name: share)
+            if let pending = connecting[share] { return try await pending.value }
+
+            let task = Task {
+                let manager = try Self.make(url: url, credential: credential)
+                try await manager.connectShare(name: share)
+                return manager
+            }
+            connecting[share] = task
+            defer { connecting[share] = nil }
+            let manager = try await task.value
             managers[share] = manager
             return manager
         }
@@ -50,8 +63,11 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
 
         /// Tras un error de red se tira la conexión: la siguiente petición
         /// abre otra, que es la forma más sencilla de reconectar.
-        func drop(share: String) {
-            managers[share] = nil
+        func drop(share: String) async {
+            guard let manager = managers.removeValue(forKey: share) else { return }
+            // Cerrarla de verdad: si no, cada error dejaba una sesión abierta
+            // en el servidor hasta que se soltara el proveedor.
+            try? await manager.disconnectShare()
         }
 
         func close() async {
@@ -120,9 +136,19 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
         do {
             return try await operation(manager, inner)
         } catch {
-            await connection.drop(share: share)
+            // Sólo si parece la conexión: un «no existe» o un «sin permiso»
+            // no tienen por qué tirarla.
+            if !Self.isFileLevel(error) { await connection.drop(share: share) }
             throw FileError.failed(Self.describe(error))
         }
+    }
+
+    private static func isFileLevel(_ error: any Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSPOSIXErrorDomain,
+              let code = POSIXErrorCode(rawValue: Int32(nsError.code))
+        else { return false }
+        return [.ENOENT, .EEXIST, .EACCES, .EPERM, .ENOTEMPTY, .EISDIR, .ENOTDIR].contains(code)
     }
 
     private static func describe(_ error: any Error) -> String {
@@ -222,21 +248,39 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
 
     /// Descarga a un temporal para poder enseñarlo.
     func localURL(for item: FileItem) async throws -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("smb-\(server.id.uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-
-        let url = directory.appendingPathComponent(item.name)
+        let url = previewURL(for: item, prefix: "smb-\(server.id.uuidString)")
         if FileManager.default.fileExists(atPath: url.path) { return url }
 
         try await download(item.path, to: url)
         return url
     }
 
+    /// A un `.part` y se mueve al final, como en SFTP: una descarga cortada no
+    /// deja un fichero a medias que la vista previa daría por bueno.
     func download(_ path: String, to url: URL) async throws {
-        try? FileManager.default.removeItem(at: url)
-        try await perform(path) { manager, inner in
-            try await manager.downloadItem(atPath: inner, to: url, progress: nil)
+        let partial = url.appendingPathExtension("part")
+        try? FileManager.default.removeItem(at: partial)
+        do {
+            try await perform(path) { manager, inner in
+                try await manager.downloadItem(atPath: inner, to: partial, progress: nil)
+            }
+            try? FileManager.default.removeItem(at: url)
+            try FileManager.default.moveItem(at: partial, to: url)
+        } catch {
+            try? FileManager.default.removeItem(at: partial)
+            throw error
+        }
+    }
+
+    func move(_ path: String, to destination: String) async throws {
+        guard let (share, inner) = split(destination) else {
+            throw FileError.failed("Elige primero una carpeta compartida.")
+        }
+        guard let (sourceShare, _) = split(path), sourceShare == share else {
+            throw FileError.failed("Entre carpetas compartidas distintas no se puede mover en el servidor.")
+        }
+        try await perform(path) { manager, source in
+            try await manager.moveItem(atPath: source, toPath: inner)
         }
     }
 

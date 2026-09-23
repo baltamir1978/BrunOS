@@ -103,6 +103,17 @@ final class LocalProvider: FileProvider, @unchecked Sendable {
         }
     }
 
+    func move(_ path: String, to destination: String) async throws {
+        guard !FileManager.default.fileExists(atPath: destination) else {
+            throw FileError.failed("Ya existe algo con ese nombre.")
+        }
+        do {
+            try FileManager.default.moveItem(atPath: path, toPath: destination)
+        } catch {
+            throw FileError.failed(error.localizedDescription)
+        }
+    }
+
     func download(_ path: String, to url: URL) async throws {
         try Self.copy(URL(fileURLWithPath: path), to: url)
     }

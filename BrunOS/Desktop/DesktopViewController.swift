@@ -317,11 +317,20 @@ final class DesktopViewController: UIViewController {
 
     // MARK: - Órdenes del gestor de ventanas
 
-    /// Ejecuta una orden ya resuelta por el `KeyboardRouter`.
+    /// Un atajo que llega del teclado. Con una ventana modal delante no
+    /// puede tocar lo de detrás: ver `performOverModal`.
+    ///
+    /// **La guardia va aquí y no en `perform`**: las propias ventanas llaman a
+    /// `perform` estando abiertas (el interruptor de pantalla completa de
+    /// Ajustes), y con la guardia dentro se quedaban sin efecto.
+    func performShortcut(_ command: DesktopCommand) -> Bool {
+        performOverModal(command) ?? perform(command)
+    }
+
+    /// Ejecuta una orden, venga del teclado o de un botón.
     /// Devuelve `false` si no le corresponde y debería ir al panel.
     @discardableResult
     func perform(_ command: DesktopCommand) -> Bool {
-        if let handled = performOverModal(command) { return handled }
         let workspace = services.desktop.active
 
         switch command {
@@ -747,7 +756,7 @@ final class DesktopViewController: UIViewController {
 
     private var historyWindow: HistoryWindow?
 
-    /// Los atajos con una ventana modal delante.
+    /// Los atajos del teclado con una ventana modal delante.
     ///
     /// **No pueden tocar lo de detrás.** Los atajos se ejecutan antes de que
     /// la tecla llegue a nadie, así que con el historial o el lanzador abiertos

@@ -328,7 +328,8 @@ incómodo, así que las filas van pasando por los valores útiles al pulsarlas.
 Los atajos con Cmd se ejecutan en `perform(_:)` **antes** de que la tecla llegue a nadie. Con el
 historial, el lanzador o un formulario abiertos, Cmd+V pegaba en el terminal de detrás (y un salto
 de línea en lo pegado es una orden que se ejecuta en el servidor) y Cmd+W cerraba una pestaña que
-no se veía. Ahora `performOverModal` los desvía: Cmd+V pega en la ventana, Cmd+Intro abre en otra
+no se veía. Ahora `performShortcut` —la entrada del teclado; **no `perform`**, que lo llaman las
+propias ventanas estando abiertas— los pasa por `performOverModal`, que los desvía: Cmd+V pega en la ventana, Cmd+Intro abre en otra
 pestaña desde el historial, Cmd+Y y Cmd+P cierran lo suyo, y el resto no hace nada. **Una ventana
 modal nueva tiene que entrar en esa lista** (y en las otras dos: la del puntero y la del cursor).
 

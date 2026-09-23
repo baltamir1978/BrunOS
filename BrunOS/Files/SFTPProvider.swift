@@ -203,15 +203,20 @@ final class SFTPProvider: FileProvider, @unchecked Sendable {
     /// Se guarda en caché mientras dure la sesión: abrir dos veces la misma
     /// vista previa no tiene por qué costar dos descargas.
     func localURL(for item: FileItem) async throws -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("sftp-\(host.id.uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-
-        let url = directory.appendingPathComponent(item.name)
+        let url = previewURL(for: item, prefix: "sftp-\(host.id.uuidString)")
         if FileManager.default.fileExists(atPath: url.path) { return url }
 
         try await download(item.path, to: url)
         return url
+    }
+
+    func move(_ path: String, to destination: String) async throws {
+        let sftp = try await session()
+        do {
+            try await sftp.rename(at: path, to: destination)
+        } catch {
+            throw FileError.failed(error.localizedDescription)
+        }
     }
 
     /// Trozos de 256 KB: bastante para que no sean miles de peticiones, y
