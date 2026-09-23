@@ -53,7 +53,7 @@ conviene no confundir "está escrito" con "funciona":
   sugerencias de la barra de direcciones, el modo lectura, la descarga de vídeos de la página, el
   gestor de descargas (⤓), guardar como PDF, el menú de pestañas con Cmd+Mayús+T, y las
   ubicaciones de red (SMB por la app Archivos) que ya no desaparecen al desmontarse.
-- **Lo del 22-sep**: el modo claro en el monitor y su cambio en caliente, los fondos claros, el
+- **Lo del 22-sep** (el modo claro ya lo confirmó Bruno el 23-sep): los fondos claros, el
   terminal claro, las ventanas que salían vacías, los ajustes nuevos, la lista de conexiones del
   terminal, la pantalla completa, el menú del botón derecho y las descargas del navegador, las
   vistas de iconos y el cierre de los ajustes del iPhone al conectar. Intro, Retroceso y las
@@ -149,6 +149,11 @@ debajo si está abierta** —ámbar la que se ve, gris las demás—, y lo minim
 abierto. Al pulsar un icono vuelven sus paneles minimizados y, si estaba cerrada, **se abre un
 panel nuevo**, como al lanzar una app. Antes los espacios vacíos salían en gris, lo minimizado
 tenía un icono aparte duplicado, y con la app cerrada no había forma de volver a abrirla.
+
+**Varias ventanas de la misma app** (23-sep-2026): botón derecho sobre su icono del dock ›
+«Nueva ventana», y debajo la lista de las que tiene abiertas, minimizadas incluidas, para ir
+directo a una. También Cmd+N (del tipo del espacio en que se está) y «Nuevo terminal /
+navegador / gestor de ficheros» en el lanzador. El clic normal sigue sin abrir otra si ya hay una.
 
 ### El lanzador (Cmd+P)
 

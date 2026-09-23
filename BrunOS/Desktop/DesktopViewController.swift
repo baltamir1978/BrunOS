@@ -676,6 +676,37 @@ final class DesktopViewController: UIViewController {
         desktop.notifyChange()
     }
 
+    /// Botón derecho sobre un icono del dock, como en macOS: una ventana
+    /// nueva de esa app y la lista de las que tiene abiertas, minimizadas
+    /// incluidas, para ir directamente a una.
+    private func dockMenu(for number: Int) -> [ContextMenu.Entry] {
+        let desktop = services.desktop
+        guard desktop.workspaces.indices.contains(number - 1),
+              let kind = PaneKind.allCases.first(where: { $0.preferredWorkspace == number })
+        else { return [] }
+        let workspace = desktop.workspaces[number - 1]
+
+        var entries = [ContextMenu.Entry(title: "Nueva ventana", symbol: "plus.rectangle") { [weak self] in
+            self?.newPane(kind)
+        }]
+        let open = workspace.panes
+            .filter { !($0.value is PlaceholderPane) }
+            .sorted { $0.value.title.localizedStandardCompare($1.value.title) == .orderedAscending }
+        for (id, pane) in open {
+            entries.append(ContextMenu.Entry(title: pane.title, symbol: "macwindow") {
+                desktop.activate(number: number)
+                workspace.setFocus(id)
+                desktop.notifyChange()
+            })
+        }
+        for entry in workspace.minimized {
+            entries.append(ContextMenu.Entry(title: entry.pane.title, symbol: "dock.arrow.down.rectangle") {
+                [weak self] in self?.restoreMinimized(entry.id, in: workspace)
+            })
+        }
+        return entries
+    }
+
     /// Devuelve un panel minimizado a su espacio y le pasa el foco.
     func restoreMinimized(_ id: PaneID, in workspace: Workspace) {
         services.desktop.activate(number: workspace.index)
@@ -1405,9 +1436,11 @@ final class DesktopViewController: UIViewController {
     private func handleDock(_ kind: PointerEvent.Kind, at position: CGPoint) -> Bool {
         let pointInDock = CGPoint(x: position.x - dock.frame.minX, y: position.y - dock.frame.minY)
         guard dock.frame.contains(position), dock.contains(point: pointInDock) else { return false }
-        guard case .down = kind else { return true }
+        guard case .down(let button) = kind else { return true }
 
-        if dock.hitsSettings(pointInDock) {
+        if button == .right, let number = dock.workspaceNumber(at: pointInDock) {
+            presentContextMenu(dockMenu(for: number), at: position)
+        } else if dock.hitsSettings(pointInDock) {
             dock.onSettings?()
         } else if let number = dock.workspaceNumber(at: pointInDock) {
             openFromDock(number)
