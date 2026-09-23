@@ -103,6 +103,27 @@ final class LocalProvider: FileProvider, @unchecked Sendable {
         }
     }
 
+    func download(_ path: String, to url: URL) async throws {
+        try Self.copy(URL(fileURLWithPath: path), to: url)
+    }
+
+    func upload(from url: URL, to path: String) async throws {
+        try Self.copy(url, to: URL(fileURLWithPath: path))
+    }
+
+    /// Copia de disco a disco: la hace el sistema, sin pasar por memoria, y
+    /// en el mismo volumen es un clon instantáneo.
+    static func copy(_ source: URL, to destination: URL) throws {
+        do {
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: source, to: destination)
+        } catch {
+            throw FileError.failed(error.localizedDescription)
+        }
+    }
+
     func localURL(for item: FileItem) async throws -> URL {
         URL(fileURLWithPath: item.path)
     }

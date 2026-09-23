@@ -149,6 +149,7 @@ final class PointerController {
     var settings = PointerSettings.load()
 
     private let layer = CALayer()
+    private let shapeLayer = CAShapeLayer()
     private var displayLink: CADisplayLink?
     private var pendingPosition: CGPoint?
     private weak var hostLayer: CALayer?
@@ -288,10 +289,55 @@ final class PointerController {
 
     // MARK: - Dibujo
 
-    /// Flecha sólida clara con reborde oscuro, para que se lea igual sobre el
-    /// fondo casi negro del escritorio y sobre una página web blanca.
-    private func buildCursor() {
-        let size = CGSize(width: 14, height: 22)
+    /// La forma del cursor. La flecha de siempre, o la doble flecha de
+    /// redimensionar sobre el borde de una ventana flotante o un divisor.
+    enum Shape: Equatable {
+        case arrow
+        /// ↔, para un borde izquierdo o derecho.
+        case resizeHorizontal
+        /// ↕, para un borde de arriba o de abajo.
+        case resizeVertical
+        /// ⤡, esquinas de arriba a la izquierda y de abajo a la derecha.
+        case resizeDiagonalDown
+        /// ⤢, las otras dos esquinas.
+        case resizeDiagonalUp
+    }
+
+    var shape: Shape = .arrow {
+        didSet {
+            guard shape != oldValue else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            applyShape()
+            CATransaction.commit()
+        }
+    }
+
+    private func applyShape() {
+        switch shape {
+        case .arrow:
+            shapeLayer.path = Self.arrowPath.cgPath
+            layer.bounds = CGRect(x: 0, y: 0, width: 14, height: 22)
+            // El ancla en la punta: la flecha apunta con la esquina.
+            layer.anchorPoint = .zero
+        case .resizeHorizontal, .resizeVertical, .resizeDiagonalDown, .resizeDiagonalUp:
+            let angle: CGFloat = switch shape {
+            case .resizeVertical: .pi / 2
+            case .resizeDiagonalDown: .pi / 4
+            case .resizeDiagonalUp: -.pi / 4
+            default: 0
+            }
+            let path = Self.doubleArrowPath
+            path.apply(CGAffineTransform(rotationAngle: angle))
+            path.apply(CGAffineTransform(translationX: 12, y: 12))
+            shapeLayer.path = path.cgPath
+            layer.bounds = CGRect(x: 0, y: 0, width: 24, height: 24)
+            // La doble flecha apunta con su centro, como en macOS.
+            layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        }
+    }
+
+    private static var arrowPath: UIBezierPath {
         let path = UIBezierPath()
         path.move(to: CGPoint(x: 0, y: 0))
         path.addLine(to: CGPoint(x: 0, y: 18))
@@ -301,20 +347,36 @@ final class PointerController {
         path.addLine(to: CGPoint(x: 7.2, y: 12.8))
         path.addLine(to: CGPoint(x: 12.6, y: 12.6))
         path.close()
+        return path
+    }
 
-        let shape = CAShapeLayer()
-        shape.path = path.cgPath
+    /// ↔ centrada en el origen; las otras direcciones se sacan girándola.
+    private static var doubleArrowPath: UIBezierPath {
+        let points: [CGPoint] = [
+            CGPoint(x: -10, y: 0), CGPoint(x: -5, y: -5), CGPoint(x: -5, y: -1.5),
+            CGPoint(x: 5, y: -1.5), CGPoint(x: 5, y: -5), CGPoint(x: 10, y: 0),
+            CGPoint(x: 5, y: 5), CGPoint(x: 5, y: 1.5), CGPoint(x: -5, y: 1.5),
+            CGPoint(x: -5, y: 5),
+        ]
+        let path = UIBezierPath()
+        path.move(to: points[0])
+        for point in points.dropFirst() { path.addLine(to: point) }
+        path.close()
+        return path
+    }
+
+    /// Sólida clara con reborde oscuro, para que se lea igual sobre el fondo
+    /// casi negro del escritorio y sobre una página web blanca.
+    private func buildCursor() {
         // El cursor no cambia con el modo: claro con borde negro se ve igual
         // sobre un fondo claro que sobre uno oscuro, y así no hay que repintarlo.
-        shape.fillColor = Tokens.Color.text.cgColor(for: .dark)
-        shape.strokeColor = UIColor.black.withAlphaComponent(0.85).cgColor
-        shape.lineWidth = 1
-        shape.lineJoin = .round
+        shapeLayer.fillColor = Tokens.Color.text.cgColor(for: .dark)
+        shapeLayer.strokeColor = UIColor.black.withAlphaComponent(0.85).cgColor
+        shapeLayer.lineWidth = 1
+        shapeLayer.lineJoin = .round
+        layer.addSublayer(shapeLayer)
+        applyShape()
 
-        layer.addSublayer(shape)
-        layer.bounds = CGRect(origin: .zero, size: size)
-        // El ancla en la punta: el cursor apunta con la esquina, no con su centro.
-        layer.anchorPoint = CGPoint(x: 0, y: 0)
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOpacity = 0.35
         layer.shadowRadius = 2

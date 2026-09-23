@@ -438,24 +438,24 @@ final class BrowserPane: UIView, Pane {
         guard let tab = activeTab else { return [] }
         var entries: [ContextMenu.Entry] = []
         for item in media {
-            if item.isStream {
+            if item.isDownloadable {
+                entries.append(ContextMenu.Entry(
+                    title: "Descargar \(item.label)" + (item.isHLS ? " · por trozos" : ""),
+                    symbol: item.symbol
+                ) {
+                    tab.download(item)
+                })
+            } else {
                 entries.append(ContextMenu.Entry(
                     title: "\(item.label) · por trozos",
                     symbol: "exclamationmark.triangle",
                     isEnabled: false
                 ) {})
-            } else {
-                entries.append(ContextMenu.Entry(
-                    title: "Descargar \(item.label)",
-                    symbol: item.symbol
-                ) {
-                    tab.download(item.url, named: item.suggestedName)
-                })
             }
         }
-        if media.contains(where: \.isStream) {
+        if media.contains(where: { !$0.isDownloadable }) {
             entries.append(ContextMenu.Entry(
-                title: "Los de «por trozos» no son un fichero",
+                title: "Los apagados no son un fichero (DASH o sin lista)",
                 symbol: "info.circle",
                 isEnabled: false
             ) {})
@@ -830,7 +830,7 @@ final class BrowserPane: UIView, Pane {
         // trozos (HLS, o un `blob:` montado por el reproductor) no es un
         // fichero, y se dice en vez de dejar el menú sin la opción.
         if let found = await tab.media(at: point) {
-            if found.isStream {
+            if !found.isDownloadable {
                 entries.append(ContextMenu.Entry(
                     title: "El vídeo va por trozos: no se puede guardar",
                     symbol: "exclamationmark.triangle",
@@ -841,7 +841,7 @@ final class BrowserPane: UIView, Pane {
                     title: found.isAudio ? "Descargar audio" : "Descargar vídeo",
                     symbol: found.symbol
                 ) {
-                    tab.download(found.url, named: found.suggestedName)
+                    tab.download(found)
                 })
                 entries.append(ContextMenu.Entry(title: "Copiar dirección del vídeo", symbol: "link") {
                     UIPasteboard.general.url = found.url

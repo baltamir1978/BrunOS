@@ -187,6 +187,21 @@ Lo pidió Bruno: que se parezca lo más posible a Safari.
   propia forma redondeada. Vale 1 cuando no se está cargando: si no, se quedaba a medias al
   cancelar una carga.
 
+### Vídeo por trozos (HLS): con AVFoundation (23-sep-2026)
+
+`HLSDownloader` baja los `.m3u8` con `AVAssetDownloadURLSession` (sesión de fondo, obligatoria) a
+un `.movpkg` y lo pasa a `.mp4` con `AVAssetExportSession` en *passthrough*, sin recodificar.
+**No se bajan los trozos a mano**: una lista HLS puede llevar varias calidades, audio aparte,
+trozos cifrados con AES y MPEG-TS, y unir `.ts` da un fichero que el iPhone no reproduce.
+
+- Con **Media Source Extensions** (hls.js) el `<video>` sólo enseña un `blob:`; la lista se saca
+  del registro de peticiones de la página (`performance.getEntriesByType('resource')`).
+- Van las cookies de la pestaña (`AVURLAssetHTTPCookiesKey`) y el user-agent; **el `Referer` no**,
+  AVFoundation no deja ponerlo.
+- Fuera: DRM (FairPlay), DASH (`.mpd`) y YouTube.
+- **Sin probar**: en un programa de terminal del Mac la sesión de fondo no arranca, hace falta
+  una app de verdad.
+
 ### Modo lectura
 
 `readerArticle()` en el inyector es un Readability en pequeño: **el artículo es el bloque con más
@@ -209,6 +224,7 @@ HTML del artículo no está en ningún servidor y recargarlo no significa nada.
 - **Lo que va por trozos se dice, no se esconde**: un `blob:` es memoria de la pestaña y un `.m3u8`
   o un `.mpd` son listas de segmentos. Ninguno es un fichero que guardar. Salen en el menú
   apagados y explicando por qué.
+- **HLS sí**: ver «Vídeo por trozos» más abajo.
 - **YouTube no entra y no va a entrar**: sirve vídeo y audio por separado (DASH) y descifra la
   firma ejecutando su propio JavaScript. Eso es yt-dlp, que es Python y se actualiza cada pocos
   días porque YouTube rompe los extractores a propósito. La salida razonable, si hace falta, es

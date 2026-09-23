@@ -167,8 +167,7 @@ final class FileService {
             } else {
                 state.current = entry.item.name
                 progress(state)
-                let data = try await source.read(entry.item.path)
-                try await target.write(data, to: destination)
+                try await Self.copyFile(entry.item.path, from: source, to: destination, in: target)
                 state.filesDone += 1
                 state.bytesDone += entry.item.size
                 progress(state)
@@ -197,6 +196,22 @@ final class FileService {
         return result
     }
 
+    /// Un fichero de un origen a otro, por un temporal en disco y no por
+    /// memoria: un vídeo de varios gigas entre SFTP y SMB no cabe en la RAM
+    /// del iPhone.
+    private static func copyFile(
+        _ path: String,
+        from source: any FileProvider,
+        to destination: String,
+        in target: any FileProvider
+    ) async throws {
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent("brunos-copy-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: staging) }
+        try await source.download(path, to: staging)
+        try await target.upload(from: staging, to: destination)
+    }
+
     private func moveWithinProvider(_ item: FileItem, in provider: any FileProvider, to directory: String) async throws {
         // `rename` sólo cambia el nombre dentro de la misma carpeta: para
         // llevarlo a otra se copia y se borra, sin pasar por la memoria más de
@@ -211,7 +226,7 @@ final class FileService {
             if entry.item.isDirectory {
                 try await provider.createDirectory(destination)
             } else {
-                try await provider.write(try await provider.read(entry.item.path), to: destination)
+                try await Self.copyFile(entry.item.path, from: provider, to: destination, in: provider)
             }
         }
         try await deleteRecursively(item, from: provider)

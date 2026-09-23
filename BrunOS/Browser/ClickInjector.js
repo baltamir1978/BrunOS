@@ -287,6 +287,8 @@ function mediaItems() {
             // trozos, no un fichero: ninguno de los dos se puede guardar tal
             // cual, y conviene decirlo en vez de fallar luego.
             stream: url.startsWith('blob:') || extension === 'm3u8' || extension === 'mpd',
+            // HLS sí se puede bajar: lo hace AVFoundation (`HLSDownloader`).
+            hls: extension === 'm3u8',
             width: element && element.videoWidth ? element.videoWidth : 0,
             height: element && element.videoHeight ? element.videoHeight : 0,
             duration: element && isFinite(element.duration) ? Math.round(element.duration) : 0,
@@ -300,6 +302,19 @@ function mediaItems() {
         add(element.getAttribute('src'), element, kind);
         for (const source of element.querySelectorAll('source')) {
             add(source.getAttribute('src'), element, kind);
+        }
+    }
+
+    // Un reproductor con Media Source Extensions (hls.js y compañía) sólo deja
+    // ver un `blob:`, pero la lista `.m3u8` la ha tenido que pedir: está en el
+    // registro de peticiones de la página. La maestra suele ser la primera.
+    if (found.some(function (item) { return item.url.startsWith('blob:'); })) {
+        const video = document.querySelector('video');
+        for (const entry of performance.getEntriesByType('resource')) {
+            if (/\.m3u8(\?|#|$)/i.test(entry.name)) {
+                add(entry.name, video, 'video');
+                break;
+            }
         }
     }
 
@@ -323,7 +338,14 @@ function mediaAt(x, y) {
             const own = new Set();
             if (node.currentSrc) own.add(node.currentSrc);
             for (const item of items) {
-                if (own.has(item.url)) return item;
+                if (!own.has(item.url)) continue;
+                // Si lo que suena es un `blob:`, vale más su lista HLS, que sí
+                // se puede guardar.
+                if (item.url.startsWith('blob:')) {
+                    const hls = items.find(function (other) { return other.hls; });
+                    if (hls) return hls;
+                }
+                return item;
             }
             return items.length > 0 ? items[0] : null;
         }

@@ -76,9 +76,28 @@ protocol FileProvider: AnyObject, Sendable {
     /// temporal antes. Por eso devuelve una URL y no un `Data`: un vídeo de
     /// medio giga no cabe en memoria.
     func localURL(for item: FileItem) async throws -> URL
+
+    /// Copia un fichero a una URL local **sin cargarlo entero en memoria**.
+    ///
+    /// `read` devuelve el fichero de golpe, y un vídeo de varios gigas por
+    /// SFTP o SMB no cabe: iOS mata la app. Copiar, pegar y la vista previa
+    /// pasan por aquí y por `upload`, que van a disco a trozos.
+    func download(_ path: String, to url: URL) async throws
+
+    /// Sube un fichero local, también a trozos.
+    func upload(from url: URL, to path: String) async throws
 }
 
 extension FileProvider {
+    /// Lo mínimo, para un origen que no sepa hacerlo mejor: pasa por memoria.
+    func download(_ path: String, to url: URL) async throws {
+        try await read(path).write(to: url, options: .atomic)
+    }
+
+    func upload(from url: URL, to path: String) async throws {
+        try await write(Data(contentsOf: url, options: .mappedIfSafe), to: path)
+    }
+
     /// Sube un nivel, o `nil` si ya se está en la raíz.
     func parent(of path: String) -> String? {
         guard path != rootPath, path.count > rootPath.count else { return nil }

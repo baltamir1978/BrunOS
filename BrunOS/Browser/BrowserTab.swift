@@ -557,12 +557,17 @@ final class BrowserTab: NSObject {
         /// No es un fichero que se pueda guardar: un `blob:` de la propia
         /// pestaña o una lista de trozos (HLS, DASH).
         var isStream: Bool
+        /// Por trozos, pero HLS: ése sí se baja, con `HLSDownloader`.
+        var isHLS: Bool
         var width: Int
         var height: Int
         var duration: Int
         var pageTitle: String
 
         var symbol: String { isAudio ? "waveform" : "film" }
+
+        /// Se puede guardar: un fichero directo, o una lista HLS.
+        var isDownloadable: Bool { !isStream || isHLS }
 
         /// Lo que se lee en el menú: «1920×1080 · 4:12 · mp4».
         var label: String {
@@ -586,7 +591,7 @@ final class BrowserTab: NSObject {
                 .joined(separator: " ")
                 .prefix(80)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let ext = fileExtension.isEmpty ? (isAudio ? "m4a" : "mp4") : fileExtension
+            let ext = fileExtension.isEmpty || isHLS ? (isAudio ? "m4a" : "mp4") : fileExtension
             return "\(clean.isEmpty ? "vídeo" : clean).\(ext)"
         }
     }
@@ -617,6 +622,7 @@ final class BrowserTab: NSObject {
                         isAudio: (entry["kind"] as? String) == "audio",
                         fileExtension: entry["extension"] as? String ?? "",
                         isStream: entry["stream"] as? Bool ?? false,
+                        isHLS: entry["hls"] as? Bool ?? false,
                         width: entry["width"] as? Int ?? 0,
                         height: entry["height"] as? Int ?? 0,
                         duration: entry["duration"] as? Int ?? 0,
@@ -899,24 +905,47 @@ extension BrowserTab: WKDownloadDelegate {
         return directory
     }
 
+    /// Dónde guardar una descarga en Descargas. Nunca se pisa un fichero ya
+    /// descargado: se numera, como hace cualquier navegador.
+    static func uniqueDownloadURL(named name: String) -> URL {
+        var url = downloadsDirectory.appendingPathComponent(name)
+        var counter = 2
+        let base = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+        while FileManager.default.fileExists(atPath: url.path) {
+            let numbered = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
+            url = downloadsDirectory.appendingPathComponent(numbered)
+            counter += 1
+        }
+        return url
+    }
+
+    /// Un vídeo por trozos (HLS): no es un fichero, así que no puede ir por
+    /// `startDownload`. Lo baja `HLSDownloader` con las cookies de la pestaña.
+    /// Guarda un medio de la página, directo o por trozos.
+    func download(_ media: Media) {
+        if media.isHLS {
+            downloadStream(media.url, named: media.suggestedName)
+        } else {
+            download(media.url, named: media.suggestedName)
+        }
+    }
+
+    func downloadStream(_ url: URL, named name: String) {
+        let agent = webView.customUserAgent
+        Task { @MainActor in
+            let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
+            AppServices.shared.hls.download(url, named: name, cookies: cookies, userAgent: agent)
+        }
+    }
+
     func download(
         _ download: WKDownload,
         decideDestinationUsing response: URLResponse,
         suggestedFilename: String
     ) async -> URL? {
         let preferred = preferredNames.removeValue(forKey: ObjectIdentifier(download))
-        var url = Self.downloadsDirectory.appendingPathComponent(preferred ?? suggestedFilename)
-
-        // Nunca se pisa un fichero ya descargado: se numera, como hace
-        // cualquier navegador.
-        var counter = 2
-        let base = url.deletingPathExtension().lastPathComponent
-        let ext = url.pathExtension
-        while FileManager.default.fileExists(atPath: url.path) {
-            let name = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
-            url = Self.downloadsDirectory.appendingPathComponent(name)
-            counter += 1
-        }
+        let url = Self.uniqueDownloadURL(named: preferred ?? suggestedFilename)
 
         let id = ObjectIdentifier(download)
         destinations[id] = url

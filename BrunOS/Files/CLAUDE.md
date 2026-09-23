@@ -62,8 +62,11 @@ incluido**: se lee de uno y se escribe en el otro (`FileService.transfer`).
   Ficheros. El panel de origen lo empieza (más de 6 puntos con el botón pulsado) y a partir de ahí
   el escritorio lleva un «fantasma» bajo el cursor, porque el arrastre puede acabar en otro panel.
   **Dentro del mismo origen se mueve, entre orígenes se copia**, como en el Finder.
-- Los ficheros pasan enteros por memoria (`read` devuelve `Data`): un vídeo de varios gigas por
-  SFTP puede ser demasiado. Si da problemas, hay que pasar a lectura por trozos.
+- **Copiar va por trozos** (23-sep-2026): `download(_:to:)` y `upload(from:to:)` del protocolo,
+  por un temporal en disco. SFTP en trozos de 256 KB, SMB con `downloadItem`/`uploadItem`, y los
+  locales con `copyItem`, que no pasa por memoria. Antes un vídeo de varios gigas por SFTP se
+  cargaba entero y iOS mataba la app. La vista previa también descarga así. `read` y `write`
+  siguen para lo pequeño.
 
 ### SMB: cliente propio con AMSMB2 (23-sep-2026)
 
@@ -104,5 +107,4 @@ El tipo se deduce de la ruta, que es lo único que da iOS: `smbclientd` → serv
 ### SCP no aporta nada
 
 Lo preguntó Bruno el 22-sep. Citadel ya da SFTP, que es el mismo canal SSH y permite listar,
-renombrar y borrar; SCP sólo sabe copiar. Lo que de verdad falta ahí es **leer por trozos**: hoy
-`read` devuelve el fichero entero en memoria.
+renombrar y borrar; SCP sólo sabe copiar. Lo que faltaba era leer por trozos, y ya está.

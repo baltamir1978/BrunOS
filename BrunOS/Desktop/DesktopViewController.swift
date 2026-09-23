@@ -956,6 +956,8 @@ final class DesktopViewController: UIViewController {
         let position = services.pointer.position
         let frames = currentFrames()
 
+        if case .moved = kind { updateCursorShape(at: position) }
+
         // Lo modal manda, y la vista previa va por encima de todo.
         if let contextMenu, contextMenu.handlePointer(kind, at: position) { return }
         if let prompt, prompt.handlePointer(kind, at: position) { return }
@@ -1212,6 +1214,50 @@ final class DesktopViewController: UIViewController {
         default:
             return false
         }
+    }
+
+    /// La doble flecha sobre lo que se puede redimensionar: el borde de una
+    /// flotante o un divisor del mosaico. Mientras se arrastra, se mantiene
+    /// aunque el cursor se adelante al borde.
+    private func updateCursorShape(at position: CGPoint) {
+        services.pointer.shape = cursorShape(at: position)
+    }
+
+    private func cursorShape(at position: CGPoint) -> PointerController.Shape {
+        if case .resizing(_, let edges, _, _) = windowDrag { return Self.shape(for: edges) }
+        if let divider = activeDivider { return Self.shape(for: divider.axis) }
+        guard windowDrag == nil, fileDrag == nil else { return .arrow }
+
+        let modals: [UIView?] = [launcher, settingsWindow, hostEditor, quickLook, prompt, contextMenu]
+        guard modals.allSatisfy({ $0 == nil }) else { return .arrow }
+
+        if let (_, frame) = floatingWindow(at: position, margin: Self.resizeMargin) {
+            return Self.shape(for: resizeEdges(at: position, frame: frame))
+        }
+        if let divider = divider(at: position, frames: tiledFrames()) {
+            return Self.shape(for: divider.axis)
+        }
+        return .arrow
+    }
+
+    private static func shape(for edges: Edges) -> PointerController.Shape {
+        let horizontal = edges.contains(.left) || edges.contains(.right)
+        let vertical = edges.contains(.top) || edges.contains(.bottom)
+        switch (horizontal, vertical) {
+        case (true, true):
+            let falling = (edges.contains(.left) && edges.contains(.top))
+                || (edges.contains(.right) && edges.contains(.bottom))
+            return falling ? .resizeDiagonalDown : .resizeDiagonalUp
+        case (true, false): return .resizeHorizontal
+        case (false, true): return .resizeVertical
+        case (false, false): return .arrow
+        }
+    }
+
+    /// Un divisor de un contenedor horizontal es una raya vertical, que se
+    /// mueve a los lados.
+    private static func shape(for axis: LayoutContainer.Axis) -> PointerController.Shape {
+        axis == .horizontal ? .resizeHorizontal : .resizeVertical
     }
 
     private func resizeEdges(at point: CGPoint, frame: CGRect) -> Edges {

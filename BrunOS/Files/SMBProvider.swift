@@ -213,8 +213,7 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
         }
     }
 
-    /// Descarga a un temporal para poder enseñarlo. Va a disco directamente,
-    /// sin pasar entero por la memoria: un vídeo de varios gigas cabe.
+    /// Descarga a un temporal para poder enseñarlo.
     func localURL(for item: FileItem) async throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("smb-\(server.id.uuidString)", isDirectory: true)
@@ -223,9 +222,20 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
         let url = directory.appendingPathComponent(item.name)
         if FileManager.default.fileExists(atPath: url.path) { return url }
 
-        try await perform(item.path) { manager, inner in
+        try await download(item.path, to: url)
+        return url
+    }
+
+    func download(_ path: String, to url: URL) async throws {
+        try? FileManager.default.removeItem(at: url)
+        try await perform(path) { manager, inner in
             try await manager.downloadItem(atPath: inner, to: url, progress: nil)
         }
-        return url
+    }
+
+    func upload(from url: URL, to path: String) async throws {
+        try await perform(path) { manager, inner in
+            try await manager.uploadItem(at: url, toPath: inner, progress: nil)
+        }
     }
 }

@@ -189,7 +189,9 @@ barras y de las ventanas modales**, que se vuelven a traer delante en cada maque
   quedaban el movimiento.
 - Ajustes › General › Ventanas: si los paneles nuevos salen flotando o en mosaico.
 
-**Sin probar en el iPhone.** No hay cursor de redimensionar: el cursor sigue siendo la flecha.
+**Sin probar en el iPhone.** Sobre un borde de una flotante o un divisor del mosaico, el cursor
+pasa a la doble flecha de redimensionar (`PointerController.Shape`), y la mantiene mientras se
+arrastra.
 
 ### El ratón se atascaba en el borde del iPhone: ahora va en absoluto
 
@@ -359,8 +361,8 @@ movimiento más incómodo que hay.
 
 - **Navegador, para parecerse más a Safari**: navegación privada, silenciar una pestaña, zoom por
   sitio, ventana de historial, fijar pestañas y buscadores propios.
-- **Vídeo por trozos (HLS)**: bajar los segmentos y unirlos. Bruno lo dejó para más adelante; lo de
-  YouTube sólo saldría lanzando yt-dlp en una máquina del tailnet por SSH.
+- **YouTube**: sólo saldría lanzando yt-dlp en una máquina del tailnet por SSH. HLS ya se baja
+  (`HLSDownloader`, 23-sep-2026).
 
 
 ## El bloqueo de arranque del singleton

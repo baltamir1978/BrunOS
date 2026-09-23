@@ -210,8 +210,57 @@ final class SFTPProvider: FileProvider, @unchecked Sendable {
         let url = directory.appendingPathComponent(item.name)
         if FileManager.default.fileExists(atPath: url.path) { return url }
 
-        let data = try await read(item.path)
-        try data.write(to: url, options: .atomic)
+        try await download(item.path, to: url)
         return url
+    }
+
+    /// Trozos de 256 KB: bastante para que no sean miles de peticiones, y
+    /// nada para la memoria.
+    private static let chunk: UInt32 = 256 * 1024
+
+    func download(_ path: String, to url: URL) async throws {
+        let sftp = try await session()
+        // Se escribe a un temporal y se mueve al final: una descarga cortada
+        // no deja un fichero a medias que parezca bueno (la vista previa lo
+        // reaprovecharía).
+        let partial = url.appendingPathExtension("part")
+        FileManager.default.createFile(atPath: partial.path, contents: nil)
+        do {
+            let handle = try FileHandle(forWritingTo: partial)
+            defer { try? handle.close() }
+            try await sftp.withFile(filePath: path, flags: .read) { file in
+                var offset: UInt64 = 0
+                while true {
+                    try Task.checkCancellation()
+                    let buffer = try await file.read(from: offset, length: Self.chunk)
+                    guard buffer.readableBytes > 0 else { break }
+                    try handle.write(contentsOf: buffer.readableBytesView)
+                    offset += UInt64(buffer.readableBytes)
+                }
+            }
+            try? FileManager.default.removeItem(at: url)
+            try FileManager.default.moveItem(at: partial, to: url)
+        } catch {
+            try? FileManager.default.removeItem(at: partial)
+            throw FileError.failed(error.localizedDescription)
+        }
+    }
+
+    func upload(from url: URL, to path: String) async throws {
+        let sftp = try await session()
+        do {
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            try await sftp.withFile(filePath: path, flags: [.write, .create, .truncate]) { file in
+                var offset: UInt64 = 0
+                while let data = try handle.read(upToCount: Int(Self.chunk)), !data.isEmpty {
+                    try Task.checkCancellation()
+                    try await file.write(ByteBuffer(bytes: data), at: offset)
+                    offset += UInt64(data.count)
+                }
+            }
+        } catch {
+            throw FileError.failed(error.localizedDescription)
+        }
     }
 }
