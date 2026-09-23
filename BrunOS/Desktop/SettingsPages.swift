@@ -653,6 +653,9 @@ enum SettingsPages {
                                                     files.rebuild()
                                                 },
                                             ])))
+                case is SMBProvider:
+                    rows.append(SettingsRow(provider.name, subtitle: "SMB · se gestiona abajo",
+                                            symbol: provider.symbol))
                 default:
                     rows.append(SettingsRow(provider.name, subtitle: "SFTP · se gestiona en Terminal › Máquinas",
                                             symbol: provider.symbol))
@@ -677,38 +680,35 @@ enum SettingsPages {
                 ),
                 SettingsGroup(
                     "Servidores de red (SMB)",
-                    footer: "El SDK de iOS no trae cliente SMB, así que quien se conecta es la app "
-                        + "Archivos del iPhone y BrunOS entra por la puerta que deja abierta. Se hace "
-                        + "una sola vez:\n"
-                        + "1. Abre Archivos › Examinar › ⋯ › Conectar a servidor.\n"
-                        + "2. Escribe smb://dirección, con usuario y contraseña; iOS las guarda.\n"
-                        + "3. Vuelve aquí, pulsa Añadir… y elige el servidor dentro del selector.\n"
-                        + "A partir de ahí es una ubicación más: se copia y se pega con cualquier otra. "
-                        + "Si el servidor no está montado, la ubicación sigue en la lista en gris, y "
-                        + "vuelve sola en cuanto Archivos se reconecta.",
-                    rows: [
-                        SettingsRow("Conectar un servidor", subtitle: "Se hace en la app Archivos", .buttons([
-                            SettingsButton("Abrir Archivos") { openFilesApp() },
-                            SettingsButton("Añadir…", style: .accent) {
-                                NotificationCenter.default.post(name: .brunosPickFolder, object: nil)
-                            },
-                        ])),
-                    ]
+                    footer: "BrunOS se conecta él solo: un Mac con Compartir archivos, un NAS o Windows, "
+                        + "en casa o por el tailnet. Basta la dirección y, si lo pide, usuario y "
+                        + "contraseña, que se guarda en el Keychain de este iPhone. Sin carpeta "
+                        + "compartida se ven todas las del servidor.\n"
+                        + "Lo que ya tengas conectado en la app Archivos también vale: añádelo con "
+                        + "«Otra carpeta».",
+                    rows: smbRows
                 ),
             ]
         }
     }
 
-    /// Abre la app Archivos del iPhone, que es la que sabe conectarse a un SMB.
-    ///
-    /// **Sin `canOpenURL`**: quedó obsoleto exactamente en iOS 27. Se abre y se
-    /// mira el resultado, que es lo que Apple pide ahora.
-    private static func openFilesApp() {
-        guard let url = URL(string: "shareddocuments://") else { return }
-        UIApplication.shared.open(url) { opened in
-            guard !opened else { return }
-            Log.desktop.error("No se pudo abrir la app Archivos")
+    private static var smbRows: [SettingsRow] {
+        var rows = services.smbServers.servers.map { server in
+            SettingsRow(
+                server.displayName,
+                subtitle: "smb://\(server.host)"
+                    + (server.share.isEmpty ? "" : "/\(server.share)")
+                    + (server.username.isEmpty ? " · invitado" : " · \(server.username)"),
+                symbol: "externaldrive.connected.to.line.below",
+                .buttons([
+                    SettingsButton("Editar") { desktop?.presentSMBEditor(for: server) },
+                ])
+            )
         }
+        rows.append(SettingsRow("Nuevo servidor", .buttons([
+            SettingsButton("Añadir…", style: .accent) { desktop?.presentSMBEditor(for: nil) },
+        ])))
+        return rows
     }
 }
 

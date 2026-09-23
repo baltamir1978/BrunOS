@@ -42,6 +42,14 @@ packages:
     # Por esa capa van las contraseñas de los servidores, así que se prefiere
     # la cadena más corta y con un responsable identificable.
     minorVersion: 0.11.0
+  AMSMB2:
+    # Cliente SMB, para conectarse a un servidor de red sin pasar por la app
+    # Archivos (Bruno la aprobó el 23-sep-2026). Es del mismo autor desde
+    # siempre y trae libsmb2 copiada dentro, del autor de libsmb2; sus únicas
+    # dependencias son de Apple, y sólo para Linux y los tests. LGPL 2.1: se
+    # enlaza como librería dinámica, que es lo que la licencia pide.
+    url: https://github.com/amosavian/AMSMB2
+    minorVersion: 4.0.3
 
 targets:
   BrunOS:
@@ -64,6 +72,7 @@ targets:
     dependencies:
       - package: SwiftTerm
       - package: Citadel
+      - package: AMSMB2
     info:
       path: BrunOS/App/Info.plist
       properties:
@@ -133,6 +142,12 @@ targets:
         NSCameraUsageDescription: >-
           Algunas webs piden la cámara para videollamadas. BrunOS sólo se la
           cede a la página que la pida y cuando tú lo autorices.
+
+        # Sin esto iOS no deja hablar con máquinas de la red local, y un
+        # servidor SMB de casa suele estar ahí.
+        NSLocalNetworkUsageDescription: >-
+          BrunOS se conecta a los servidores de ficheros (SMB) y a las máquinas
+          SSH de tu red que tú configures.
 
         ITSAppUsesNonExemptEncryption: false
 

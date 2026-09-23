@@ -24,8 +24,8 @@ ajustes de Ficheros, aún sin localizar.
 1. Que Bruno pruebe lo nuevo del navegador: el reCAPTCHA, barra de favoritos e iconos,
    sugerencias al escribir, modo lectura, descargar un vídeo, el ⤓ de descargas y guardar como PDF.
 2. Localizar las esquinas mal dibujadas en los ajustes de Ficheros (pedirle una foto o el sitio exacto).
-3. SMB más sencillo: la única salida real es un cliente propio (AMSMB2), que es una dependencia
-   nueva y hay que preguntársela.
+3. Probar el SMB propio (AMSMB2, 23-sep-2026): Ajustes de Ficheros › Ubicaciones › Nuevo
+   servidor. Escrito y compilado, **sin probar contra un servidor de verdad**.
 4. Navegador hacia «un Safari», por orden: restaurar la sesión al arrancar, navegación privada,
    zoom por sitio, ventana de historial, silenciar y fijar pestañas.
 
@@ -69,11 +69,13 @@ conviene no confundir "está escrito" con "funciona":
 
 ## Cómo se cierra cada bloque de trabajo
 
-Lo pidió Bruno el 22-sep-2026: **cada bloque que compile sin errores termina en commit, `git push`,
-subida a TestFlight (`./Tools/testflight.sh`) y README y memoria al día**, sin preguntar en cada
-paso. Antes del push, revisar el diff por si se cuela algo sensible: el repositorio es público.
+Lo pidió Bruno el 22-sep-2026: **cada bloque que compile sin errores termina en commit, `git push`
+y README y memoria al día**, sin preguntar en cada paso. Antes del push, revisar el diff por si se
+cuela algo sensible: el repositorio es público.
 
-Última build subida: ver `git log` y TestFlight; se sube una por bloque.
+**La subida a TestFlight, en cambio, se avisa antes y se espera el visto bueno** (23-sep-2026:
+«no subas más compilaciones sin avisar para no bloquear»). Cada subida gasta del límite diario de
+App Store Connect, y si se agota, Bruno se queda sin poder probar hasta el día siguiente.
 
 ## Dónde está el resto
 
@@ -301,7 +303,7 @@ como superficie táctil y nada más, con un aviso que se va solo a los seis segu
 acepta toques**, porque si no sería otra cosa robándole el clic al trackpad.
 
 **Consecuencia obligada: los ajustes se mudan al monitor** (`SettingsWindow`), y con ellos el alta
-y la edición de máquinas SSH (`HostEditorWindow`). Si el iPhone está apagado, nada de esto puede
+y la edición de máquinas SSH (`FormWindow`, que también da de alta los servidores SMB). Si el iPhone está apagado, nada de esto puede
 vivir allí.
 
 El editor de máquinas lleva **campos de texto propios**, no `UITextField`: en la pantalla externa
@@ -395,7 +397,8 @@ MetalToolchain`. Sin él, SwiftTerm falla con `cannot execute tool 'metal'`.
 - Swift 6 en modo estricto (`SWIFT_STRICT_CONCURRENCY: complete`) desde el primer día.
 - UIKit para la escena externa y el gestor de ventanas; SwiftUI para la interfaz del iPhone.
 - **iOS 27 mínimo**, sólo iPhone, sólo vertical en el teléfono.
-- Dependencias: **SwiftTerm** y **Citadel**, y ninguna más sin preguntar. **Citadel fijado a la
+- Dependencias: **SwiftTerm**, **Citadel** y **AMSMB2** (el cliente SMB, aprobada el 23-sep-2026),
+  y ninguna más sin preguntar. **Citadel fijado a la
   serie 0.11** (22-sep-2026), por el fork de `swift-nio-ssh` del que tira: ver "Cadena de
   suministro".
 - Bundle id **`com.baltamir.brunos`**. El primero que se intentó, `com.bruno.brunos`, **ya estaba

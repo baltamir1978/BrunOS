@@ -22,6 +22,7 @@ final class AppServices {
     let keyboard = KeyboardRouter()
     let assistiveTouch = AssistiveTouchMonitor()
     let hosts = HostStore()
+    let smbServers = SMBServerStore()
     let knownHosts = KnownHostsStore()
     let tailscale = TailscaleMonitor()
     let wallpaper = WallpaperStore()
@@ -50,6 +51,13 @@ final class AppServices {
         // hay que rehacer la lista cuando se añada o se quite alguna.
         NotificationCenter.default.addObserver(
             forName: HostStore.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { AppServices.shared.files.rebuild() }
+        }
+        NotificationCenter.default.addObserver(
+            forName: SMBServerStore.didChangeNotification,
             object: nil,
             queue: .main
         ) { _ in

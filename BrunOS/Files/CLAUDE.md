@@ -65,19 +65,33 @@ incluido**: se lee de uno y se escribe en el otro (`FileService.transfer`).
 - Los ficheros pasan enteros por memoria (`read` devuelve `Data`): un vídeo de varios gigas por
   SFTP puede ser demasiado. Si da problemas, hay que pasar a lectura por trozos.
 
-### SMB: lo pone la app Archivos, no BrunOS (22-sep-2026)
+### SMB: cliente propio con AMSMB2 (23-sep-2026)
 
-**El SDK de iOS 27 no trae cliente SMB.** Comprobado: no hay NetFS ni nada equivalente; lo único
-que existe es `FileProvider`, que sirve para publicar ficheros, no para montar un servidor. Las dos
-salidas eran una librería de terceros (AMSMB2, sobre libsmb2 en C) o pasar por la app Archivos, que
-sí sabe conectarse. **Bruno eligió la app Archivos**: sin dependencias nuevas y sin otra capa de
-red por la que pasen sus credenciales.
+**El SDK de iOS 27 no trae cliente SMB.** Comprobado: no hay NetFS ni nada equivalente. El 22-sep
+se eligió pasar por la app Archivos (conectar allí y añadir la carpeta con el selector), sin
+dependencias nuevas. **Bruno lo probó: funciona, pero conectarse así es demasiado complicado**, y
+el 23-sep aprobó AMSMB2.
 
-El camino, explicado en Ajustes › Ficheros › Ubicaciones: conectar el servidor una vez en Archivos
-(Examinar › ⋯ › Conectar a servidor) y añadirlo aquí con el selector de carpetas. A partir de ahí
-es una ubicación como cualquier otra.
+- `SMBServer` + `SMBServerStore` (en `smb-servers.json`) y la contraseña en el Keychain con
+  `SMBKeychain`, sobre el mismo `PasswordVault` que las de SSH.
+- `SMBProvider`: **las rutas empiezan por la compartida** (`/Fotos/2026/a.jpg`). Sin compartida
+  en el alta, la raíz lista todas las del servidor (`listShares`, sin las ocultas con `$`). Una
+  conexión (`SMB2Manager`) por compartida, porque cada una es su propio árbol; tras un error se
+  tira y la siguiente petición abre otra.
+- Alta y edición con `FormWindow`, que antes era el editor de máquinas SSH y ahora pinta
+  cualquier `EditorForm`. Se puede pegar `smb://nas/Fotos` en el campo del servidor: al guardar se
+  reparte entre servidor y compartida.
+- `NSLocalNetworkUsageDescription` en el `Info.plist`: sin él iOS no deja hablar con la red local.
+- **Cadena de suministro**: AMSMB2 es de Amir Abbas Mousavian desde siempre y trae libsmb2 copiada
+  dentro, del propio autor de libsmb2 (Ronnie Sahlberg). Sus dependencias son sólo de Apple
+  (swift-system para Linux, swift-atomics para los tests). LGPL 2.1, enlazada como librería
+  dinámica. Fijada a la serie 4.0.
 
-**Lo que esto obligó a cambiar**: un servidor desmontado hace que el marcador de seguridad no
+**Sin probar contra un servidor de verdad.**
+
+La vía de la app Archivos sigue valiendo para lo ya montado allí: se añade con «Otra carpeta».
+
+**De aquella vía quedó esto**: un servidor desmontado hace que el marcador de seguridad no
 resuelva, y antes el proveedor ni se creaba, así que **la ubicación desaparecía de la barra
 lateral** como si nunca se hubiera añadido. Ahora `ExternalFolderStore` guarda nombre y tipo junto
 al marcador (`ExternalFolder`), el proveedor se crea igual y es `list` quien explica qué pasa; en

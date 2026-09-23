@@ -720,19 +720,25 @@ final class DesktopViewController: UIViewController {
         }
     }
 
-    private var hostEditor: HostEditorWindow?
+    private var hostEditor: FormWindow?
 
     /// Alta y edición de máquinas, también en el monitor.
     ///
     /// Antes vivían en el iPhone, pero el teléfono se apaga con pantalla
     /// externa: teclear allí obliga a dejar de mirar el monitor.
     func presentHostEditor(for host: SSHHost?) {
+        presentForm(SSHHostForm(host: host))
+    }
+
+    /// Alta y edición de servidores SMB, con el mismo formulario.
+    func presentSMBEditor(for server: SMBServer?) {
+        presentForm(SMBServerForm(server: server))
+    }
+
+    private func presentForm(_ form: any EditorForm) {
         hostEditor?.removeFromSuperview()
 
-        let editor = HostEditorWindow(
-            host: host,
-            frame: CGRect(origin: .zero, size: logicalSize)
-        )
+        let editor = FormWindow(form: form, frame: CGRect(origin: .zero, size: logicalSize))
         editor.onDismiss = { [weak self] in
             self?.hostEditor?.removeFromSuperview()
             self?.hostEditor = nil

@@ -113,36 +113,58 @@ final class HostStore {
     }
 }
 
-/// Contraseñas de los hosts.
+/// Contraseñas de los hosts SSH.
+enum SSHKeychain {
+
+    private static let vault = PasswordVault(service: "com.baltamir.brunos.ssh")
+
+    static func setPassword(_ password: String, for host: SSHHost) {
+        vault.set(password, account: host.id.uuidString)
+    }
+
+    static func password(for host: SSHHost) -> String? {
+        vault.password(account: host.id.uuidString)
+    }
+
+    static func removePassword(for host: SSHHost) {
+        vault.remove(account: host.id.uuidString)
+    }
+
+    static func hasPassword(for host: SSHHost) -> Bool {
+        password(for: host) != nil
+    }
+}
+
+/// Contraseñas en el Keychain, una por cuenta dentro de un servicio.
 ///
 /// Se guardan con `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, que son dos
 /// decisiones en una: **no salen del iPhone** (nada de iCloud) y **no se leen
-/// con el teléfono bloqueado**. Para algo que abre una consola en una máquina
-/// ajena, parece lo mínimo.
-enum SSHKeychain {
+/// con el teléfono bloqueado**. Para algo que abre una consola o una carpeta
+/// en una máquina ajena, parece lo mínimo.
+struct PasswordVault: Sendable {
 
-    private static let service = "com.baltamir.brunos.ssh"
+    let service: String
 
-    private static func query(for host: SSHHost) -> [String: Any] {
+    private func query(account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: host.id.uuidString,
+            kSecAttrAccount as String: account,
         ]
     }
 
-    static func setPassword(_ password: String, for host: SSHHost) {
-        removePassword(for: host)
+    func set(_ password: String, account: String) {
+        remove(account: account)
         guard !password.isEmpty, let data = password.data(using: .utf8) else { return }
 
-        var attributes = query(for: host)
+        var attributes = query(account: account)
         attributes[kSecValueData as String] = data
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         SecItemAdd(attributes as CFDictionary, nil)
     }
 
-    static func password(for host: SSHHost) -> String? {
-        var attributes = query(for: host)
+    func password(account: String) -> String? {
+        var attributes = query(account: account)
         attributes[kSecReturnData as String] = true
         attributes[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -153,11 +175,7 @@ enum SSHKeychain {
         return String(data: data, encoding: .utf8)
     }
 
-    static func removePassword(for host: SSHHost) {
-        SecItemDelete(query(for: host) as CFDictionary)
-    }
-
-    static func hasPassword(for host: SSHHost) -> Bool {
-        password(for: host) != nil
+    func remove(account: String) {
+        SecItemDelete(query(account: account) as CFDictionary)
     }
 }

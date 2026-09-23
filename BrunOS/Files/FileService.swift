@@ -52,6 +52,10 @@ final class FileService {
             providers.append(SFTPProvider(host: host))
         }
 
+        for server in AppServices.shared.smbServers.servers {
+            providers.append(SMBProvider(server: server))
+        }
+
         self.providers = providers
         currentIndex = min(currentIndex, providers.count - 1)
     }

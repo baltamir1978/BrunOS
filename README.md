@@ -118,6 +118,7 @@ Software de terceros:
 
 - [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) — MIT
 - [Citadel](https://github.com/orlandos-nl/Citadel) — MIT, fijado a la serie 0.11
+- [AMSMB2](https://github.com/amosavian/AMSMB2), con [libsmb2](https://github.com/sahlberg/libsmb2) dentro — LGPL 2.1, enlazada como librería dinámica
 - [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) — SIL Open Font License 1.1
 - [IBM Plex Sans](https://github.com/IBM/plex) — SIL Open Font License 1.1
 
