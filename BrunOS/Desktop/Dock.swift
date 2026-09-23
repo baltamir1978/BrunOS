@@ -1,6 +1,9 @@
 import UIKit
 
-/// Dock del escritorio: los tres espacios de trabajo, abajo y al centro.
+/// Dock del escritorio: un icono por app, abajo y al centro, como en macOS.
+///
+/// Cada icono es una **app**, no un espacio de trabajo: pulsarlo trae sus
+/// ventanas al escritorio en que se está, junto a las de las otras apps.
 ///
 /// Sustituye a las tres etiquetas de la barra superior. El motivo es de uso, no
 /// de adorno: `1 web · 2 ssh · 3 files` en una esquina se lee como un rótulo de
@@ -63,19 +66,22 @@ final class Dock: UIView {
     // MARK: - Contenido
 
     func update(desktop: DesktopModel) {
-        if items.count != desktop.workspaces.count {
+        let kinds = PaneKind.dockOrder
+        if items.count != kinds.count {
             items.forEach { $0.removeFromSuperview() }
-            items = desktop.workspaces.map { _ in
+            items = kinds.map { _ in
                 let item = DockItem()
                 background.addSubview(item)
                 return item
             }
         }
 
-        for (index, item) in items.enumerated() {
+        let frontmost = desktop.active.focusedPane.map(PaneKind.of)
+        for (kind, item) in zip(kinds, items) {
             item.update(
-                workspace: desktop.workspaces[index],
-                isActive: index == desktop.activeIndex
+                kind: kind,
+                isOpen: desktop.workspaces.contains { $0.hasAny(of: kind) },
+                isActive: kind == frontmost
             )
         }
         settingsItem?.updateAsSettings()
@@ -126,12 +132,12 @@ final class Dock: UIView {
         )
     }
 
-    /// Qué espacio hay bajo un punto en coordenadas del dock.
-    func workspaceNumber(at point: CGPoint) -> Int? {
-        for (index, item) in items.enumerated() {
+    /// Qué app hay bajo un punto en coordenadas del dock.
+    func kind(at point: CGPoint) -> PaneKind? {
+        for (kind, item) in zip(PaneKind.dockOrder, items) {
             let frame = item.convert(item.bounds, to: self)
             if frame.insetBy(dx: -4, dy: -4).contains(point) {
-                return index + 1
+                return kind
             }
         }
         return nil
@@ -186,18 +192,17 @@ private final class DockItem: UIView {
     private var kind: PaneKind?
     private var isSettings = false
 
-    func update(workspace: Workspace, isActive: Bool) {
-        kind = PaneKind.allCases.first { $0.preferredWorkspace == workspace.index }
+    func update(kind: PaneKind, isOpen: Bool, isActive: Bool) {
+        self.kind = kind
         isSettings = false
         // «Abierta» incluye lo minimizado: sus paneles siguen vivos en el dock.
         // Un icono a color siempre; lo que dice si hay algo abierto es el
         // punto. Antes los espacios vacíos salían en gris, y parecían
         // desactivados.
-        let isOpen = !workspace.isEmpty || !workspace.minimized.isEmpty
         indicator.isHidden = !isOpen
         indicator.backgroundColor = isActive ? Tokens.Color.accent : Tokens.Color.textSecondary
         alpha = 1
-        accessibilityLabel = "Espacio \(workspace.index), \(workspace.name)"
+        accessibilityLabel = kind.title
         refreshIcon()
     }
 

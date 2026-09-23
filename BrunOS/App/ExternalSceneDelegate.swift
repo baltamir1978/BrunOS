@@ -31,8 +31,8 @@ final class ExternalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.layoutIfNeeded()
         desktop.attachPointer()
 
-        // Un espacio vacío no se distingue de uno roto, así que cada uno
-        // arranca con el panel que le da nombre: 1 web, 2 ssh, 3 files.
+        // Un escritorio vacío no se distingue de uno roto: se arranca con una
+        // ventana de cada app, todas juntas en el primero.
         if services.desktop.workspaces.allSatisfy(\.isEmpty) {
             desktop.populateEmptyWorkspaces()
         }

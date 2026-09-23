@@ -3,14 +3,15 @@ import UIKit
 
 /// Un espacio de trabajo: su mosaico, sus paneles y cuál tiene el foco.
 ///
-/// BrunOS tiene tres fijos, con una vocación cada uno (`1 web`, `2 ssh`,
-/// `3 files`), pero nada impide meter cualquier tipo de panel en cualquiera:
-/// el nombre es una etiqueta, no una restricción.
+/// BrunOS tiene tres, **sin vocación**: son los escritorios de macOS, y en
+/// cualquiera caben ventanas de las tres apps a la vez. Antes cada app vivía en
+/// el suyo (`1 web`, `2 ssh`, `3 files`) y el dock cambiaba de espacio al
+/// pulsarla, así que abrir el terminal escondía el navegador y nunca se podían
+/// ver dos apps juntas (23-sep-2026).
 @MainActor
 final class Workspace {
 
     let index: Int
-    let name: String
 
     var layout = TilingLayout()
     private(set) var panes: [PaneID: any Pane] = [:]
@@ -70,9 +71,8 @@ final class Workspace {
         setFocus(id)
     }
 
-    init(index: Int, name: String) {
+    init(index: Int) {
         self.index = index
-        self.name = name
     }
 
     var isEmpty: Bool { panes.isEmpty }
@@ -84,6 +84,23 @@ final class Workspace {
 
     func pane(_ id: PaneID) -> (any Pane)? {
         panes[id]
+    }
+
+    /// Las ventanas de una app, de la de más delante a la de más atrás: la
+    /// que tiene el foco, luego las flotantes por apilamiento y al final las
+    /// del mosaico.
+    func panes(of kind: PaneKind) -> [PaneID] {
+        let order = [focused].compactMap { $0 } + floatingOrder.reversed() + layout.panes
+        var seen = Set<PaneID>()
+        return order.filter { id in
+            guard let pane = panes[id], PaneKind.of(pane) == kind else { return false }
+            return seen.insert(id).inserted
+        }
+    }
+
+    /// Si la app tiene algo aquí, minimizado incluido.
+    func hasAny(of kind: PaneKind) -> Bool {
+        !panes(of: kind).isEmpty || minimized.contains { PaneKind.of($0.pane) == kind }
     }
 
     /// Añade un panel partiendo el hueco del que tiene el foco, y le pasa el foco.
@@ -160,9 +177,10 @@ final class Workspace {
 @MainActor
 enum DesktopPreferences {
     /// Si los paneles nuevos salen como ventanas flotantes en vez de entrar
-    /// en el mosaico.
+    /// en el mosaico. **Por defecto flotan**, como en macOS: Bruno quería ver
+    /// unas ventanas encima de otras (23-sep-2026).
     static var newPanesFloat: Bool {
-        get { UserDefaults.standard.bool(forKey: "desktop.newPanesFloat") }
+        get { UserDefaults.standard.object(forKey: "desktop.newPanesFloat") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "desktop.newPanesFloat") }
     }
 }
@@ -177,11 +195,7 @@ final class DesktopModel {
 
     static let didChangeNotification = Notification.Name("BrunOSDesktopDidChange")
 
-    let workspaces: [Workspace] = [
-        Workspace(index: 1, name: "web"),
-        Workspace(index: 2, name: "ssh"),
-        Workspace(index: 3, name: "files"),
-    ]
+    let workspaces: [Workspace] = (1...3).map { Workspace(index: $0) }
 
     private(set) var activeIndex = 0
 

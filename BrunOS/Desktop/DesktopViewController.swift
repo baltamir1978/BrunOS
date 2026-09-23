@@ -378,10 +378,8 @@ final class DesktopViewController: UIViewController {
             toggleFloating(focused)
 
         case .newPane:
-            let kind = (workspace.focusedPane as? PlaceholderPane)?.kind
-                ?? PaneKind.allCases.first { $0.preferredWorkspace == workspace.index }
-                ?? .terminal
-            addPane(kind: kind)
+            // Cmd+N: otra ventana de la app que está delante, como en macOS.
+            addPane(kind: workspace.focusedPane.map(PaneKind.of) ?? .terminal)
 
         case .newTab:
             switch workspace.focusedPane {
@@ -467,20 +465,15 @@ final class DesktopViewController: UIViewController {
         return true
     }
 
-    /// Pone en cada espacio de trabajo el panel que le da nombre.
+    /// Al arrancar, una ventana de cada app, **todas en el mismo escritorio**.
     ///
-    /// Antes sólo se creaba uno en el espacio activo, y al pulsar Cmd+2 o Cmd+3
-    /// aparecía un escritorio vacío: indistinguible de que el cambio de espacio
-    /// no funcionara.
+    /// Antes iba una en cada espacio (`1 web`, `2 ssh`, `3 files`), y eso
+    /// hacía imposible ver dos apps a la vez.
     func populateEmptyWorkspaces() {
-        let previous = services.desktop.activeIndex + 1
-        for kind in PaneKind.allCases {
-            services.desktop.activate(number: kind.preferredWorkspace)
-            if services.desktop.active.isEmpty {
-                addPane(kind: kind)
-            }
+        services.desktop.activate(number: 1)
+        for kind in PaneKind.dockOrder.reversed() {
+            addPane(kind: kind)
         }
-        services.desktop.activate(number: previous)
     }
 
     /// Crea un panel en el espacio activo.
@@ -669,54 +662,66 @@ final class DesktopViewController: UIViewController {
         services.desktop.notifyChange()
     }
 
-    /// Pulsar un icono del dock, como en macOS: se va a esa app, vuelven sus
-    /// paneles minimizados y, si no tenía ninguno abierto —porque se cerraron
-    /// todos—, se abre uno nuevo. Antes, con la app cerrada, pulsar su icono
-    /// llevaba a un espacio vacío y no había forma de volver a abrirla.
-    private func openFromDock(_ number: Int) {
+    /// Pulsar un icono del dock, como en macOS: la app pasa delante **en el
+    /// escritorio en que se está**, junto a las demás.
+    ///
+    /// - Si tiene ventanas minimizadas aquí, vuelven.
+    /// - Si tiene ventanas aquí, la de más delante recibe el foco.
+    /// - Si sólo las tiene en otro escritorio, se va a ése, como macOS.
+    /// - Si no tiene ninguna, se abre una aquí.
+    ///
+    /// Antes cada app tenía su espacio y pulsarla cambiaba de espacio: abrir
+    /// el terminal escondía el navegador (23-sep-2026).
+    private func openFromDock(_ kind: PaneKind) {
         let desktop = services.desktop
-        guard desktop.workspaces.indices.contains(number - 1) else { return }
-        let workspace = desktop.workspaces[number - 1]
-        desktop.activate(number: number)
+        let workspace = desktop.active
+        let minimized = workspace.minimized.filter { PaneKind.of($0.pane) == kind }
 
-        if !workspace.minimized.isEmpty {
-            for entry in workspace.minimized {
+        if !minimized.isEmpty {
+            for entry in minimized {
                 restoreMinimized(entry.id, in: workspace)
             }
-        } else if workspace.isEmpty,
-                  let kind = PaneKind.allCases.first(where: { $0.preferredWorkspace == number }) {
+        } else if let id = workspace.panes(of: kind).first {
+            workspace.setFocus(id)
+        } else if let other = desktop.workspaces.first(where: { $0.hasAny(of: kind) }) {
+            desktop.activate(number: other.index)
+            if let entry = other.minimized.first(where: { PaneKind.of($0.pane) == kind }) {
+                restoreMinimized(entry.id, in: other)
+            } else if let id = other.panes(of: kind).first {
+                other.setFocus(id)
+            }
+        } else {
             addPane(kind: kind)
         }
         desktop.notifyChange()
     }
 
     /// Botón derecho sobre un icono del dock, como en macOS: una ventana
-    /// nueva de esa app y la lista de las que tiene abiertas, minimizadas
-    /// incluidas, para ir directamente a una.
-    private func dockMenu(for number: Int) -> [ContextMenu.Entry] {
+    /// nueva de esa app y la lista de las que tiene abiertas, en cualquier
+    /// escritorio y minimizadas incluidas, para ir directamente a una.
+    private func dockMenu(for kind: PaneKind) -> [ContextMenu.Entry] {
         let desktop = services.desktop
-        guard desktop.workspaces.indices.contains(number - 1),
-              let kind = PaneKind.allCases.first(where: { $0.preferredWorkspace == number })
-        else { return [] }
-        let workspace = desktop.workspaces[number - 1]
 
         var entries = [ContextMenu.Entry(title: "Nueva ventana", symbol: "plus.rectangle") { [weak self] in
             self?.newPane(kind)
         }]
-        let open = workspace.panes
-            .filter { !($0.value is PlaceholderPane) }
-            .sorted { $0.value.title.localizedStandardCompare($1.value.title) == .orderedAscending }
-        for (id, pane) in open {
-            entries.append(ContextMenu.Entry(title: pane.title, symbol: "macwindow") {
-                desktop.activate(number: number)
-                workspace.setFocus(id)
-                desktop.notifyChange()
-            })
-        }
-        for entry in workspace.minimized {
-            entries.append(ContextMenu.Entry(title: entry.pane.title, symbol: "dock.arrow.down.rectangle") {
-                [weak self] in self?.restoreMinimized(entry.id, in: workspace)
-            })
+        let showsDesktop = desktop.workspaces.filter { $0.hasAny(of: kind) }.count > 1
+        for workspace in desktop.workspaces {
+            let suffix = showsDesktop ? " · escritorio \(workspace.index)" : ""
+            let open = workspace.panes(of: kind).compactMap { id in workspace.pane(id).map { (id, $0) } }
+            for (id, pane) in open {
+                entries.append(ContextMenu.Entry(title: pane.title + suffix, symbol: "macwindow") {
+                    desktop.activate(number: workspace.index)
+                    workspace.setFocus(id)
+                    desktop.notifyChange()
+                })
+            }
+            for entry in workspace.minimized where PaneKind.of(entry.pane) == kind {
+                entries.append(ContextMenu.Entry(title: entry.pane.title + suffix,
+                                                 symbol: "dock.arrow.down.rectangle") {
+                    [weak self] in self?.restoreMinimized(entry.id, in: workspace)
+                })
+            }
         }
         return entries
     }
@@ -746,11 +751,7 @@ final class DesktopViewController: UIViewController {
         let directory = isDirectory.boolValue ? url.path : url.deletingLastPathComponent().path
         let name = isDirectory.boolValue ? nil : url.lastPathComponent
 
-        services.desktop.activate(number: PaneKind.files.preferredWorkspace)
-        if !(services.desktop.active.focusedPane is FilesPane) {
-            addPane(kind: .files)
-        }
-        (services.desktop.active.focusedPane as? FilesPane)?.show(localDirectory: directory, selecting: name)
+        (frontmost(.files) as? FilesPane)?.show(localDirectory: directory, selecting: name)
         services.desktop.notifyChange()
     }
 
@@ -811,13 +812,21 @@ final class DesktopViewController: UIViewController {
     }
 
     func openInBrowser(_ url: URL) {
-        services.desktop.activate(number: PaneKind.browser.preferredWorkspace)
-        if let browser = services.desktop.active.focusedPane as? BrowserPane {
-            browser.newTab(url: url.absoluteString)
+        (frontmost(.browser) as? BrowserPane)?.newTab(url: url.absoluteString)
+    }
+
+    /// La ventana de una app en la que abrir algo: la de más delante del
+    /// escritorio actual, con el foco; si no hay, una nueva aquí mismo. **No
+    /// cambia de escritorio**: lo que se abre aparece donde se está mirando.
+    private func frontmost(_ kind: PaneKind) -> (any Pane)? {
+        let workspace = services.desktop.active
+        if let id = workspace.panes(of: kind).first {
+            workspace.setFocus(id)
         } else {
-            addPane(kind: .browser)
-            (services.desktop.active.focusedPane as? BrowserPane)?.newTab(url: url.absoluteString)
+            addPane(kind: kind)
         }
+        services.desktop.notifyChange()
+        return workspace.focusedPane
     }
 
     private var hostEditor: FormWindow?
@@ -943,18 +952,13 @@ final class DesktopViewController: UIViewController {
         }
     }
 
-    /// Un panel nuevo en el espacio de su tipo, como si se abriera la app.
+    /// Una ventana nueva de una app, en el escritorio en que se está.
     private func newPane(_ kind: PaneKind) {
-        services.desktop.activate(number: kind.preferredWorkspace)
         addPane(kind: kind)
     }
 
     private func showFilesLocation(_ index: Int) {
-        services.desktop.activate(number: PaneKind.files.preferredWorkspace)
-        if !(services.desktop.active.focusedPane is FilesPane) {
-            addPane(kind: .files)
-        }
-        (services.desktop.active.focusedPane as? FilesPane)?.showProvider(at: index)
+        (frontmost(.files) as? FilesPane)?.showProvider(at: index)
         services.desktop.notifyChange()
     }
 
@@ -1557,12 +1561,12 @@ final class DesktopViewController: UIViewController {
         guard dock.frame.contains(position), dock.contains(point: pointInDock) else { return false }
         guard case .down(let button) = kind else { return true }
 
-        if button == .right, let number = dock.workspaceNumber(at: pointInDock) {
-            presentContextMenu(dockMenu(for: number), at: position)
+        if button == .right, let kind = dock.kind(at: pointInDock) {
+            presentContextMenu(dockMenu(for: kind), at: position)
         } else if dock.hitsSettings(pointInDock) {
             dock.onSettings?()
-        } else if let number = dock.workspaceNumber(at: pointInDock) {
-            openFromDock(number)
+        } else if let kind = dock.kind(at: pointInDock) {
+            openFromDock(kind)
         }
         return true
     }

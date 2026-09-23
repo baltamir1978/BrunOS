@@ -33,7 +33,8 @@ redimensionar, HLS, historial y los arreglos de la revisión.
 1. Que Bruno pruebe la 2609232025: el reCAPTCHA, el SMB propio, varias ventanas desde el dock,
    el historial (Cmd+Y), descargar un vídeo HLS, el cursor de redimensionar y, de antes, barra de
    favoritos, sugerencias, modo lectura, el ⤓ de descargas y guardar como PDF.
-2. Localizar las esquinas mal dibujadas en los ajustes de Ficheros (pedirle una foto o el sitio exacto).
+2. Las esquinas de los ajustes de Ficheros y ver varias apps a la vez (arreglados el 23-sep por la
+   noche, sin subir).
 3. Probar el SMB propio (AMSMB2, 23-sep-2026): Ajustes de Ficheros › Ubicaciones › Nuevo
    servidor. Escrito y compilado, **sin probar contra un servidor de verdad**.
 4. Navegador hacia «un Safari», por orden: restaurar la sesión al arrancar, navegación privada,
@@ -160,6 +161,16 @@ abierto. Al pulsar un icono vuelven sus paneles minimizados y, si estaba cerrada
 panel nuevo**, como al lanzar una app. Antes los espacios vacíos salían en gris, lo minimizado
 tenía un icono aparte duplicado, y con la app cerrada no había forma de volver a abrirla.
 
+**Los espacios ya no son de una app** (23-sep-2026, noche). Cada app vivía en el suyo (`1 web`,
+`2 ssh`, `3 files`) y el dock cambiaba de espacio al pulsarla: abrir el terminal escondía el
+navegador y **nunca se veían dos apps a la vez**, aunque hubiera ventanas flotantes. Ahora los
+tres espacios son escritorios de macOS, sin vocación; el dock tiene un icono por app
+(`PaneKind.dockOrder`) y pulsarlo trae la app **al escritorio en que se está** (sólo cambia de
+escritorio si la app no tiene nada aquí y sí en otro). Al arrancar se abre una ventana de cada
+app en el primero, y **los paneles nuevos flotan por defecto**. Abrir algo desde otro sitio
+(historial, «Mostrar en Ficheros», el lanzador) usa `frontmost(_:)`, que tampoco cambia de
+escritorio.
+
 **Varias ventanas de la misma app** (23-sep-2026): botón derecho sobre su icono del dock ›
 «Nueva ventana», y debajo la lista de las que tiene abiertas, minimizadas incluidas, para ir
 directo a una. También Cmd+N (del tipo del espacio en que se está) y «Nuevo terminal /
@@ -273,6 +284,13 @@ los tres segundos son porque el hover también termina un instante con cada clic
 activo usa otro dato, `pointerEverWorked`, que no se baja: desconectar el ratón no lo apaga. Y
 `notePointerEvent()` sólo asigna lo observado si cambia: se llama en cada movimiento, y asignar
 aunque fuera el mismo valor repintaba la interfaz del iPhone a cada fotograma.
+
+### Las esquinas de las ventanas: el fondo lo pinta `CardView`
+
+Bruno vio en los ajustes de Ficheros el borde redondeado y el fondo oscuro asomando en cuadrado
+por las esquinas: lo que se dibuja en `draw(_:)` no respeta `cornerRadius`, y `masksToBounds` se
+comería la sombra. `CardView` se queda el `backgroundColor`, lo pinta ella y recorta fondo y
+contenido a la forma redondeada. **Sin probar en el iPhone.**
 
 ### Los ajustes salían vacíos: dibujar debajo de la tarjeta
 
@@ -443,7 +461,8 @@ MetalToolchain`. Sin él, SwiftTerm falla con `cannot execute tool 'metal'`.
 - **El subsistema de los logs se deriva de `Bundle.main.bundleIdentifier`** (ver `App/Log.swift`),
   no se escribe a mano: si no, al cambiar el bundle id los logs se irían a un nombre y el código
   los buscaría en otro.
-- Mosaico estilo i3 con 3 espacios de trabajo, sin ventanas flotantes en esta versión.
+- 3 espacios de trabajo genéricos, con mosaico estilo i3 y ventanas flotantes (por defecto
+  flotan, 23-sep-2026). Ninguna app tiene espacio propio.
 - El escritorio **sigue el modo claro/oscuro del iPhone** por defecto (22-sep-2026). Antes iba
   siempre oscuro y Bruno lo rechazó.
 - Licencia **MIT** (decidida el 21-sep-2026).

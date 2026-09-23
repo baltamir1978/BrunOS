@@ -19,6 +19,9 @@ enum PaneKind: String, CaseIterable, Sendable {
         }
     }
 
+    /// El orden de los iconos del dock: el de siempre, web · ssh · ficheros.
+    static let dockOrder: [PaneKind] = [.browser, .terminal, .files]
+
     var title: String {
         switch self {
         case .terminal: "Terminal"
@@ -34,15 +37,6 @@ enum PaneKind: String, CaseIterable, Sendable {
         case .terminal: "apple.terminal.fill"
         case .browser: "globe"
         case .files: "folder.fill"
-        }
-    }
-
-    /// Espacio de trabajo al que va por defecto: `1 web`, `2 ssh`, `3 files`.
-    var preferredWorkspace: Int {
-        switch self {
-        case .browser: 1
-        case .terminal: 2
-        case .files: 3
         }
     }
 }

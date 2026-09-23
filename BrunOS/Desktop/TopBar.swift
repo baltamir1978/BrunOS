@@ -147,7 +147,7 @@ final class TopBar: UIView {
             workspaceLabels = desktop.workspaces.map { workspace in
                 let label = PaddedLabel()
                 label.font = Tokens.mono(12)
-                label.text = "\(workspace.index) \(workspace.name)"
+                label.text = "\(workspace.index)"
                 label.layer.cornerRadius = 5
                 label.clipsToBounds = true
                 workspacesStack.addArrangedSubview(label)
