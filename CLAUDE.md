@@ -19,10 +19,15 @@ parece un proceso de conexión muy complicado. Queda abierto: el reCAPTCHA de Go
 en la siguiente build, ver `BrunOS/Browser/CLAUDE.md`) y unas esquinas que salen mal en los
 ajustes de Ficheros, aún sin localizar.
 
+**Última build subida: 2609232025 (23-sep-2026, tarde)**, con todo lo del día: reCAPTCHA
+(reenvío a iframes por Swift), SMB propio, menú del dock, copia por trozos, cursor de
+redimensionar, HLS, historial y los arreglos de la revisión.
+
 **Para retomar:**
 
-1. Que Bruno pruebe lo nuevo del navegador: el reCAPTCHA, barra de favoritos e iconos,
-   sugerencias al escribir, modo lectura, descargar un vídeo, el ⤓ de descargas y guardar como PDF.
+1. Que Bruno pruebe la 2609232025: el reCAPTCHA, el SMB propio, varias ventanas desde el dock,
+   el historial (Cmd+Y), descargar un vídeo HLS, el cursor de redimensionar y, de antes, barra de
+   favoritos, sugerencias, modo lectura, el ⤓ de descargas y guardar como PDF.
 2. Localizar las esquinas mal dibujadas en los ajustes de Ficheros (pedirle una foto o el sitio exacto).
 3. Probar el SMB propio (AMSMB2, 23-sep-2026): Ajustes de Ficheros › Ubicaciones › Nuevo
    servidor. Escrito y compilado, **sin probar contra un servidor de verdad**.

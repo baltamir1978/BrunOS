@@ -24,18 +24,18 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | --- | --- |
 | **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | ✅ |
 | **Ratón y teclado** Bluetooth, cursor propio que no se atasca en los bordes, atajos | ✅ |
-| **Escritorio** en mosaico estilo i3 o con ventanas flotantes, 3 espacios, dock y pantalla completa | 🚧 flotantes sin rodaje |
+| **Escritorio** en mosaico estilo i3 o con ventanas flotantes, 3 espacios, dock con varias ventanas por app y pantalla completa | 🚧 flotantes sin rodaje |
 | **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él | ✅ |
 | **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
-| **Navegador** con pestañas, bloqueo de anuncios editable, descargas y contraseñas de iOS | ✅ YouTube probado |
-| **Favoritos** con barra propia, iconos de cada sitio, sugerencias al escribir y modo lectura | 🚧 sin rodaje |
-| **Descargar vídeos** de la página, con progreso, y guardar la página como PDF | 🚧 sin rodaje |
-| **Ficheros**: iPhone, iCloud, USB, SMB y SFTP, con vistas, vista previa, copiar carpetas y arrastrar | 🚧 a falta de rodaje |
+| **Navegador** con pestañas, bloqueo de anuncios editable, descargas, contraseñas de iOS e iframes pulsables (reCAPTCHA, pagos) | ✅ YouTube probado |
+| **Favoritos** con barra propia, iconos de cada sitio, sugerencias al escribir, modo lectura e historial (Cmd+Y) | 🚧 sin rodaje |
+| **Descargar vídeos** de la página, también por trozos (HLS), con progreso, y guardar la página como PDF | 🚧 sin rodaje |
+| **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa, copiar carpetas por trozos y arrastrar | 🚧 a falta de rodaje |
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | 🚧 a falta de rodaje |
 
 El escritorio, el ratón, el teclado, la conexión SSH y el navegador están probados con un monitor
-de verdad. Lo más reciente —ventanas flotantes, arrastrar ficheros, el lanzador— está escrito y
-compilado, pero sin rodaje.
+de verdad. El modo claro también. Lo más reciente —ventanas flotantes, arrastrar ficheros, el lanzador, el
+SMB propio, el historial— está escrito y compilado, pero sin rodaje.
 
 Cada panel lleva los tres botones de macOS: **rojo** cierra, **amarillo** lo manda al dock y
 **verde** lo pone a pantalla completa. Los ajustes globales están en la rueda del dock, y los de
