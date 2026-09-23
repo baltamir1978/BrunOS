@@ -8,7 +8,8 @@ import UIKit
 ///
 /// iOS se reserva Cmd+Tab, Cmd+Espacio y Cmd+H, así que esas no se pueden usar.
 enum DesktopCommand: Equatable {
-    case switchWorkspace(Int)
+    /// Cmd+1/2/3: la app del dock en esa posición, como pulsar su icono.
+    case openApp(PaneKind)
     case moveFocus(TilingLayout.Direction)
     case movePane(TilingLayout.Direction)
     case toggleMaximize
@@ -34,7 +35,7 @@ enum DesktopCommand: Equatable {
     /// Lo que se rotula en la ayuda y en los ajustes.
     var label: String {
         switch self {
-        case .switchWorkspace(let n): "Ir al espacio \(n)"
+        case .openApp(let kind): "Abrir \(kind.title)"
         case .moveFocus: "Mover el foco"
         case .movePane: "Mover el panel"
         case .toggleMaximize: "Maximizar o restaurar"
@@ -75,12 +76,12 @@ enum Shortcuts {
     static let all: [Entry] = {
         var entries: [Entry] = []
 
-        for number in 1...3 {
+        for (index, kind) in PaneKind.dockOrder.enumerated() {
             entries.append(Entry(
-                input: "\(number)",
+                input: "\(index + 1)",
                 modifiers: .command,
-                command: .switchWorkspace(number),
-                title: "Espacio \(number)"
+                command: .openApp(kind),
+                title: kind.title
             ))
         }
 

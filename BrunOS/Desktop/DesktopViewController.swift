@@ -233,8 +233,8 @@ final class DesktopViewController: UIViewController {
         let frames = paneFrames(tiled: workspace.layout.frames(in: area, gap: gap), in: workspace)
         emptyLabel.isHidden = !frames.isEmpty
 
-        // Los paneles de otros espacios se quedan fuera de la jerarquía: así no
-        // consumen nada mientras no se vean, pero conservan su estado.
+        // Un panel sin marco (el maximizado tapa a los demás) sale de la
+        // jerarquía: no consume nada mientras no se ve, pero conserva su estado.
         for (id, pane) in workspace.panes {
             guard let frame = frames[id] else {
                 pane.view.removeFromSuperview()
@@ -244,11 +244,6 @@ final class DesktopViewController: UIViewController {
                 canvas.addSubview(pane.view)
             }
             pane.view.frame = frame
-        }
-        for other in services.desktop.workspaces where other !== workspace {
-            for (_, pane) in other.panes where pane.view.superview === canvas {
-                pane.view.removeFromSuperview()
-            }
         }
         arrangeFloating(in: workspace, frames: frames)
 
@@ -277,21 +272,20 @@ final class DesktopViewController: UIViewController {
     /// fondos de las vistas, que llevan colores dinámicos. **No basta para las
     /// capas**: un `CGColor` es un color ya resuelto y no se entera de nada, así
     /// que los bordes, el fondo y todo lo que se dibuja a mano hay que volver a
-    /// pintarlo. Se incluyen los paneles de los otros espacios, que están fuera
-    /// de la jerarquía y no reciben el cambio de rasgos.
+    /// pintarlo. Se incluyen los minimizados, que están fuera de la jerarquía y
+    /// no reciben el cambio de rasgos.
     func applyTheme() {
         overrideUserInterfaceStyle = DesktopTheme.style
 
         redraw(canvas)
-        for workspace in services.desktop.workspaces {
-            for (id, pane) in workspace.panes {
-                pane.setFocused(id == workspace.focused)
-                if pane.view.superview == nil { redraw(pane.view) }
-            }
-            for entry in workspace.minimized {
-                entry.pane.setFocused(false)
-                redraw(entry.pane.view)
-            }
+        let workspace = services.desktop.active
+        for (id, pane) in workspace.panes {
+            pane.setFocused(id == workspace.focused)
+            if pane.view.superview == nil { redraw(pane.view) }
+        }
+        for entry in workspace.minimized {
+            entry.pane.setFocused(false)
+            redraw(entry.pane.view)
         }
         dock.applyTheme()
         UIView.refreshThemedBorders()
@@ -334,8 +328,8 @@ final class DesktopViewController: UIViewController {
         let workspace = services.desktop.active
 
         switch command {
-        case .switchWorkspace(let number):
-            services.desktop.activate(number: number)
+        case .openApp(let kind):
+            openFromDock(kind)
 
         case .moveFocus(let direction):
             guard let focused = workspace.focused else { return true }
@@ -465,21 +459,15 @@ final class DesktopViewController: UIViewController {
         return true
     }
 
-    /// Al arrancar, una ventana de cada app, **todas en el mismo escritorio**.
-    ///
-    /// Antes iba una en cada espacio (`1 web`, `2 ssh`, `3 files`), y eso
-    /// hacía imposible ver dos apps a la vez.
-    func populateEmptyWorkspaces() {
-        services.desktop.activate(number: 1)
+    /// Al arrancar, una ventana de cada app: un escritorio vacío no se
+    /// distingue de uno roto.
+    func populateDesktop() {
         for kind in PaneKind.dockOrder.reversed() {
             addPane(kind: kind)
         }
     }
 
-    /// Crea un panel en el espacio activo.
-    ///
-    /// El terminal ya es real; el navegador y los ficheros siguen siendo el
-    /// andamio de la Fase 1 hasta que les toque su fase.
+    /// Crea un panel en el escritorio.
     func addPane(kind: PaneKind, autoStart: Bool = true) {
         let workspace = services.desktop.active
         let id = PaneID()
@@ -636,9 +624,8 @@ final class DesktopViewController: UIViewController {
 
     /// El botón rojo: cierra un panel, con lo que tenga dentro.
     func closePane(_ view: UIView) {
-        for workspace in services.desktop.workspaces {
-            guard let (id, pane) = workspace.panes.first(where: { $0.value.view === view }).map({ ($0.key, $0.value) })
-            else { continue }
+        let workspace = services.desktop.active
+        if let (id, pane) = workspace.panes.first(where: { $0.value.view === view }).map({ ($0.key, $0.value) }) {
             (pane as? TerminalPane)?.closeAll()
             pane.view.removeFromSuperview()
             workspace.remove(id)
@@ -647,7 +634,6 @@ final class DesktopViewController: UIViewController {
                 services.desktop.isFullScreen = false
             }
             services.desktop.notifyChange()
-            return
         }
     }
 
@@ -662,73 +648,53 @@ final class DesktopViewController: UIViewController {
         services.desktop.notifyChange()
     }
 
-    /// Pulsar un icono del dock, como en macOS: la app pasa delante **en el
-    /// escritorio en que se está**, junto a las demás.
-    ///
-    /// - Si tiene ventanas minimizadas aquí, vuelven.
-    /// - Si tiene ventanas aquí, la de más delante recibe el foco.
-    /// - Si sólo las tiene en otro escritorio, se va a ése, como macOS.
-    /// - Si no tiene ninguna, se abre una aquí.
-    ///
-    /// Antes cada app tenía su espacio y pulsarla cambiaba de espacio: abrir
-    /// el terminal escondía el navegador (23-sep-2026).
+    /// Pulsar un icono del dock, como en macOS: vuelven las ventanas
+    /// minimizadas de la app; si no hay, pasa delante la de más delante; y si
+    /// no tiene ninguna, se abre una.
     private func openFromDock(_ kind: PaneKind) {
-        let desktop = services.desktop
-        let workspace = desktop.active
+        let workspace = services.desktop.active
         let minimized = workspace.minimized.filter { PaneKind.of($0.pane) == kind }
 
         if !minimized.isEmpty {
             for entry in minimized {
-                restoreMinimized(entry.id, in: workspace)
+                restoreMinimized(entry.id)
             }
         } else if let id = workspace.panes(of: kind).first {
             workspace.setFocus(id)
-        } else if let other = desktop.workspaces.first(where: { $0.hasAny(of: kind) }) {
-            desktop.activate(number: other.index)
-            if let entry = other.minimized.first(where: { PaneKind.of($0.pane) == kind }) {
-                restoreMinimized(entry.id, in: other)
-            } else if let id = other.panes(of: kind).first {
-                other.setFocus(id)
-            }
         } else {
             addPane(kind: kind)
         }
-        desktop.notifyChange()
+        services.desktop.notifyChange()
     }
 
     /// Botón derecho sobre un icono del dock, como en macOS: una ventana
-    /// nueva de esa app y la lista de las que tiene abiertas, en cualquier
-    /// escritorio y minimizadas incluidas, para ir directamente a una.
+    /// nueva de esa app y la lista de las que tiene abiertas, minimizadas
+    /// incluidas, para ir directamente a una.
     private func dockMenu(for kind: PaneKind) -> [ContextMenu.Entry] {
         let desktop = services.desktop
+        let workspace = desktop.active
 
         var entries = [ContextMenu.Entry(title: "Nueva ventana", symbol: "plus.rectangle") { [weak self] in
             self?.newPane(kind)
         }]
-        let showsDesktop = desktop.workspaces.filter { $0.hasAny(of: kind) }.count > 1
-        for workspace in desktop.workspaces {
-            let suffix = showsDesktop ? " · escritorio \(workspace.index)" : ""
-            let open = workspace.panes(of: kind).compactMap { id in workspace.pane(id).map { (id, $0) } }
-            for (id, pane) in open {
-                entries.append(ContextMenu.Entry(title: pane.title + suffix, symbol: "macwindow") {
-                    desktop.activate(number: workspace.index)
-                    workspace.setFocus(id)
-                    desktop.notifyChange()
-                })
-            }
-            for entry in workspace.minimized where PaneKind.of(entry.pane) == kind {
-                entries.append(ContextMenu.Entry(title: entry.pane.title + suffix,
-                                                 symbol: "dock.arrow.down.rectangle") {
-                    [weak self] in self?.restoreMinimized(entry.id, in: workspace)
-                })
-            }
+        for id in workspace.panes(of: kind) {
+            guard let pane = workspace.pane(id) else { continue }
+            entries.append(ContextMenu.Entry(title: pane.title, symbol: "macwindow") {
+                workspace.setFocus(id)
+                desktop.notifyChange()
+            })
+        }
+        for entry in workspace.minimized where PaneKind.of(entry.pane) == kind {
+            entries.append(ContextMenu.Entry(title: entry.pane.title, symbol: "dock.arrow.down.rectangle") {
+                [weak self] in self?.restoreMinimized(entry.id)
+            })
         }
         return entries
     }
 
-    /// Devuelve un panel minimizado a su espacio y le pasa el foco.
-    func restoreMinimized(_ id: PaneID, in workspace: Workspace) {
-        services.desktop.activate(number: workspace.index)
+    /// Devuelve un panel minimizado al escritorio y le pasa el foco.
+    func restoreMinimized(_ id: PaneID) {
+        let workspace = services.desktop.active
         let focusedFrame = workspace.focused.flatMap { currentFrames()[$0] }
         workspace.restore(id, focusedFrame: focusedFrame)
         services.desktop.notifyChange()
@@ -980,7 +946,7 @@ final class DesktopViewController: UIViewController {
         return launcher.handleKey(event)
     }
 
-    /// Dónde está cada panel del espacio activo: los del mosaico y los que
+    /// Dónde está cada panel del escritorio: los del mosaico y los que
     /// flotan.
     private func currentFrames() -> [PaneID: CGRect] {
         let workspace = services.desktop.active
@@ -1525,10 +1491,8 @@ final class DesktopViewController: UIViewController {
 
     /// Tras mover algo entre paneles, que los dos enseñen lo que hay ahora.
     func refreshFilesPanes() {
-        for workspace in services.desktop.workspaces {
-            for (_, pane) in workspace.panes {
-                (pane as? FilesPane)?.refresh()
-            }
+        for (_, pane) in services.desktop.active.panes {
+            (pane as? FilesPane)?.refresh()
         }
     }
 

@@ -161,15 +161,15 @@ abierto. Al pulsar un icono vuelven sus paneles minimizados y, si estaba cerrada
 panel nuevo**, como al lanzar una app. Antes los espacios vacíos salían en gris, lo minimizado
 tenía un icono aparte duplicado, y con la app cerrada no había forma de volver a abrirla.
 
-**Los espacios ya no son de una app** (23-sep-2026, noche). Cada app vivía en el suyo (`1 web`,
-`2 ssh`, `3 files`) y el dock cambiaba de espacio al pulsarla: abrir el terminal escondía el
-navegador y **nunca se veían dos apps a la vez**, aunque hubiera ventanas flotantes. Ahora los
-tres espacios son escritorios de macOS, sin vocación; el dock tiene un icono por app
-(`PaneKind.dockOrder`) y pulsarlo trae la app **al escritorio en que se está** (sólo cambia de
-escritorio si la app no tiene nada aquí y sí en otro). Al arrancar se abre una ventana de cada
-app en el primero, y **los paneles nuevos flotan por defecto**. Abrir algo desde otro sitio
-(historial, «Mostrar en Ficheros», el lanzador) usa `frontmost(_:)`, que tampoco cambia de
-escritorio.
+**Un solo escritorio** (23-sep-2026, noche). Había tres espacios, uno por app (`1 web`, `2 ssh`,
+`3 files`), y el dock cambiaba de espacio al pulsarla: abrir el terminal escondía el navegador y
+**nunca se veían dos apps a la vez**, aunque hubiera ventanas flotantes. Primero se hicieron
+genéricos y luego Bruno pidió quitar los otros dos: con flotantes, dock y lanzador sólo servían
+para esconder ventanas. Ahora `DesktopModel.active` es el único `Workspace`; el dock tiene un
+icono por app (`PaneKind.dockOrder`) y **Cmd+1/2/3 abren navegador, terminal y Ficheros**, como
+pulsar su icono. Al arrancar sale una ventana de cada app y **los paneles nuevos flotan por
+defecto**. Abrir algo desde otro sitio (historial, «Mostrar en Ficheros», el lanzador) usa
+`frontmost(_:)`.
 
 **Varias ventanas de la misma app** (23-sep-2026): botón derecho sobre su icono del dock ›
 «Nueva ventana», y debajo la lista de las que tiene abiertas, minimizadas incluidas, para ir
@@ -401,6 +401,11 @@ movimiento más incómodo que hay.
 
 ## Pendientes
 
+- **Una ronda completa de optimización** (lo pidió Bruno el 23-sep-2026): medir y quitar lo que
+  frena —repintados de más, trabajo en el hilo principal, memoria— y **proponerle cambios** que
+  mejoren la respuesta y el manejo de la app. Proponer antes de hacer: es él quien decide.
+- **Google sale a veces con una resolución rara** él solo (23-sep-2026). Bruno iba a poner todo
+  el zoom al 100 % para ver si cambia; preguntarle qué vio antes de tocar nada.
 - **Navegador, para parecerse más a Safari**: navegación privada, silenciar una pestaña, zoom por
   sitio, fijar pestañas y buscadores propios.
 - **YouTube**: sólo saldría lanzando yt-dlp en una máquina del tailnet por SSH. HLS ya se baja
@@ -461,8 +466,8 @@ MetalToolchain`. Sin él, SwiftTerm falla con `cannot execute tool 'metal'`.
 - **El subsistema de los logs se deriva de `Bundle.main.bundleIdentifier`** (ver `App/Log.swift`),
   no se escribe a mano: si no, al cambiar el bundle id los logs se irían a un nombre y el código
   los buscaría en otro.
-- 3 espacios de trabajo genéricos, con mosaico estilo i3 y ventanas flotantes (por defecto
-  flotan, 23-sep-2026). Ninguna app tiene espacio propio.
+- **Un solo escritorio** (23-sep-2026; antes eran 3 espacios), con ventanas flotantes (por
+  defecto) y mosaico estilo i3.
 - El escritorio **sigue el modo claro/oscuro del iPhone** por defecto (22-sep-2026). Antes iba
   siempre oscuro y Bruno lo rechazó.
 - Licencia **MIT** (decidida el 21-sep-2026).

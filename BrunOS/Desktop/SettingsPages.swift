@@ -152,7 +152,7 @@ enum SettingsPages {
                     ]
                 ),
                 SettingsGroup("Atajos", rows: [
-                    SettingsRow("Cambiar de espacio", .value("Cmd + 1 · 2 · 3")),
+                    SettingsRow("Navegador · Terminal · Ficheros", .value("Cmd + 1 · 2 · 3")),
                     SettingsRow("Mover el foco", .value("Cmd + Opción + flechas")),
                     SettingsRow("Mover el panel", .value("Cmd + Mayús + flechas")),
                     SettingsRow("Maximizar el panel", .value("Cmd + Intro")),

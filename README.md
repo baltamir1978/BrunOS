@@ -24,7 +24,7 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | --- | --- |
 | **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | ✅ |
 | **Ratón y teclado** Bluetooth, cursor propio que no se atasca en los bordes, atajos | ✅ |
-| **Escritorio** en mosaico estilo i3 o con ventanas flotantes, 3 espacios, dock con varias ventanas por app y pantalla completa | 🚧 flotantes sin rodaje |
+| **Escritorio** con ventanas flotantes o en mosaico estilo i3, las tres apps a la vez, dock con varias ventanas por app y pantalla completa | 🚧 flotantes sin rodaje |
 | **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él | ✅ |
 | **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
 | **Navegador** con pestañas, bloqueo de anuncios editable, descargas, contraseñas de iOS e iframes pulsables (reCAPTCHA, pagos) | ✅ YouTube probado |
@@ -36,6 +36,10 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 El escritorio, el ratón, el teclado, la conexión SSH y el navegador están probados con un monitor
 de verdad. El modo claro también. Lo más reciente —ventanas flotantes, arrastrar ficheros, el lanzador, el
 SMB propio, el historial— está escrito y compilado, pero sin rodaje.
+
+El dock funciona como el de macOS: un icono por app, que la trae al escritorio junto a las demás;
+botón derecho para abrir otra ventana o ir a una concreta. Cmd+1, 2 y 3 abren el navegador, el
+terminal y Ficheros.
 
 Cada panel lleva los tres botones de macOS: **rojo** cierra, **amarillo** lo manda al dock y
 **verde** lo pone a pantalla completa. Los ajustes globales están en la rueda del dock, y los de

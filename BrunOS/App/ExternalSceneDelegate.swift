@@ -32,9 +32,9 @@ final class ExternalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         desktop.attachPointer()
 
         // Un escritorio vacío no se distingue de uno roto: se arranca con una
-        // ventana de cada app, todas juntas en el primero.
-        if services.desktop.workspaces.allSatisfy(\.isEmpty) {
-            desktop.populateEmptyWorkspaces()
+        // ventana de cada app.
+        if services.desktop.active.isEmpty, services.desktop.active.minimized.isEmpty {
+            desktop.populateDesktop()
         }
     }
 

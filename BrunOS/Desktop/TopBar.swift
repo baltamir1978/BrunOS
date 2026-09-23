@@ -1,26 +1,22 @@
 import UIKit
 
 /// Barra superior del escritorio: 34 pt lógicos de izquierda a derecha con
-/// marca, espacios de trabajo, título del panel con foco, resolución, anuncios
+/// marca, título del panel con foco, resolución, anuncios
 /// bloqueados, batería y hora.
 ///
 /// **No recibe eventos del sistema**, porque nada en la pantalla externa los
 /// recibe. Pero sí responde al ratón: el escritorio le pregunta por geometría
-/// qué hay bajo el cursor. Tener los espacios rotulados arriba y que no se
-/// pudieran pulsar era desconcertante, y encima daba la sensación de que el
-/// ratón sólo funcionaba dentro del panel con foco.
+/// qué hay bajo el cursor.
 @MainActor
 final class TopBar: UIView {
 
     private let brandLabel = UILabel()
-    private let workspacesStack = UIStackView()
     private let titleLabel = UILabel()
     private let resolutionLabel = UILabel()
     private let blockedLabel = UILabel()
     private let batteryLabel = UILabel()
     private let clockLabel = UILabel()
 
-    private var workspaceLabels: [UILabel] = []
     private var clockTimer: Timer?
 
     /// Lo que hay bajo un punto de la barra.
@@ -55,9 +51,6 @@ final class TopBar: UIView {
 
         brandLabel.attributedText = Self.brandText(size: 15)
 
-        workspacesStack.axis = .horizontal
-        workspacesStack.spacing = 4
-
         for label in [titleLabel, resolutionLabel, blockedLabel, batteryLabel, clockLabel] {
             label.font = Tokens.mono(12)
             label.textColor = Tokens.Color.textSecondary
@@ -69,8 +62,6 @@ final class TopBar: UIView {
 
         let spacerLeft = UIView()
         let spacerRight = UIView()
-        // Los espacios de trabajo ya no van aquí: están en el dock, que es
-        // donde se espera encontrarlos y donde cuesta menos llegar con el ratón.
         let stack = UIStackView(arrangedSubviews: [
             brandLabel, spacerLeft, titleLabel, spacerRight,
             resolutionLabel, blockedLabel, batteryLabel, clockLabel,
@@ -125,8 +116,6 @@ final class TopBar: UIView {
     // MARK: - Contenido
 
     func update(desktop: DesktopModel, profile: DisplayProfile?, blockedCount: Int?) {
-        updateWorkspaces(desktop: desktop)
-
         titleLabel.text = desktop.active.focusedPane?.title ?? "Sin paneles"
         resolutionLabel.text = profile?.summary ?? "sin pantalla"
 
@@ -139,28 +128,6 @@ final class TopBar: UIView {
 
         updateBattery()
         updateClock()
-    }
-
-    private func updateWorkspaces(desktop: DesktopModel) {
-        if workspaceLabels.count != desktop.workspaces.count {
-            workspaceLabels.forEach { $0.removeFromSuperview() }
-            workspaceLabels = desktop.workspaces.map { workspace in
-                let label = PaddedLabel()
-                label.font = Tokens.mono(12)
-                label.text = "\(workspace.index)"
-                label.layer.cornerRadius = 5
-                label.clipsToBounds = true
-                workspacesStack.addArrangedSubview(label)
-                return label
-            }
-        }
-
-        for (index, label) in workspaceLabels.enumerated() {
-            let isActive = index == desktop.activeIndex
-            label.backgroundColor = isActive ? Tokens.Color.accent : .clear
-            // Texto oscuro sobre el ámbar: el claro no se leería.
-            label.textColor = isActive ? Tokens.Color.background : Tokens.Color.textSecondary
-        }
     }
 
     private func updateBattery() {
@@ -181,24 +148,5 @@ final class TopBar: UIView {
 
     private func updateClock() {
         clockLabel.text = Date().formatted(date: .omitted, time: .shortened)
-    }
-}
-
-/// Etiqueta con un poco de aire alrededor, para el recuadro del espacio activo.
-@MainActor
-private final class PaddedLabel: UILabel {
-
-    private let insets = UIEdgeInsets(top: 3, left: 7, bottom: 3, right: 7)
-
-    override func drawText(in rect: CGRect) {
-        super.drawText(in: rect.inset(by: insets))
-    }
-
-    override var intrinsicContentSize: CGSize {
-        let size = super.intrinsicContentSize
-        return CGSize(
-            width: size.width + insets.left + insets.right,
-            height: size.height + insets.top + insets.bottom
-        )
     }
 }

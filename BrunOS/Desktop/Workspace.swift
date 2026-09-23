@@ -1,17 +1,15 @@
 import CoreGraphics
 import UIKit
 
-/// Un espacio de trabajo: su mosaico, sus paneles y cuál tiene el foco.
+/// El escritorio: su mosaico, sus ventanas y cuál tiene el foco.
 ///
-/// BrunOS tiene tres, **sin vocación**: son los escritorios de macOS, y en
-/// cualquiera caben ventanas de las tres apps a la vez. Antes cada app vivía en
-/// el suyo (`1 web`, `2 ssh`, `3 files`) y el dock cambiaba de espacio al
-/// pulsarla, así que abrir el terminal escondía el navegador y nunca se podían
-/// ver dos apps juntas (23-sep-2026).
+/// **Hay uno solo** (23-sep-2026). Al principio eran tres espacios, uno por
+/// app (`1 web`, `2 ssh`, `3 files`), y abrir el terminal escondía el
+/// navegador: nunca se veían dos apps juntas. Con ventanas flotantes, el dock y
+/// el lanzador, los otros dos sólo servían para esconder ventanas, y Bruno
+/// pidió quitarlos.
 @MainActor
 final class Workspace {
-
-    let index: Int
 
     var layout = TilingLayout()
     private(set) var panes: [PaneID: any Pane] = [:]
@@ -69,10 +67,6 @@ final class Workspace {
         floating[id] = frame
         floatingOrder.append(id)
         setFocus(id)
-    }
-
-    init(index: Int) {
-        self.index = index
     }
 
     var isEmpty: Bool { panes.isEmpty }
@@ -185,7 +179,7 @@ enum DesktopPreferences {
     }
 }
 
-/// Estado completo del escritorio: los tres espacios y cuál se está viendo.
+/// Estado completo del escritorio.
 ///
 /// Vive en la escena del iPhone, porque es la que recibe el teclado y el ratón,
 /// pero lo que dibuja está en la externa. El estado **sobrevive a desconectar
@@ -195,23 +189,13 @@ final class DesktopModel {
 
     static let didChangeNotification = Notification.Name("BrunOSDesktopDidChange")
 
-    let workspaces: [Workspace] = (1...3).map { Workspace(index: $0) }
-
-    private(set) var activeIndex = 0
+    /// El escritorio. Se llama `active` por lo que fue: el espacio que se
+    /// estaba viendo de los tres que había.
+    let active = Workspace()
 
     /// Sin dock ni barra superior: los paneles se llevan la pantalla entera.
     var isFullScreen = false {
         didSet { if isFullScreen != oldValue { notifyChange() } }
-    }
-
-    var active: Workspace { workspaces[activeIndex] }
-
-    /// Cambia de espacio. `number` es 1, 2 o 3, como en los atajos Cmd+1/2/3.
-    func activate(number: Int) {
-        let index = number - 1
-        guard workspaces.indices.contains(index), index != activeIndex else { return }
-        activeIndex = index
-        notifyChange()
     }
 
     func notifyChange() {

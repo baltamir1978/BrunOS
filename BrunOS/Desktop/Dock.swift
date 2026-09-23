@@ -80,7 +80,7 @@ final class Dock: UIView {
         for (kind, item) in zip(kinds, items) {
             item.update(
                 kind: kind,
-                isOpen: desktop.workspaces.contains { $0.hasAny(of: kind) },
+                isOpen: desktop.active.hasAny(of: kind),
                 isActive: kind == frontmost
             )
         }
