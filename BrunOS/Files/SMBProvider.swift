@@ -24,20 +24,27 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
         /// Para listar las compartidas no hace falta estar dentro de ninguna.
         func browser(url: URL, credential: URLCredential?) throws -> SMB2Manager {
             if let browser { return browser }
-            guard let manager = SMB2Manager(url: url, credential: credential) else {
-                throw FileError.failed("La dirección del servidor no es válida.")
-            }
+            let manager = try Self.make(url: url, credential: credential)
             browser = manager
             return manager
         }
 
         func manager(share: String, url: URL, credential: URLCredential?) async throws -> SMB2Manager {
             if let manager = managers[share] { return manager }
+            let manager = try Self.make(url: url, credential: credential)
+            try await manager.connectShare(name: share)
+            managers[share] = manager
+            return manager
+        }
+
+        /// AMSMB2 espera un minuto a que conteste el servidor. Con uno apagado,
+        /// eso es un minuto mirando un panel en blanco; 20 segundos sobran
+        /// para una red de casa o el tailnet, y es por petición, no por copia.
+        private static func make(url: URL, credential: URLCredential?) throws -> SMB2Manager {
             guard let manager = SMB2Manager(url: url, credential: credential) else {
                 throw FileError.failed("La dirección del servidor no es válida.")
             }
-            try await manager.connectShare(name: share)
-            managers[share] = manager
+            manager.timeout = 20
             return manager
         }
 
