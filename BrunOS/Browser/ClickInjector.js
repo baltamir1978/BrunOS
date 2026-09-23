@@ -18,6 +18,13 @@
 
 'use strict';
 
+// El registro de peticiones de la página guarda 250 por defecto y, lleno, deja
+// de apuntar: en una página con muchas miniaturas (el feed de RedGifs) la lista
+// `.m3u8` del vídeo llegaba tarde y no quedaba rastro de ella. Ver `mediaItems`.
+try {
+    performance.setResourceTimingBufferSize(5000);
+} catch (error) {}
+
 const BrunOS = {
     lastHovered: null,
     lastDownTarget: null,

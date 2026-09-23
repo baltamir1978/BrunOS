@@ -145,6 +145,111 @@ final class HLSDownloader: NSObject {
 
 // La sesión entrega en la cola principal (`delegateQueue: .main`), así que se
 // puede entrar al actor principal sin saltos.
+// MARK: - Un solo fichero por rangos
+
+extension HLSDownloader {
+
+    /// El fichero que hay detrás de una lista HLS, si es uno solo.
+    ///
+    /// Hay sitios (RedGifs) que sirven el vídeo como **un único MP4
+    /// fragmentado** y la lista sólo lo trocea con `EXT-X-BYTERANGE`: la
+    /// cabecera (`EXT-X-MAP`) y todos los trozos apuntan al mismo fichero. Ese
+    /// fichero entero ya es un vídeo que el iPhone reproduce, así que no hace
+    /// falta AVFoundation: se baja como cualquier otro, más rápido y con el
+    /// `Referer` de la página, que `AVAssetDownloadURLSession` no deja poner.
+    ///
+    /// Si la lista es maestra, se mira la variante de más calidad. Con
+    /// cifrado (`EXT-X-KEY`), varios ficheros o cualquier duda, `nil`, y se
+    /// sigue por el camino de AVFoundation.
+    nonisolated static func singleFile(
+        behind url: URL,
+        cookies: [HTTPCookie],
+        userAgent: String?
+    ) async -> URL? {
+        guard let playlist = await fetchPlaylist(url, cookies: cookies, userAgent: userAgent) else { return nil }
+        if playlist.contains("#EXT-X-STREAM-INF") {
+            // El audio en una pista aparte: el fichero del vídeo saldría mudo.
+            guard !playlist.contains("TYPE=AUDIO"),
+                  let variant = bestVariant(in: playlist, base: url),
+                  let media = await fetchPlaylist(variant, cookies: cookies, userAgent: userAgent)
+            else { return nil }
+            return singleFile(inMediaPlaylist: media, base: variant)
+        }
+        return singleFile(inMediaPlaylist: playlist, base: url)
+    }
+
+    private nonisolated static func fetchPlaylist(
+        _ url: URL,
+        cookies: [HTTPCookie],
+        userAgent: String?
+    ) async -> String? {
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        let matching = cookies.filter { cookie in
+            guard let host = url.host() else { return false }
+            let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
+            return host == domain || host.hasSuffix("." + domain)
+        }
+        for (field, value) in HTTPCookie.requestHeaderFields(with: matching) {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
+        if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              data.count < 4_000_000,
+              let text = String(data: data, encoding: .utf8),
+              text.hasPrefix("#EXTM3U")
+        else { return nil }
+        return text
+    }
+
+    /// La variante con más `BANDWIDTH` de una lista maestra.
+    private nonisolated static func bestVariant(in playlist: String, base: URL) -> URL? {
+        let lines = playlist.components(separatedBy: .newlines)
+        var best: (bandwidth: Int, url: URL)?
+        for (index, line) in lines.enumerated() where line.hasPrefix("#EXT-X-STREAM-INF") {
+            let bandwidth = attribute("BANDWIDTH", in: line).flatMap { Int($0) } ?? 0
+            guard let uri = lines.dropFirst(index + 1).first(where: { !$0.isEmpty && !$0.hasPrefix("#") }),
+                  let url = URL(string: uri.trimmingCharacters(in: .whitespaces), relativeTo: base)?.absoluteURL
+            else { continue }
+            if bandwidth > (best?.bandwidth ?? -1) { best = (bandwidth, url) }
+        }
+        return best?.url
+    }
+
+    private nonisolated static func singleFile(inMediaPlaylist playlist: String, base: URL) -> URL? {
+        // Audio en otra pista o trozos cifrados: el fichero solo no basta.
+        guard !playlist.contains("#EXT-X-KEY"), !playlist.contains("#EXT-X-MEDIA:") else { return nil }
+        var uris: Set<URL> = []
+        var segments = 0
+        for raw in playlist.components(separatedBy: .newlines) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("#EXT-X-MAP"), let uri = attribute("URI", in: line) {
+                guard let url = URL(string: uri, relativeTo: base)?.absoluteURL else { return nil }
+                uris.insert(url)
+            } else if line.hasPrefix("#EXTINF") {
+                segments += 1
+            } else if !line.isEmpty, !line.hasPrefix("#") {
+                guard let url = URL(string: line, relativeTo: base)?.absoluteURL else { return nil }
+                uris.insert(url)
+            }
+        }
+        // Sin rangos, un único URI sería un solo trozo, no el vídeo entero.
+        guard playlist.contains("#EXT-X-BYTERANGE"), segments > 1, uris.count == 1 else { return nil }
+        return uris.first
+    }
+
+    /// El valor de un atributo de una etiqueta HLS: `URI="…"` o `BANDWIDTH=…`.
+    private nonisolated static func attribute(_ name: String, in line: String) -> String? {
+        guard let range = line.range(of: name + "=") else { return nil }
+        var rest = line[range.upperBound...]
+        if rest.hasPrefix("\"") {
+            rest = rest.dropFirst()
+            return rest.firstIndex(of: "\"").map { String(rest[..<$0]) }
+        }
+        return String(rest.prefix { $0 != "," })
+    }
+}
+
 extension HLSDownloader: AVAssetDownloadDelegate {
 
     nonisolated func urlSession(

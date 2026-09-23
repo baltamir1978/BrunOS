@@ -978,7 +978,14 @@ extension BrowserTab: WKDownloadDelegate {
         let agent = webView.customUserAgent
         Task { @MainActor in
             let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
-            AppServices.shared.hls.download(url, named: name, cookies: cookies, userAgent: agent)
+            // Muchas listas HLS (RedGifs) son un único MP4 fragmentado servido
+            // por rangos: ése se guarda tal cual, por el camino de siempre, que
+            // lleva el `Referer` y no depende de AVFoundation.
+            if let file = await HLSDownloader.singleFile(behind: url, cookies: cookies, userAgent: agent) {
+                download(file, named: name)
+            } else {
+                AppServices.shared.hls.download(url, named: name, cookies: cookies, userAgent: agent)
+            }
         }
     }
 

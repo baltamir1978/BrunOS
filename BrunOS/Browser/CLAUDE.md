@@ -208,6 +208,14 @@ trozos cifrados con AES y MPEG-TS, y unir `.ts` da un fichero que el iPhone no r
 - Fuera: DRM (FairPlay), DASH (`.mpd`) y YouTube.
 - **Sin probar**: en un programa de terminal del Mac la sesión de fondo no arranca, hace falta
   una app de verdad.
+- **Antes de AVFoundation, `HLSDownloader.singleFile(behind:)`** (23-sep-2026, por RedGifs): si
+  la cabecera y todos los trozos son rangos (`EXT-X-BYTERANGE`) de **un mismo fichero**, ese
+  fichero es ya un MP4 fragmentado completo y se baja tal cual por `startDownload`, con `Referer`.
+  Comprobado con la lista real de RedGifs (`api.redgifs.com/v2/gifs/<id>/hd.m3u8` → un `.m4s`
+  con vídeo y audio). No se usa si hay cifrado o **audio en pista aparte** (`TYPE=AUDIO` en la
+  maestra): el ejemplo fMP4 de Apple habría salido mudo.
+- El inyector sube el registro de peticiones a 5000 (`setResourceTimingBufferSize`): con 250, en
+  el feed de RedGifs las miniaturas lo llenaban y la `.m3u8` del vídeo no quedaba apuntada.
 
 ### Modo lectura
 

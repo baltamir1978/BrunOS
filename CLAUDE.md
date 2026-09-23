@@ -173,7 +173,7 @@ escritorio.
 
 **Varias ventanas de la misma app** (23-sep-2026): botón derecho sobre su icono del dock ›
 «Nueva ventana», y debajo la lista de las que tiene abiertas, minimizadas incluidas, para ir
-directo a una. También Cmd+N (del tipo del espacio en que se está) y «Nuevo terminal /
+directo a una. También Cmd+N (de la app que está delante) y «Nuevo terminal /
 navegador / gestor de ficheros» en el lanzador. El clic normal sigue sin abrir otra si ya hay una.
 
 ### El lanzador (Cmd+P)
