@@ -295,12 +295,18 @@ final class FormWindow: UIView {
             form.cycle(focusedField)
             setNeedsLayout()
         default:
-            let characters = event.key.characters
-            guard !characters.isEmpty, focusedKind != .choice else { break }
-            form.insert(characters, into: focusedField)
+            guard let text = event.typedText else { break }
+            insertText(text)
         }
         card.setNeedsDisplay()
         return true
+    }
+
+    /// Escribir en el campo con foco: lo tecleado y lo pegado con Cmd+V.
+    func insertText(_ text: String) {
+        guard form.fields.first(where: { $0.id == focusedField })?.kind != .choice else { return }
+        form.insert(text.trimmingCharacters(in: .newlines), into: focusedField)
+        card.setNeedsDisplay()
     }
 
     private func moveFocus(by delta: Int) {

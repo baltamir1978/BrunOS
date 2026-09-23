@@ -37,6 +37,9 @@ final class FaviconStore {
     func icon(for host: String?) -> UIImage? {
         guard let host, !host.isEmpty else { return nil }
         if let image = memory[host] { return image }
+        // Ni se vuelve a mirar el disco: una lista de veinte sitios sin icono,
+        // repintada a cada paso del cursor, eran veinte lecturas por fotograma.
+        guard !missing.contains(host), !inFlight.contains(host) else { return nil }
 
         let file = directory.appendingPathComponent(host + ".png")
         if let data = try? Data(contentsOf: file), let image = UIImage(data: data) {

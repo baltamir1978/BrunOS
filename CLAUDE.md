@@ -323,6 +323,19 @@ La interfaz del iPhone sigue entera **sin monitor conectado**, que es cuando tie
 Los ajustes del monitor **no llevan deslizadores**: con un cursor propio, arrastrar uno es
 incómodo, así que las filas van pasando por los valores útiles al pulsarlas.
 
+### Con una ventana modal, los atajos no tocan lo de detrás (23-sep-2026)
+
+Los atajos con Cmd se ejecutan en `perform(_:)` **antes** de que la tecla llegue a nadie. Con el
+historial, el lanzador o un formulario abiertos, Cmd+V pegaba en el terminal de detrás (y un salto
+de línea en lo pegado es una orden que se ejecuta en el servidor) y Cmd+W cerraba una pestaña que
+no se veía. Ahora `performOverModal` los desvía: Cmd+V pega en la ventana, Cmd+Intro abre en otra
+pestaña desde el historial, Cmd+Y y Cmd+P cierran lo suyo, y el resto no hace nada. **Una ventana
+modal nueva tiene que entrar en esa lista** (y en las otras dos: la del puntero y la del cursor).
+
+Lo que se escribe en un campo propio sale de `KeyEvent.typedText`, **nunca de `key.characters` a
+pelo**: las flechas y las teclas de función traen caracteres del área privada de Unicode, y Tab e
+Intro, de control; en un buscador lo dejaban sin resultados con basura invisible.
+
 ### Todo lo que se ve tiene que poder pulsarse
 
 Principio que pidió Bruno y que se aplicó a todo: el dock, la barra superior (la marca abre el

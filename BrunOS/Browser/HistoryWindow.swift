@@ -12,7 +12,8 @@ import UIKit
 final class HistoryWindow: UIView {
 
     var onDismiss: (() -> Void)?
-    /// Abrir una página: en la pestaña actual, o en otra con Cmd.
+    /// Abrir una página: en la pestaña actual, o en otra con Cmd+clic, el
+    /// botón central o Cmd+Intro.
     var onOpen: ((URL, _ newTab: Bool) -> Void)?
 
     private enum Line {
@@ -77,6 +78,19 @@ final class HistoryWindow: UIView {
         addSubview(card)
 
         rebuild()
+
+        // Los iconos llegan de la red después de abrir la ventana.
+        faviconObserver = NotificationCenter.default.addObserver(
+            forName: FaviconStore.didChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.card.setNeedsDisplay() }
+        }
+    }
+
+    private var faviconObserver: (any NSObjectProtocol)?
+
+    isolated deinit {
+        if let faviconObserver { NotificationCenter.default.removeObserver(faviconObserver) }
     }
 
     @available(*, unavailable)
@@ -122,6 +136,12 @@ final class HistoryWindow: UIView {
             pages.append(page)
         }
         if let selected, selected >= pages.count { self.selected = pages.isEmpty ? nil : pages.count - 1 }
+
+        // Tras borrar, lo que había no ocupa lo mismo: si el desplazamiento se
+        // quedara donde estaba, la lista se vería vacía.
+        let days = lines.count - pages.count
+        contentHeight = 16 + CGFloat(days) * Self.dayHeight + CGFloat(pages.count) * Self.rowHeight
+        scrollOffset = min(scrollOffset, max(0, contentHeight - listArea.height))
         card.setNeedsDisplay()
     }
 
@@ -266,16 +286,20 @@ final class HistoryWindow: UIView {
     ) {
         // La zona de la fila sólo cuenta en la parte visible: si no, se podría
         // pulsar una fila escondida bajo la cabecera.
+        // La fila primero y el aspa después: el clic busca la última zona que
+        // contiene el punto, y el aspa está dentro de la fila.
         let visible = frame.intersection(clip)
-        let removeFrame = CGRect(x: frame.maxX - 30, y: frame.midY - 11, width: 22, height: 22)
-        let removeIndex = regions.count
-        if visible.contains(CGPoint(x: removeFrame.midX, y: removeFrame.midY)) {
-            regions.append(Region(frame: removeFrame, action: .remove(page)))
-        }
         let rowIndex = regions.count
         regions.append(Region(frame: visible, action: .open(page)))
+        let removeFrame = CGRect(x: frame.maxX - 30, y: frame.midY - 11, width: 22, height: 22)
+        var removeIndex: Int?
+        if visible.contains(CGPoint(x: removeFrame.midX, y: removeFrame.midY)) {
+            removeIndex = regions.count
+            regions.append(Region(frame: removeFrame, action: .remove(page)))
+        }
 
-        let hovered = hoveredRegion == rowIndex || hoveredRegion == removeIndex
+        let onRemove = removeIndex != nil && hoveredRegion == removeIndex
+        let hovered = hoveredRegion == rowIndex || onRemove
         if selected == index || hovered {
             context.setFillColor(Tokens.Color.accent.withAlphaComponent(selected == index ? 0.22 : 0.12)
                 .desktopCGColor)
@@ -320,8 +344,8 @@ final class HistoryWindow: UIView {
 
         // El aspa de borrar sólo con el cursor encima, como en Safari: una
         // columna de aspas en todas las filas es ruido.
-        if hovered {
-            if hoveredRegion == removeIndex {
+        if hovered, removeIndex != nil {
+            if onRemove {
                 context.setFillColor(Tokens.Color.textSecondary.withAlphaComponent(0.2).desktopCGColor)
                 context.fillEllipse(in: removeFrame)
             }
@@ -347,7 +371,7 @@ final class HistoryWindow: UIView {
             let index = regions.count
             regions.append(Region(frame: frame, action: .clear(clear)))
             let destructive = clear == .all
-            let tint = destructive ? UIColor(hex: 0xE05C4B) : Tokens.Color.text
+            let tint = destructive ? Tokens.Color.danger : Tokens.Color.text
             let path = UIBezierPath(roundedRect: frame, cornerRadius: 7).cgPath
             if destructive && confirmingClearAll {
                 context.setFillColor(tint.desktopCGColor)
@@ -389,7 +413,7 @@ final class HistoryWindow: UIView {
 
     // MARK: - Ratón
 
-    func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint) -> Bool {
+    func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint, modifiers: UIKeyModifierFlags = []) -> Bool {
         guard card.frame.contains(point) else {
             if case .down = kind { onDismiss?() }
             return true
@@ -405,8 +429,10 @@ final class HistoryWindow: UIView {
             }
 
         case .down(let button):
-            guard let index else { return true }
-            perform(regions[index].action, newTab: button == .middle)
+            // El derecho no abre nada: no hay menú, y abrir por error la
+            // página en la pestaña que se está leyendo es peor.
+            guard let index, button != .right else { return true }
+            perform(regions[index].action, newTab: button == .middle || modifiers.contains(.command))
 
         case .scroll(let delta):
             let maxScroll = max(0, contentHeight - listArea.height)
@@ -462,8 +488,7 @@ final class HistoryWindow: UIView {
         case .keyboardEscape:
             onDismiss?()
         case .keyboardReturnOrEnter:
-            guard let selected, pages.indices.contains(selected) else { break }
-            perform(.open(pages[selected]), newTab: command)
+            openSelected(newTab: command)
         case .keyboardDownArrow:
             move(by: 1)
         case .keyboardUpArrow:
@@ -476,12 +501,23 @@ final class HistoryWindow: UIView {
             query.removeLast()
             queryChanged()
         default:
-            let characters = event.key.characters
-            guard !command, !characters.isEmpty, characters.first?.isNewline != true else { break }
-            query += characters
-            queryChanged()
+            guard let text = event.typedText else { break }
+            insertText(text)
         }
         return true
+    }
+
+    /// Escribir en el buscador: lo tecleado y lo pegado con Cmd+V.
+    func insertText(_ text: String) {
+        query += text.replacingOccurrences(of: "\n", with: " ")
+        queryChanged()
+    }
+
+    /// Intro, o Cmd+Intro para otra pestaña. Cmd+Intro es también el atajo de
+    /// maximizar, así que el escritorio lo desvía aquí con la ventana abierta.
+    func openSelected(newTab: Bool) {
+        guard let selected, pages.indices.contains(selected) else { return }
+        perform(.open(pages[selected]), newTab: newTab)
     }
 
     private func queryChanged() {

@@ -65,4 +65,23 @@ struct KeyEvent {
 
     var phase: Phase
     var key: UIKey
+
+    /// Lo que la tecla escribe, si escribe algo.
+    ///
+    /// **No vale `key.characters` a pelo** en un campo propio: las flechas, las
+    /// teclas de función e Inicio traen caracteres del área privada de Unicode
+    /// (`U+F700` y siguientes), y Tab o Intro, caracteres de control. Metidos
+    /// en un buscador, lo dejaban sin resultados con basura invisible.
+    @MainActor var typedText: String? {
+        let characters = key.characters
+        guard !characters.isEmpty,
+              !key.modifierFlags.contains(.command),
+              !key.modifierFlags.contains(.control)
+        else { return nil }
+        let printable = characters.unicodeScalars.allSatisfy { scalar in
+            !CharacterSet.controlCharacters.contains(scalar)
+                && !(0xF700...0xF8FF).contains(scalar.value)
+        }
+        return printable ? characters : nil
+    }
 }

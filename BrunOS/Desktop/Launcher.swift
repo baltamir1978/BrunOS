@@ -169,12 +169,16 @@ final class Launcher: UIView {
             applyFilter()
 
         default:
-            let characters = event.key.characters
-            guard !characters.isEmpty, characters.first?.isNewline != true else { break }
-            query += characters
-            applyFilter()
+            guard let text = event.typedText else { break }
+            insertText(text)
         }
         return true
+    }
+
+    /// Escribir en el buscador: lo tecleado y lo pegado con Cmd+V.
+    func insertText(_ text: String) {
+        query += text.replacingOccurrences(of: "\n", with: " ")
+        applyFilter()
     }
 
     // MARK: - Ratón

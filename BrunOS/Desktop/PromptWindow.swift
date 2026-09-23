@@ -184,6 +184,13 @@ final class PromptWindow: UIView {
         return true
     }
 
+    /// Escribir en el campo: lo tecleado y lo pegado con Cmd+V.
+    func insertText(_ typed: String) {
+        guard asksForText else { return }
+        text += typed.trimmingCharacters(in: .newlines)
+        card.setNeedsDisplay()
+    }
+
     func handleKey(_ event: KeyEvent) -> Bool {
         guard event.phase == .down else { return true }
 
@@ -195,7 +202,7 @@ final class PromptWindow: UIView {
         case .keyboardDeleteOrBackspace:
             if asksForText, !text.isEmpty { text.removeLast() }
         default:
-            if asksForText { text += event.key.characters }
+            if let typed = event.typedText { insertText(typed) }
         }
         card.setNeedsDisplay()
         return true

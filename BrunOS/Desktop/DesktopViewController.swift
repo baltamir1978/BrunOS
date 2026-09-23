@@ -321,6 +321,7 @@ final class DesktopViewController: UIViewController {
     /// Devuelve `false` si no le corresponde y debería ir al panel.
     @discardableResult
     func perform(_ command: DesktopCommand) -> Bool {
+        if let handled = performOverModal(command) { return handled }
         let workspace = services.desktop.active
 
         switch command {
@@ -744,8 +745,40 @@ final class DesktopViewController: UIViewController {
         services.desktop.notifyChange()
     }
 
-    /// Abre un fichero local en el navegador.
     private var historyWindow: HistoryWindow?
+
+    /// Los atajos con una ventana modal delante.
+    ///
+    /// **No pueden tocar lo de detrás.** Los atajos se ejecutan antes de que
+    /// la tecla llegue a nadie, así que con el historial o el lanzador abiertos
+    /// Cmd+V pegaba en el terminal de detrás —y un texto con un salto de línea
+    /// es una orden que se ejecuta en el servidor— y Cmd+W cerraba una pestaña
+    /// que no se veía. Ahora Cmd+V pega en la ventana, Cmd+Intro abre en otra
+    /// pestaña desde el historial, y el resto no hace nada.
+    ///
+    /// Devuelve `nil` si no hay ninguna modal.
+    private func performOverModal(_ command: DesktopCommand) -> Bool? {
+        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, settingsWindow, historyWindow, launcher]
+        guard modals.contains(where: { $0 != nil }) else { return nil }
+
+        switch command {
+        case .paste:
+            guard let text = UIPasteboard.general.string, !text.isEmpty else { return true }
+            if let prompt { prompt.insertText(text) }
+            else if let hostEditor { hostEditor.insertText(text) }
+            else if let historyWindow { historyWindow.insertText(text) }
+            else if let launcher { launcher.insertText(text) }
+        case .toggleMaximize:
+            historyWindow?.openSelected(newTab: true)
+        case .history where historyWindow != nil:
+            historyWindow?.onDismiss?()
+        case .launcher where launcher != nil:
+            launcher?.onDismiss?()
+        default:
+            break
+        }
+        return true
+    }
 
     /// Cmd+Y: todo el historial, como en Safari.
     func presentHistory() {
@@ -994,7 +1027,7 @@ final class DesktopViewController: UIViewController {
         if let quickLook, quickLook.handlePointer(kind, at: position) { return }
         if let hostEditor, hostEditor.handlePointer(kind, at: position) { return }
         if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
-        if let historyWindow, historyWindow.handlePointer(kind, at: position) { return }
+        if let historyWindow, historyWindow.handlePointer(kind, at: position, modifiers: modifiers) { return }
         if let launcher, launcher.handlePointer(kind, at: position) { return }
 
         if fileDrag != nil, handleFileDrag(kind, at: position) { return }
