@@ -2231,9 +2231,10 @@ final class DesktopViewController: UIViewController {
     /// Pide la ciudad por nombre y, si hay varias con ese nombre, deja elegir.
     private func askWeatherPlace(anchor: CGPoint) {
         presentPrompt(title: "Ciudad para el tiempo", value: services.weather.place?.name ?? "") { [weak self] name in
-            guard let self, let name = name?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return }
-            Task {
+            guard self != nil, let name = name?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return }
+            Task { [weak self] in
                 let places = (try? await WeatherService.search(name)) ?? []
+                guard let self else { return }
                 switch places.count {
                 case 0:
                     self.presentConfirm(

@@ -40,7 +40,7 @@ final class NotesPane: UIView, Pane {
     private var selection = NSRange(location: 0, length: 0)
     /// De dónde sale la selección al alargarla con Mayús o arrastrando.
     private var anchor = 0
-    private var isFocused = false
+    private var hasFocus = false
     /// Se está arrastrando para seleccionar.
     private var isSelectingWithMouse = false
     private var lastClick: (time: Date, location: CGPoint)?
@@ -463,7 +463,7 @@ final class NotesPane: UIView, Pane {
         selectionViews.forEach { $0.removeFromSuperview() }
         selectionViews = []
 
-        let showsCaret = isFocused && editingNote && selection.length == 0
+        let showsCaret = hasFocus && editingNote && selection.length == 0
         caret.isHidden = !showsCaret
         if showsCaret, let position = position(selection.location) {
             var rect = textView.caretRect(for: position)
@@ -583,7 +583,7 @@ final class NotesPane: UIView, Pane {
     // MARK: - Pane
 
     func setFocused(_ focused: Bool) {
-        isFocused = focused
+        hasFocus = focused
         layer.borderColor = (focused ? Tokens.Color.accent : Tokens.Color.border).desktopCGColor
         refreshCaret()
     }

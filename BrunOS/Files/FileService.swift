@@ -351,9 +351,12 @@ final class FileService {
         // Por un temporal, el fichero viaja dos veces: bajar es la primera
         // mitad de la barra y subir la segunda. Si no, llegaría al final y
         // volvería a empezar.
-        let report = TransferProgress.report
-        let firstHalf: (@Sendable (Int64) -> Void)? = report.map { report in { done in report(done / 2) } }
-        let secondHalf: (@Sendable (Int64) -> Void)? = report.map { report in { done in report(size / 2 + done / 2) } }
+        var firstHalf: (@Sendable (Int64) -> Void)?
+        var secondHalf: (@Sendable (Int64) -> Void)?
+        if let report = TransferProgress.report {
+            firstHalf = { @Sendable (done: Int64) in report(done / 2) }
+            secondHalf = { @Sendable (done: Int64) in report(size / 2 + done / 2) }
+        }
         try await TransferProgress.$report.withValue(firstHalf) {
             try await source.download(path, to: staging)
         }
