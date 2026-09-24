@@ -307,6 +307,11 @@ estaba, abre otra ventana** (24-sep-2026: Bruno volvía a pulsar el icono espera
   Open-Meteo; si hay varias, un menú), no por ubicación: el aviso de permiso saldría en la
   pantalla del iPhone, en negro. Coordenadas redondeadas a dos decimales. Se actualiza cada 20
   minutos y al abrir el desplegable.
+- **El desplegable salía de un color plano y sin nada que pulsar** (Bruno, 24-sep, en la
+  2609241157): dibujaba en coordenadas de la tarjeta, pero `CardView` entrega el contexto en
+  coordenadas de la ventana (ver «Los ajustes salían vacíos»), así que todo caía fuera del
+  recorte. Ahora compensa con `translateBy`, como `SettingsWindow`. **Quien use `CardView` y
+  dibuje desde la esquina de la tarjeta tiene que hacer lo mismo.**
 - **El desplegable imita el widget del Tiempo de macOS con los colores del fondo Golden Gate**
   (Bruno lo pidió): degradado de azul del crepúsculo a ámbar, texto blanco y la barra de
   temperaturas en ámbar; de noche, el mismo cielo apagado. Colores fijos a propósito: no cambian

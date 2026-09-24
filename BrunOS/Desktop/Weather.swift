@@ -328,7 +328,15 @@ final class WeatherPopover: UIView {
         card.layer.shadowOpacity = 0.4
         card.layer.shadowRadius = 18
         card.layer.shadowOffset = CGSize(width: 0, height: 6)
-        card.drawContent = { [weak self] in self?.drawCard(in: $0) }
+        card.drawContent = { [weak self] context in
+            guard let self else { return }
+            // `CardView` entrega el contexto en coordenadas de la ventana, y
+            // aquí todo se cuenta desde la esquina de la tarjeta. Sin esto se
+            // dibujaba desplazado, fuera del recorte: Bruno veía sólo el color
+            // de fondo y ningún enlace que pulsar (24-sep-2026).
+            context.translateBy(x: self.card.frame.minX, y: self.card.frame.minY)
+            self.drawCard(in: context)
+        }
         addSubview(card)
 
         let height = contentHeight
