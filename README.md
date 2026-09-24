@@ -32,6 +32,8 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Descargar vídeos** de la página, también por trozos (HLS), con progreso, y guardar la página como PDF | 🚧 sin rodaje |
 | **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa, selección múltiple, copiar carpetas por trozos con progreso y arrastrar entre ventanas | 🚧 a falta de rodaje |
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | 🚧 a falta de rodaje |
+| **Notas** con historial del portapapeles, cuarta app del dock (Cmd+4) | 🚧 sin compilar |
+| **Barra superior** con Tailscale (estado y conectar por Atajos) y el tiempo en un desplegable (Open-Meteo) | 🚧 sin compilar |
 
 El escritorio, el ratón, el teclado, la conexión SSH y el navegador están probados con un monitor
 de verdad. El modo claro también. Lo más reciente —ventanas flotantes, arrastrar ficheros, el lanzador, el

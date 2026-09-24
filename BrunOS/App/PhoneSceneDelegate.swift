@@ -29,6 +29,8 @@ final class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneDidBecomeActive(_ scene: UIScene) {
         AppServices.shared.assistiveTouch.refresh()
+        // Tailscale ha podido cambiar desde Atajos o desde su app.
+        AppServices.shared.tailscale.refresh()
         // Con monitor conectado la pantalla del iPhone no se puede apagar: si la
         // app pasa a segundo plano, iOS vuelve a duplicar la pantalla.
         UIApplication.shared.isIdleTimerDisabled = true
@@ -39,6 +41,7 @@ final class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Si iOS cierra la app en segundo plano, que no se lleve las cookies.
         CookieVault.shared.saveNow()
         AppServices.shared.history.flush()
+        AppServices.shared.notes.saveNow()
         AppServices.shared.desktopViewController?.saveSessionNow()
     }
 }

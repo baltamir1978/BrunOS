@@ -90,8 +90,9 @@ pestañas (`BrunOS/Browser/CLAUDE.md`), copiar con progreso por bytes y arrastra
 con selección múltiple (`BrunOS/Files/CLAUDE.md`), y Exposé con el conmutador de ventanas
 («Exposé y Cmd+º», abajo). De paso salieron dos fallos: las ventanas de Ficheros compartían
 ubicación y **los clics nunca traían modificadores** (Cmd+clic no funcionaba en ningún sitio).
-Lo siguiente que quiere: una app de notas/portapapeles en el dock, y en la barra superior un
-interruptor de Tailscale (si iOS lo permite) y el tiempo en un desplegable al estilo macOS.
+**Después, en la misma sesión y también sin compilar**: la app de **Notas y portapapeles**
+(`BrunOS/Notes/CLAUDE.md`) y, en la barra superior, **Tailscale** y **el tiempo** («Tailscale y el
+tiempo en la barra», abajo).
 
 **Última build subida: 2609240858 (24-sep-2026, mañana)**: lleva todo lo de abajo, la nitidez de
 las webs a 1,5×, la ronda de optimización (Ajustes › Rendimiento), encajar ventanas y recordar
@@ -125,6 +126,7 @@ Lo de cada parte vive junto a su código y se carga sólo al trabajar allí:
   sus restricciones.
 - `BrunOS/Files/CLAUDE.md`: orígenes de ficheros, marcadores de seguridad, la vista previa propia.
 - `BrunOS/Phone/CLAUDE.md`: el único puente a Objective-C (`installTap`).
+- `BrunOS/Notes/CLAUDE.md`: las notas, el editor propio y el historial del portapapeles.
 - Skill `testflight` (`.claude/skills/testflight/`): subir builds y los errores de distribución.
 
 ---
@@ -262,6 +264,29 @@ estaba, abre otra ventana** (24-sep-2026: Bruno volvía a pulsar el icono espera
   trozos.
 - Es una modal más: está en las tres listas (puntero, cursor y `performOverModal`) y en
   `deliverKey`.
+
+### Tailscale y el tiempo en la barra (24-sep-2026)
+
+**Sin compilar ni probar.**
+
+- **Tailscale**: el icono va en verde si `TailscaleMonitor` ve una interfaz `utun` con dirección
+  de Tailscale, en gris si no (es una deducción). **iOS no deja que una app encienda la VPN de
+  otra** (`NEVPNManager` sólo gestiona las de la propia app), así que «Conectar/Desconectar» lanza
+  el atajo **«BrunOS Tailscale»** de la app Atajos, el mismo camino que el de AssistiveTouch, y
+  vuelve por `brunos://tailscale-ok`. Bruno tiene que crear ese atajo una vez con la acción de
+  Tailscale (el menú lo explica y abre Atajos). Se le pasa `on`/`off` como entrada. Mientras
+  corre, el iPhone pasa un momento por Atajos y el monitor enseña la pantalla duplicada.
+- **El tiempo**: Open-Meteo, gratis y sin clave. No WeatherKit: habría que activarlo en el App ID
+  desde el portal y añadir un permiso a la firma. La ciudad se elige por nombre (búsqueda de
+  Open-Meteo; si hay varias, un menú), no por ubicación: el aviso de permiso saldría en la
+  pantalla del iPhone, en negro. Coordenadas redondeadas a dos decimales. Se actualiza cada 20
+  minutos y al abrir el desplegable.
+- **El desplegable imita el widget del Tiempo de macOS con los colores del fondo Golden Gate**
+  (Bruno lo pidió): degradado de azul del crepúsculo a ámbar, texto blanco y la barra de
+  temperaturas en ámbar; de noche, el mismo cielo apagado. Colores fijos a propósito: no cambian
+  con el modo claro u oscuro. Ahora, 8 horas y 6 días. Es modal (`weatherPopover` está en las
+  listas del puntero, el cursor, `performOverModal` y `deliverKey`).
+- `presentConfirm` acepta `isDestructive: false` para avisos que no borran nada.
 
 ### Rendimiento (24-sep-2026)
 

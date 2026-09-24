@@ -415,7 +415,7 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         let (start, end) = ordered(selection)
         let text = terminalView.getTerminal().getText(start: start, end: end)
         guard !text.isEmpty else { return }
-        UIPasteboard.general.string = text
+        AppServices.shared.clipboard.copy(text)
     }
 
     // MARK: - Tamaño de la fuente
@@ -501,7 +501,7 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
 
     func clipboardCopy(source: TerminalView, content: Data) {
         guard let text = String(data: content, encoding: .utf8) else { return }
-        UIPasteboard.general.string = text
+        AppServices.shared.clipboard.copy(text)
     }
 
     func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {}

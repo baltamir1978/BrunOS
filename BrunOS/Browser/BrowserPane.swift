@@ -419,7 +419,7 @@ final class BrowserPane: UIView, Pane {
                 self?.openBookmark(page, inNewTab: true)
             },
             ContextMenu.Entry(title: "Copiar enlace", symbol: "link") {
-                UIPasteboard.general.string = page.url
+                AppServices.shared.clipboard.copy(page.url)
             },
             ContextMenu.Entry(title: "Renombrar…", symbol: "pencil") {
                 AppServices.shared.desktopViewController?.presentPrompt(
@@ -712,7 +712,7 @@ final class BrowserPane: UIView, Pane {
         }
         if let url = tab.webView.url, url.scheme == "http" || url.scheme == "https" {
             entries.append(ContextMenu.Entry(title: "Copiar enlace", symbol: "link") {
-                UIPasteboard.general.url = url
+                AppServices.shared.clipboard.copy(url)
             })
         }
         entries.append(ContextMenu.Entry(title: "Cerrar", symbol: "xmark") { [weak self] in
@@ -840,7 +840,7 @@ final class BrowserPane: UIView, Pane {
     }
 
     func paste() {
-        guard let text = UIPasteboard.general.string else { return }
+        guard let text = AppServices.shared.clipboard.readForPaste() else { return }
         activeTab?.insertText(text)
     }
 
@@ -985,7 +985,7 @@ final class BrowserPane: UIView, Pane {
                 tab.download(url)
             })
             entries.append(ContextMenu.Entry(title: "Copiar enlace", symbol: "link") {
-                UIPasteboard.general.url = url
+                AppServices.shared.clipboard.copy(url)
             })
         }
 
@@ -997,7 +997,7 @@ final class BrowserPane: UIView, Pane {
                 tab.download(url)
             })
             entries.append(ContextMenu.Entry(title: "Copiar dirección de la imagen", symbol: "doc.on.doc") {
-                UIPasteboard.general.url = url
+                AppServices.shared.clipboard.copy(url)
             })
         }
 
@@ -1019,14 +1019,14 @@ final class BrowserPane: UIView, Pane {
                     tab.download(found)
                 })
                 entries.append(ContextMenu.Entry(title: "Copiar dirección del vídeo", symbol: "link") {
-                    UIPasteboard.general.url = found.url
+                    AppServices.shared.clipboard.copy(found.url)
                 })
             }
         }
 
         if let selection = hit?.selection {
             entries.append(ContextMenu.Entry(title: "Copiar", symbol: "doc.on.doc") {
-                UIPasteboard.general.string = selection
+                AppServices.shared.clipboard.copy(selection)
             })
             let short = selection.count > 24 ? String(selection.prefix(24)) + "…" : selection
             entries.append(ContextMenu.Entry(

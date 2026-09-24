@@ -33,6 +33,9 @@ final class AppServices {
     let downloads = DownloadCenter()
     let hls = HLSDownloader()
     let passwords = PasswordBridge()
+    let notes = NotesStore()
+    let clipboard = ClipboardHistory()
+    let weather = WeatherService()
 
     /// El escritorio de la pantalla externa, si está conectada.
     weak var desktopViewController: DesktopViewController?
@@ -73,5 +76,6 @@ final class AppServices {
         // El estado de AssistiveTouch puede haber cambiado mientras estábamos
         // fuera, y la notificación no siempre llega estando en segundo plano.
         assistiveTouch.handleCallback(host: url.host)
+        tailscale.handleCallback(host: url.host)
     }
 }

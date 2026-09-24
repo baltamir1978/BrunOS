@@ -531,7 +531,7 @@ enum SettingsPages {
                         + "en un Mac. La privada no sale nunca del llavero.",
                     rows: [
                         SettingsRow("Clave pública", subtitle: short, symbol: "key", .buttons([
-                            SettingsButton("Copiar", style: .accent) { UIPasteboard.general.string = line },
+                            SettingsButton("Copiar", style: .accent) { AppServices.shared.clipboard.copy(line) },
                         ])),
                         SettingsRow("Huella", .value(fingerprint)),
                     ]

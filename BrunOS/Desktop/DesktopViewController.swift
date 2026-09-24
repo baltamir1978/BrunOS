@@ -53,6 +53,7 @@ final class DesktopViewController: UIViewController {
         canvas.addSubview(emptyLabel)
 
         services.desktopViewController = self
+        services.weather.start()
 
         NotificationCenter.default.addObserver(
             self,
@@ -264,6 +265,7 @@ final class DesktopViewController: UIViewController {
         launcher?.frame = CGRect(origin: .zero, size: logicalSize)
         historyWindow?.frame = CGRect(origin: .zero, size: logicalSize)
         overview?.frame = CGRect(origin: .zero, size: logicalSize)
+        weatherPopover?.frame = CGRect(origin: .zero, size: logicalSize)
 
         // Una ventana que ocupa el sitio del dock (una encajada llega hasta
         // abajo) lo esconde, como la pantalla completa: asoma al llevar el
@@ -495,6 +497,7 @@ final class DesktopViewController: UIViewController {
             case let terminal as TerminalPane: terminal.copySelection()
             case let browser as BrowserPane: browser.copySelection()
             case let files as FilesPane: files.copySelection()
+            case let notes as NotesPane: notes.copySelection()
             default: return false
             }
 
@@ -503,6 +506,7 @@ final class DesktopViewController: UIViewController {
             case let terminal as TerminalPane: terminal.paste()
             case let browser as BrowserPane: browser.paste()
             case let files as FilesPane: files.pasteHere()
+            case let notes as NotesPane: notes.paste()
             default: return false
             }
 
@@ -666,6 +670,7 @@ final class DesktopViewController: UIViewController {
             case .terminal: TerminalPane(frame: .zero)
             case .browser: BrowserPane(frame: .zero)
             case .files: FilesPane(frame: .zero)
+            case .notes: NotesPane(frame: .zero)
             }
             if let frame = window.frame {
                 let scaled = CGRect(x: frame.minX * sx, y: frame.minY * sy,
@@ -707,6 +712,7 @@ final class DesktopViewController: UIViewController {
         case .terminal: TerminalPane(frame: .zero)
         case .browser: BrowserPane(frame: .zero)
         case .files: FilesPane(frame: .zero)
+        case .notes: NotesPane(frame: .zero)
         }
 
         if DesktopPreferences.newPanesFloat {
@@ -847,6 +853,7 @@ final class DesktopViewController: UIViewController {
         title: String,
         message: String,
         destructive: String,
+        isDestructive: Bool = true,
         completion: @escaping (Bool) -> Void
     ) {
         prompt?.removeFromSuperview()
@@ -854,7 +861,7 @@ final class DesktopViewController: UIViewController {
             title: title,
             message: message,
             confirmTitle: destructive,
-            destructive: true,
+            destructive: isDestructive,
             frame: CGRect(origin: .zero, size: logicalSize)
         )
         window.onFinish = { [weak self] result in
@@ -981,12 +988,12 @@ final class DesktopViewController: UIViewController {
     ///
     /// Devuelve `nil` si no hay ninguna modal.
     private func performOverModal(_ command: DesktopCommand) -> Bool? {
-        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, overview]
+        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, overview, weatherPopover]
         guard modals.contains(where: { $0 != nil }) else { return nil }
 
         switch command {
         case .paste:
-            guard let text = UIPasteboard.general.string, !text.isEmpty else { return true }
+            guard let text = services.clipboard.readForPaste() else { return true }
             if let prompt { prompt.insertText(text) }
             else if let hostEditor { hostEditor.insertText(text) }
             else if let historyWindow { historyWindow.insertText(text) }
@@ -1022,6 +1029,12 @@ final class DesktopViewController: UIViewController {
         canvas.addSubview(window)
         historyWindow = window
         applyContentsScale(to: window)
+    }
+
+    /// Una nota nueva en la ventana de Notas de más delante.
+    func newNote(text: String = "") {
+        (frontmost(.notes) as? NotesPane)?.newNote(text: text)
+        services.desktop.notifyChange()
     }
 
     func openInBrowser(_ url: URL) {
@@ -1122,6 +1135,9 @@ final class DesktopViewController: UIViewController {
             },
             Launcher.Entry(title: "Nuevo gestor de ficheros", subtitle: "Acción", symbol: "plus.rectangle") {
                 [weak self] in self?.newPane(.files)
+            },
+            Launcher.Entry(title: "Nota nueva", subtitle: "Acción · Notas", symbol: "square.and.pencil") {
+                [weak self] in self?.newNote()
             },
             Launcher.Entry(title: "Pantalla completa", subtitle: "Acción · Ctrl+Cmd+F", symbol: "arrow.up.left.and.arrow.down.right") {
                 [weak self] in self?.perform(.toggleFullScreen)
@@ -1263,6 +1279,7 @@ final class DesktopViewController: UIViewController {
 
         // Lo modal manda, y la vista previa va por encima de todo.
         if let contextMenu, contextMenu.handlePointer(kind, at: position) { return }
+        if let weatherPopover, weatherPopover.handlePointer(kind, at: position) { return }
         if let prompt, prompt.handlePointer(kind, at: position) { return }
         if let quickLook, quickLook.handlePointer(kind, at: position) { return }
         if let hostEditor, hostEditor.handlePointer(kind, at: position) { return }
@@ -1297,6 +1314,10 @@ final class DesktopViewController: UIViewController {
             }
             if let files = workspace.pane(hit.key) as? FilesPane {
                 presentContextMenu(files.contextMenuEntries(at: local), at: position)
+                return
+            }
+            if let notes = workspace.pane(hit.key) as? NotesPane {
+                presentContextMenu(notes.contextMenuEntries(at: local), at: position)
                 return
             }
             if let browser = workspace.pane(hit.key) as? BrowserPane {
@@ -1609,7 +1630,7 @@ final class DesktopViewController: UIViewController {
         if let divider = activeDivider { return Self.shape(for: divider.axis) }
         guard windowDrag == nil, fileDrag == nil else { return .arrow }
 
-        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu, overview]
+        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu, overview, weatherPopover]
         guard modals.allSatisfy({ $0 == nil }) else { return .arrow }
 
         if let (_, frame) = floatingWindow(at: position, margin: Self.resizeMargin) {
@@ -1848,7 +1869,7 @@ final class DesktopViewController: UIViewController {
     /// Si hay otra ventana modal delante: entonces ni el conmutador ni
     /// Exposé se abren, que taparían algo a medio hacer.
     private var hasOtherModal: Bool {
-        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher]
+        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, weatherPopover]
         return modals.contains { $0 != nil }
     }
 
@@ -2127,10 +2148,117 @@ final class DesktopViewController: UIViewController {
             presentLauncher()
         case .display:
             presentSettings(.global, page: 1)
+        case .tailscale:
+            let frame = topBar.frame(of: .tailscale)
+            presentContextMenu(tailscaleMenu(), at: CGPoint(x: frame.minX, y: topBar.frame.maxY))
+        case .weather:
+            let frame = topBar.frame(of: .weather)
+            presentWeather(anchor: CGPoint(x: frame.midX, y: topBar.frame.maxY))
         case .none:
             break
         }
         return true
+    }
+
+    // MARK: - Tailscale y el tiempo
+
+    /// El menú de Tailscale: el estado, conectar o desconectar por Atajos y
+    /// cómo preparar el atajo la primera vez.
+    private func tailscaleMenu() -> [ContextMenu.Entry] {
+        let tailscale = services.tailscale
+        tailscale.refresh()
+        let up = tailscale.isLikelyUp
+        var entries = [
+            ContextMenu.Entry(
+                title: up ? "Tailscale conectado" : "Tailscale desconectado",
+                symbol: up ? "checkmark.circle.fill" : "xmark.circle",
+                isEnabled: false
+            ) {},
+            ContextMenu.Entry(title: up ? "Desconectar" : "Conectar", symbol: "power") {
+                tailscale.toggle(on: !up)
+            },
+        ]
+        if tailscale.lastToggle == .missingShortcut {
+            entries.append(ContextMenu.Entry(
+                title: "Falta el atajo «\(TailscaleMonitor.shortcutName)»",
+                symbol: "exclamationmark.triangle",
+                isEnabled: false
+            ) {})
+        }
+        entries.append(ContextMenu.Entry(title: "Cómo crear el atajo…", symbol: "questionmark.circle") {
+            [weak self] in self?.explainTailscaleShortcut()
+        })
+        return entries
+    }
+
+    private func explainTailscaleShortcut() {
+        presentConfirm(
+            title: "Atajo «\(TailscaleMonitor.shortcutName)»",
+            message: "iOS no deja que una app encienda la VPN de otra, pero la app de Tailscale trae "
+                + "acciones para Atajos. Crea en Atajos uno que se llame «\(TailscaleMonitor.shortcutName)» "
+                + "con la acción de Tailscale para conectar o desconectar (o alternar). BrunOS le pasa "
+                + "«on» u «off» como entrada, por si quieres decidir con un «Si». Al lanzarlo, el "
+                + "iPhone pasa un momento por Atajos y vuelve solo.",
+            destructive: "Abrir Atajos",
+            isDestructive: false
+        ) { open in
+            guard open, let url = URL(string: "shortcuts://create-shortcut") else { return }
+            UIApplication.shared.open(url)
+        }
+    }
+
+    private var weatherPopover: WeatherPopover?
+
+    private func presentWeather(anchor: CGPoint) {
+        dismissWeather()
+        let popover = WeatherPopover(anchor: anchor, in: CGRect(origin: .zero, size: logicalSize))
+        popover.onDismiss = { [weak self] in self?.dismissWeather() }
+        popover.onChangePlace = { [weak self] in
+            self?.dismissWeather()
+            self?.askWeatherPlace(anchor: anchor)
+        }
+        canvas.addSubview(popover)
+        weatherPopover = popover
+        applyContentsScale(to: popover)
+        services.weather.refresh()
+    }
+
+    private func dismissWeather() {
+        weatherPopover?.removeFromSuperview()
+        weatherPopover = nil
+    }
+
+    /// Pide la ciudad por nombre y, si hay varias con ese nombre, deja elegir.
+    private func askWeatherPlace(anchor: CGPoint) {
+        presentPrompt(title: "Ciudad para el tiempo", value: services.weather.place?.name ?? "") { [weak self] name in
+            guard let self, let name = name?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return }
+            Task {
+                let places = (try? await WeatherService.search(name)) ?? []
+                switch places.count {
+                case 0:
+                    self.presentConfirm(
+                        title: "No encuentro «\(name)»",
+                        message: "Prueba con otro nombre, o con el de la ciudad más cercana.",
+                        destructive: "Vale",
+                        isDestructive: false
+                    ) { _ in }
+                case 1:
+                    self.services.weather.setPlace(places[0])
+                    self.presentWeather(anchor: anchor)
+                default:
+                    let entries = places.map { place in
+                        ContextMenu.Entry(
+                            title: place.detail.isEmpty ? place.name : "\(place.name) · \(place.detail)",
+                            symbol: "mappin.and.ellipse"
+                        ) { [weak self] in
+                            self?.services.weather.setPlace(place)
+                            self?.presentWeather(anchor: anchor)
+                        }
+                    }
+                    self.presentContextMenu(entries, at: CGPoint(x: anchor.x - 100, y: anchor.y))
+                }
+            }
+        }
     }
 
     // MARK: - Divisores
@@ -2207,6 +2335,7 @@ final class DesktopViewController: UIViewController {
     func deliverKey(_ event: KeyEvent) {
         if let overview, overview.handleKey(event) { return }
         if let contextMenu, contextMenu.handleKey(event) { return }
+        if let weatherPopover, weatherPopover.handleKey(event) { return }
         if let prompt, prompt.handleKey(event) { return }
         if let quickLook, quickLook.handleKey(event) { return }
         if let hostEditor, hostEditor.handleKey(event) { return }

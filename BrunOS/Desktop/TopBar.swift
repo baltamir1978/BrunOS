@@ -13,6 +13,10 @@ final class TopBar: UIView {
     private let brandLabel = UILabel()
     private let titleLabel = UILabel()
     private let resolutionLabel = UILabel()
+    /// Tailscale: el icono en verde si parece conectado, en gris si no.
+    private let tailscaleLabel = UILabel()
+    /// El tiempo: icono y temperatura, como en la barra de macOS.
+    private let weatherLabel = UILabel()
     private let blockedLabel = UILabel()
     private let batteryLabel = UILabel()
     private let clockLabel = UILabel()
@@ -30,6 +34,10 @@ final class TopBar: UIView {
         case brand
         /// La resolución lleva a los ajustes de pantalla.
         case display
+        /// Estado de Tailscale y el menú para conectar o desconectar.
+        case tailscale
+        /// El desplegable del tiempo.
+        case weather
         case none
     }
 
@@ -37,7 +45,20 @@ final class TopBar: UIView {
         // Con holgura: acertar a pulso en una etiqueta de 12 pt es incómodo.
         if brandLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .brand }
         if resolutionLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .display }
+        if tailscaleLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .tailscale }
+        if weatherLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .weather }
         return .none
+    }
+
+    /// Dónde está un elemento, para colgar de él su menú o su desplegable.
+    func frame(of target: Target) -> CGRect {
+        switch target {
+        case .tailscale: tailscaleLabel.frame
+        case .weather: weatherLabel.frame
+        case .display: resolutionLabel.frame
+        case .brand: brandLabel.frame
+        case .none: .zero
+        }
     }
 
     override init(frame: CGRect) {
@@ -64,7 +85,7 @@ final class TopBar: UIView {
         let spacerRight = UIView()
         let stack = UIStackView(arrangedSubviews: [
             brandLabel, spacerLeft, titleLabel, spacerRight,
-            resolutionLabel, blockedLabel, batteryLabel, clockLabel,
+            tailscaleLabel, weatherLabel, resolutionLabel, blockedLabel, batteryLabel, clockLabel,
         ])
         stack.axis = .horizontal
         stack.alignment = .center
@@ -86,6 +107,64 @@ final class TopBar: UIView {
 
         UIDevice.current.isBatteryMonitoringEnabled = true
         startClock()
+
+        weatherLabel.font = Tokens.mono(12)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(statusChanged), name: TailscaleMonitor.didChange, object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(statusChanged), name: WeatherService.didChange, object: nil
+        )
+        updateStatus()
+    }
+
+    @objc private func statusChanged() {
+        updateStatus()
+    }
+
+    /// Un símbolo del sistema seguido de un texto, en una sola etiqueta.
+    private static func symbolText(_ symbol: String, color: UIColor, text: String?) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let configuration = UIImage.SymbolConfiguration(pointSize: 12, weight: .medium)
+        if let image = UIImage(systemName: symbol, withConfiguration: configuration)?
+            .withTintColor(
+                color.resolvedColor(with: UITraitCollection(userInterfaceStyle: DesktopTheme.style)),
+                renderingMode: .alwaysOriginal
+            ) {
+            let attachment = NSTextAttachment(image: image)
+            attachment.bounds = CGRect(x: 0, y: -2, width: image.size.width, height: image.size.height)
+            result.append(NSAttributedString(attachment: attachment))
+        }
+        if let text {
+            result.append(NSAttributedString(string: " " + text, attributes: [
+                .font: Tokens.mono(12), .foregroundColor: Tokens.Color.textSecondary,
+            ]))
+        }
+        return result
+    }
+
+    private func updateStatus() {
+        let tailscale = AppServices.shared.tailscale
+        let waiting = tailscale.lastToggle == .waiting
+        tailscaleLabel.attributedText = Self.symbolText(
+            "point.3.connected.trianglepath.dotted",
+            color: tailscale.isLikelyUp ? UIColor(hex: 0x4FA85C) : Tokens.Color.textSecondary,
+            text: waiting ? "…" : nil
+        )
+
+        let weather = AppServices.shared.weather
+        if let forecast = weather.forecast {
+            weatherLabel.attributedText = Self.symbolText(
+                WeatherService.symbol(for: forecast.code, isDay: forecast.isDay),
+                color: Tokens.Color.text,
+                text: WeatherService.degrees(forecast.temperature)
+            )
+        } else {
+            weatherLabel.attributedText = Self.symbolText(
+                "cloud.sun", color: Tokens.Color.textSecondary,
+                text: weather.place == nil ? "El tiempo" : nil
+            )
+        }
     }
 
     @available(*, unavailable)
@@ -128,6 +207,7 @@ final class TopBar: UIView {
 
         updateBattery()
         updateClock()
+        updateStatus()
     }
 
     private func updateBattery() {

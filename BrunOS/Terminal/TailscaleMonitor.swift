@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Observation
+import UIKit
 
 /// Mira si Tailscale parece estar levantado.
 ///
@@ -16,7 +17,28 @@ import Observation
 @Observable
 final class TailscaleMonitor {
 
-    private(set) var isLikelyUp = false
+    static let didChange = Notification.Name("BrunOSTailscaleDidChange")
+
+    /// Avisa al cambiar, para la barra superior, que no observa nada.
+    private(set) var isLikelyUp = false {
+        didSet {
+            if isLikelyUp != oldValue {
+                NotificationCenter.default.post(name: Self.didChange, object: nil)
+            }
+        }
+    }
+
+    /// Qué pasó la última vez que se pidió encender o apagar desde BrunOS.
+    enum ToggleResult: Equatable {
+        case waiting
+        case done
+        /// Atajos no pudo abrir el atajo: casi siempre, que no existe.
+        case missingShortcut
+    }
+
+    private(set) var lastToggle: ToggleResult? {
+        didSet { NotificationCenter.default.post(name: Self.didChange, object: nil) }
+    }
 
     private var monitor: NWPathMonitor?
 
@@ -41,6 +63,61 @@ final class TailscaleMonitor {
 
     func refresh() {
         isLikelyUp = Self.hasTailscaleAddress()
+    }
+
+    // MARK: - Encender y apagar
+
+    /// El atajo que hay que crear en la app Atajos.
+    ///
+    /// **iOS no deja que una app encienda la VPN de otra**: `NEVPNManager`
+    /// sólo gestiona las configuraciones de la propia app, y la de Tailscale
+    /// es suya. Lo que sí hay es Atajos: la app de Tailscale trae acciones
+    /// para conectar y desconectar, y un atajo se lanza por URL. Es el mismo
+    /// camino que el de AssistiveTouch, con la misma vuelta por `brunos://`.
+    ///
+    /// Se le pasa `on` u `off` como entrada, por si el atajo quiere decidir
+    /// con un «Si»; uno que sólo alterne también vale.
+    static let shortcutName = "BrunOS Tailscale"
+
+    /// Pide encender (o apagar) Tailscale por Atajos.
+    ///
+    /// Para lanzar el atajo, iOS pasa un momento a la app Atajos y vuelve:
+    /// mientras tanto el monitor enseña el iPhone duplicado. No hay forma de
+    /// evitarlo desde fuera.
+    func toggle(on: Bool) {
+        var components = URLComponents(string: "shortcuts://x-callback-url/run-shortcut")
+        components?.queryItems = [
+            URLQueryItem(name: "name", value: Self.shortcutName),
+            URLQueryItem(name: "input", value: "text"),
+            URLQueryItem(name: "text", value: on ? "on" : "off"),
+            URLQueryItem(name: "x-success", value: "brunos://tailscale-ok"),
+            URLQueryItem(name: "x-error", value: "brunos://tailscale-error"),
+        ]
+        guard let url = components?.url else { return }
+        lastToggle = .waiting
+        UIApplication.shared.open(url, options: [:]) { [weak self] opened in
+            MainActor.assumeIsolated {
+                if !opened { self?.lastToggle = .missingShortcut }
+            }
+        }
+    }
+
+    /// La vuelta de Atajos. La interfaz de red tarda un poco en aparecer o
+    /// irse, así que se mira otra vez al rato.
+    func handleCallback(host: String?) {
+        switch host {
+        case "tailscale-ok":
+            lastToggle = .done
+            refresh()
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                self?.refresh()
+            }
+        case "tailscale-error":
+            lastToggle = .missingShortcut
+        default:
+            break
+        }
     }
 
     /// Recorre las interfaces buscando una `utun` con dirección de Tailscale.

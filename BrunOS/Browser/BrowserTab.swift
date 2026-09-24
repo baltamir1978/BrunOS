@@ -579,7 +579,7 @@ final class BrowserTab: NSObject {
             guard case .success(let value) = result,
                   let text = value as? String, !text.isEmpty
             else { return }
-            UIPasteboard.general.string = text
+            AppServices.shared.clipboard.copy(text)
         }
     }
 

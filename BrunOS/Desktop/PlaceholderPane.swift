@@ -5,6 +5,7 @@ enum PaneKind: String, CaseIterable, Sendable {
     case terminal
     case browser
     case files
+    case notes
 
     /// De qué app es un panel ya creado. Lo usa el dock para dibujar el
     /// icono de los minimizados. `nil` para lo que no es una app del dock,
@@ -16,19 +17,22 @@ enum PaneKind: String, CaseIterable, Sendable {
         case is TerminalPane: .terminal
         case is BrowserPane: .browser
         case is FilesPane: .files
+        case is NotesPane: .notes
         case let placeholder as PlaceholderPane: placeholder.kind
         default: nil
         }
     }
 
-    /// El orden de los iconos del dock: el de siempre, web · ssh · ficheros.
-    static let dockOrder: [PaneKind] = [.browser, .terminal, .files]
+    /// El orden de los iconos del dock: el de siempre, web · ssh · ficheros,
+    /// y detrás las notas (Cmd+4).
+    static let dockOrder: [PaneKind] = [.browser, .terminal, .files, .notes]
 
     var title: String {
         switch self {
         case .terminal: "Terminal"
         case .browser: "Navegador"
         case .files: "Ficheros"
+        case .notes: "Notas"
         }
     }
 
@@ -39,6 +43,7 @@ enum PaneKind: String, CaseIterable, Sendable {
         case .terminal: "apple.terminal.fill"
         case .browser: "globe"
         case .files: "folder.fill"
+        case .notes: "note.text"
         }
     }
 }

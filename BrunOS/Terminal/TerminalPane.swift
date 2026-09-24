@@ -366,7 +366,7 @@ final class TerminalPane: UIView, Pane {
 
     /// Pega el portapapeles en la sesión. Cmd+V.
     func paste() {
-        guard let text = UIPasteboard.general.string else { return }
+        guard let text = AppServices.shared.clipboard.readForPaste() else { return }
         activeTab?.session.send(text)
     }
 }

@@ -25,6 +25,7 @@ enum DockIcon {
             case .terminal: drawTerminal(context, rect)
             case .browser: drawCompass(context, rect)
             case .files: drawFolder(context, rect)
+            case .notes: drawNotepad(context, rect)
             }
         }
         cache[key] = image
@@ -174,6 +175,33 @@ enum DockIcon {
         context.setFillColor(UIColor.white.cgColor)
         context.addPath(UIBezierPath(roundedRect: body, cornerRadius: rect.width * 0.05).cgPath)
         context.fillPath()
+    }
+
+    /// Bloc de notas: hoja clara con la franja amarilla arriba y tres líneas.
+    private static func drawNotepad(_ context: CGContext, _ rect: CGRect) {
+        roundedBackground(context, rect, colors: [
+            UIColor(hex: 0xFFFDF5), UIColor(hex: 0xEDE7D6),
+        ])
+
+        // La franja de arriba, como la de Notas.
+        context.saveGState()
+        context.addPath(UIBezierPath(roundedRect: rect, cornerRadius: rect.width * 0.23).cgPath)
+        context.clip()
+        context.setFillColor(UIColor(hex: 0xF4C542).cgColor)
+        context.fill(CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height * 0.24))
+        context.restoreGState()
+
+        let inset = rect.width * 0.2
+        context.setStrokeColor(UIColor(hex: 0xB8B2A3).cgColor)
+        context.setLineWidth(rect.width * 0.035)
+        context.setLineCap(.round)
+        for index in 0..<3 {
+            let y = rect.minY + rect.height * (0.44 + CGFloat(index) * 0.15)
+            let end = index == 2 ? rect.midX + rect.width * 0.05 : rect.maxX - inset
+            context.move(to: CGPoint(x: inset, y: y))
+            context.addLine(to: CGPoint(x: end, y: y))
+        }
+        context.strokePath()
     }
 
     /// Engranaje de los ajustes.
