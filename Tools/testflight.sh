@@ -48,11 +48,6 @@ KEY_PATH="${KEY_PATH/#\~/$HOME}"
 grep -Eq '^DEVELOPMENT_TEAM *= *[A-Z0-9]+' Local.xcconfig \
   || fail "DEVELOPMENT_TEAM está vacío en Local.xcconfig."
 
-# Las listas de bloqueo no se versionan: sin ellas la app funciona, pero sin
-# bloquear nada, y es fácil no darse cuenta hasta tener la build en el iPhone.
-if ! ls BrunOS/Resources/Blocklists/blocklist-*.json >/dev/null 2>&1; then
-  fail "No hay listas de bloqueo. Ejecuta ./Tools/fetch-blocklists.sh antes de subir."
-fi
 if ! ls BrunOS/Resources/Wallpapers/* >/dev/null 2>&1; then
   say "Aviso: no hay fondos de macOS (Tools/fetch-wallpapers.sh). Se sube sólo con los degradados."
 fi

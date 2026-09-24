@@ -27,12 +27,13 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Escritorio** con ventanas flotantes o en mosaico estilo i3, las tres apps a la vez, dock con varias ventanas por app, pantalla completa, Exposé (Cmd+E) y cambio de ventana con Cmd+º | 🚧 flotantes sin rodaje |
 | **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él | ✅ |
 | **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
-| **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios editable, descargas e iframes pulsables (reCAPTCHA, pagos) | ✅ YouTube probado |
+| **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios con las listas de uBlock Origin, descargas e iframes pulsables (reCAPTCHA, pagos) | ✅ YouTube probado |
 | **Favoritos** con barra propia, iconos de cada sitio, sugerencias al escribir, modo lectura e historial (Cmd+Y) | 🚧 sin rodaje |
 | **Descargar vídeos** de la página, también por trozos (HLS), con progreso, y guardar la página como PDF | 🚧 sin rodaje |
 | **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa, selección múltiple, copiar carpetas por trozos con progreso y arrastrar entre ventanas | 🚧 a falta de rodaje |
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | 🚧 a falta de rodaje |
 | **Notas** con historial del portapapeles, cuarta app del dock (Cmd+4) | ✅ |
+| **Fotos**: las fotos y los vídeos de una carpeta de cualquier ubicación, en rejilla, con visor, reproductor y pase de diapositivas (Cmd+5) | 🚧 sin compilar |
 | **Barra superior** con Tailscale (estado cada 10 s y conectar por Atajos) y el tiempo en un desplegable (Open-Meteo) | ✅ el desplegable del tiempo, sin probar |
 
 El escritorio, el ratón, el teclado, la conexión SSH y el navegador están probados con un monitor
@@ -76,11 +77,10 @@ cp Local.xcconfig.example Local.xcconfig       # y pon tu DEVELOPMENT_TEAM
 ./Tools/build.sh
 ```
 
-Opcionales, porque lo que descargan no se versiona:
+Opcional, porque lo que copia no se versiona:
 
 ```bash
 ./Tools/fetch-wallpapers.sh    # copia los fondos de macOS de tu propio Mac
-./Tools/fetch-blocklists.sh    # descarga EasyList y EasyPrivacy y las convierte
 ```
 
 El `.xcodeproj` **no está versionado**: lo genera XcodeGen desde `project.yml`. El equipo de firma
@@ -128,9 +128,10 @@ Software de terceros:
 - [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) — SIL Open Font License 1.1
 - [IBM Plex Sans](https://github.com/IBM/plex) — SIL Open Font License 1.1
 
-Las listas de bloqueo **EasyList** y **EasyPrivacy** tienen licencia propia y **no se redistribuyen
-en este repositorio**: un script de `Tools/` las descarga y las convierte en local, y lo generado
-está en `.gitignore`.
+Las listas de bloqueo (las de uBlock Origin, EasyList, EasyPrivacy, AdGuard…) tienen licencia
+propia y **no se redistribuyen**: la app las baja de sus direcciones de siempre y las convierte en el
+propio iPhone. Igual con las reglas de **I Still Don't Care About Cookies** (GPL-3), que quitan
+los avisos de cookies.
 
 Lo mismo con los **fondos de macOS**: son de Apple, y `Tools/fetch-wallpapers.sh` los copia desde
 tu propio Mac sin que salgan de él. Los degradados que trae BrunOS de serie se dibujan por código

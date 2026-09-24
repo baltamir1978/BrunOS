@@ -1,4 +1,5 @@
 import UIKit
+import UniformTypeIdentifiers
 
 /// Gestor de ficheros, estilo Finder: ubicaciones a la izquierda y la lista a
 /// la derecha.
@@ -1009,6 +1010,11 @@ final class FilesPane: UIView, Pane {
                 ) { [weak self] in
                     self?.openInBrowser(item)
                 })
+                if item.type?.conforms(to: .image) == true || item.type?.conforms(to: .movie) == true {
+                    entries.append(ContextMenu.Entry(title: "Abrir en Fotos", symbol: "photo.on.rectangle") {
+                        [weak self] in self?.openInPhotos(folder: nil, opening: item.name)
+                    })
+                }
                 if item.kind == .image {
                     entries.append(ContextMenu.Entry(
                         title: "Usar como fondo de escritorio",
@@ -1020,6 +1026,9 @@ final class FilesPane: UIView, Pane {
             } else {
                 entries.append(ContextMenu.Entry(title: "Abrir", symbol: "folder") { [weak self] in
                     self?.open(item)
+                })
+                entries.append(ContextMenu.Entry(title: "Abrir en Fotos", symbol: "photo.on.rectangle") {
+                    [weak self] in self?.openInPhotos(folder: item.path, opening: nil)
                 })
             }
             entries.append(ContextMenu.Entry(title: "Copiar", symbol: "doc.on.doc") {
@@ -1054,6 +1063,9 @@ final class FilesPane: UIView, Pane {
         if item == nil, !items.isEmpty {
             entries.append(ContextMenu.Entry(title: "Seleccionar todo", symbol: "checkmark.circle") {
                 [weak self] in self?.selectAll()
+            })
+            entries.append(ContextMenu.Entry(title: "Ver esta carpeta en Fotos", symbol: "photo.on.rectangle") {
+                [weak self] in self?.openInPhotos(folder: nil, opening: nil)
             })
         }
         for kind in [Sort.name, .size, .date] where kind != sort {
@@ -1154,6 +1166,12 @@ final class FilesPane: UIView, Pane {
     }
 
     // MARK: - Operaciones
+
+    /// Una carpeta en Fotos: la dada o la que se está viendo, y si se dice,
+    /// con una foto o un vídeo ya abierto.
+    private func openInPhotos(folder: String?, opening name: String?) {
+        services.desktopViewController?.openInPhotos(location: locationKey, path: folder ?? path, opening: name)
+    }
 
     private func openInBrowser(_ item: FileItem) {
         Task { [weak self] in

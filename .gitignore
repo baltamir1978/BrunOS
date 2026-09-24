@@ -29,11 +29,6 @@ build/
 .swiftpm/
 Package.resolved
 
-# --- Listas de bloqueo generadas ---
-# EasyList y EasyPrivacy tienen licencia propia: no se redistribuyen aquí.
-# Tools/fetch-blocklists.sh las descarga y convierte en local.
-BrunOS/Resources/Blocklists/*.json
-
 # --- macOS ---
 .DS_Store
 

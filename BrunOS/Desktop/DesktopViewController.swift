@@ -464,6 +464,11 @@ final class DesktopViewController: UIViewController {
             }
 
         case .toggleFullScreen:
+            // Con un vídeo a pantalla completa, Ctrl+Cmd+F sale de él.
+            if let video = videoFullScreen, let browser = workspace.pane(video.id) as? BrowserPane {
+                browser.exitVideoFullScreen()
+                return true
+            }
             dockRevealed = false
             topBarRevealed = false
             let entering = !services.desktop.isFullScreen
@@ -621,6 +626,10 @@ final class DesktopViewController: UIViewController {
                 let session = files.sessionLocation
                 saved.location = session.location
                 saved.path = session.path
+            case let photos as PhotosPane:
+                let session = photos.sessionLocation
+                saved.location = session.location
+                saved.path = session.path
             default:
                 break
             }
@@ -679,6 +688,7 @@ final class DesktopViewController: UIViewController {
             case .browser: BrowserPane(frame: .zero)
             case .files: FilesPane(frame: .zero)
             case .notes: NotesPane(frame: .zero)
+            case .photos: PhotosPane(frame: .zero)
             }
             if let frame = window.frame {
                 let scaled = CGRect(x: frame.minX * sx, y: frame.minY * sy,
@@ -696,6 +706,10 @@ final class DesktopViewController: UIViewController {
             case let files as FilesPane:
                 if let location = window.location, let path = window.path {
                     files.restore(location: location, path: path)
+                }
+            case let photos as PhotosPane:
+                if let location = window.location, let path = window.path {
+                    photos.restore(location: location, path: path)
                 }
             default:
                 break
@@ -721,6 +735,7 @@ final class DesktopViewController: UIViewController {
         case .browser: BrowserPane(frame: .zero)
         case .files: FilesPane(frame: .zero)
         case .notes: NotesPane(frame: .zero)
+        case .photos: PhotosPane(frame: .zero)
         }
 
         if DesktopPreferences.newPanesFloat {
@@ -884,6 +899,7 @@ final class DesktopViewController: UIViewController {
     /// El botón rojo: cierra un panel, con lo que tenga dentro.
     func closePane(_ view: UIView) {
         let workspace = services.desktop.active
+        (view as? BrowserPane)?.exitVideoFullScreen()
         if let (id, pane) = workspace.panes.first(where: { $0.value.view === view }).map({ ($0.key, $0.value) }) {
             (pane as? TerminalPane)?.closeAll()
             pane.view.removeFromSuperview()
@@ -899,6 +915,7 @@ final class DesktopViewController: UIViewController {
     /// El botón amarillo: el panel sale del mosaico y queda en el dock.
     func minimizePane(_ view: UIView) {
         let workspace = services.desktop.active
+        (view as? BrowserPane)?.exitVideoFullScreen()
         guard let id = workspace.panes.first(where: { $0.value.view === view })?.key else { return }
         workspace.minimize(id)
         if workspace.isEmpty, services.desktop.isFullScreen {
@@ -1052,6 +1069,12 @@ final class DesktopViewController: UIViewController {
         services.desktop.notifyChange()
     }
 
+    /// Una carpeta de Ficheros en Fotos y, si se dice, una foto o un vídeo
+    /// de ella ya abierto.
+    func openInPhotos(location: String, path: String, opening name: String? = nil) {
+        (frontmost(.photos) as? PhotosPane)?.show(location: location, path: path, opening: name)
+    }
+
     func openInBrowser(_ url: URL) {
         (frontmost(.browser) as? BrowserPane)?.newTab(url: url.absoluteString)
     }
@@ -1151,6 +1174,9 @@ final class DesktopViewController: UIViewController {
             Launcher.Entry(title: "Nuevo gestor de ficheros", subtitle: "Acción", symbol: "plus.rectangle") {
                 [weak self] in self?.newPane(.files)
             },
+            Launcher.Entry(title: "Nueva ventana de Fotos", subtitle: "Acción", symbol: "plus.rectangle") {
+                [weak self] in self?.newPane(.photos)
+            },
             Launcher.Entry(title: "Nota nueva", subtitle: "Acción · Notas", symbol: "square.and.pencil") {
                 [weak self] in self?.newNote()
             },
@@ -1244,7 +1270,46 @@ final class DesktopViewController: UIViewController {
         for (id, frame) in workspace.floating {
             frames[id] = frame
         }
+        if let video = videoFullScreen, workspace.pane(video.id) != nil {
+            frames[video.id] = CGRect(origin: .zero, size: logicalSize)
+        }
         return frames
+    }
+
+    /// La ventana con un vídeo a pantalla completa (YouTube, Plex): se lleva
+    /// el monitor entero, por encima de las demás, sin tocar el mosaico ni
+    /// las flotantes. Se apunta si el escritorio ya estaba a pantalla
+    /// completa, para dejarlo igual al salir.
+    private var videoFullScreen: (id: PaneID, wasFullScreen: Bool)?
+
+    /// La pide el navegador cuando la página entra o sale de pantalla
+    /// completa (`BrowserPane.setVideoFullScreen`).
+    func setVideoFullScreen(_ on: Bool, for view: UIView) {
+        let workspace = services.desktop.active
+        guard let id = workspace.panes.first(where: { $0.value.view === view })?.key else {
+            if !on, let video = videoFullScreen, workspace.pane(video.id) == nil {
+                services.desktop.isFullScreen = video.wasFullScreen
+                videoFullScreen = nil
+                services.desktop.notifyChange()
+            }
+            return
+        }
+        if on {
+            if let video = videoFullScreen, video.id != id,
+               let other = workspace.pane(video.id) as? BrowserPane {
+                other.exitVideoFullScreen()
+            }
+            videoFullScreen = (id, videoFullScreen?.wasFullScreen ?? services.desktop.isFullScreen)
+            workspace.setFocus(id)
+            dockRevealed = false
+            topBarRevealed = false
+            services.desktop.isFullScreen = true
+        } else {
+            guard let video = videoFullScreen, video.id == id else { return }
+            videoFullScreen = nil
+            services.desktop.isFullScreen = video.wasFullScreen
+        }
+        services.desktop.notifyChange()
     }
 
     /// Dónde se reparten los paneles: entre la barra y el dock.
@@ -1309,13 +1374,15 @@ final class DesktopViewController: UIViewController {
         // se pararía a medio camino.
         if windowDrag != nil, handleWindowDrag(kind, at: position) { return }
 
-        if case .moved = kind, dockAutoHidden {
+        // Con un vídeo a pantalla completa no asoman: la barra de YouTube o
+        // Plex está justo abajo, donde saldría el dock.
+        if case .moved = kind, dockAutoHidden, videoFullScreen == nil {
             updateFullScreenReveal(at: position)
         }
         if !dockAutoHidden || dockRevealed, handleDock(kind, at: position) { return }
         if !services.desktop.isFullScreen || topBarRevealed, handleTopBar(kind, at: position) { return }
-        if handleWindowDrag(kind, at: position) { return }
-        if floatingWindow(at: position) == nil,
+        if videoFullScreen == nil, handleWindowDrag(kind, at: position) { return }
+        if videoFullScreen == nil, floatingWindow(at: position) == nil,
            handleDivider(kind, at: position, frames: tiledFrames()) { return }
 
         guard let hit = paneHit(at: position, frames: frames) else { return }
@@ -1399,6 +1466,11 @@ final class DesktopViewController: UIViewController {
             canvas.bringSubviewToFront(pane.view)
         }
 
+        // El vídeo a pantalla completa, por encima de todas las ventanas.
+        if let video = videoFullScreen, let pane = workspace.pane(video.id) {
+            canvas.bringSubviewToFront(pane.view)
+        }
+
         // Los paneles van debajo de las barras: con pantalla completa, el dock
         // y la barra salen por encima de lo que haya. Y las ventanas modales,
         // por encima de todo, incluidas las barras.
@@ -1426,6 +1498,8 @@ final class DesktopViewController: UIViewController {
     /// El panel que hay en un punto: primero las flotantes, de delante a
     /// atrás, y luego el mosaico.
     private func paneHit(at point: CGPoint, frames: [PaneID: CGRect]) -> (key: PaneID, value: CGRect)? {
+        // Un vídeo a pantalla completa lo tapa todo.
+        if let video = videoFullScreen, let frame = frames[video.id] { return (video.id, frame) }
         if let (id, frame) = floatingWindow(at: point) { return (id, frame) }
         let workspace = services.desktop.active
         return frames.first { !workspace.isFloating($0.key) && $0.value.contains(point) }

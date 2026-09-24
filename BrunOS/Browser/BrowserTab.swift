@@ -137,6 +137,7 @@ final class BrowserTab: NSObject {
 
         installDesktopHints()
         installViewportFix()
+        installFullscreenBridge()
         // El indicador de scroll estorba: el cursor ya dice dónde está uno.
         webView.scrollView.showsVerticalScrollIndicator = false
 
@@ -191,6 +192,42 @@ final class BrowserTab: NSObject {
         webView.configuration.userContentController.addUserScript(
             WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         )
+    }
+
+    // MARK: - Pantalla completa
+
+    /// La pantalla completa de la página la hace BrunOS: la de WebKit exige un
+    /// gesto de verdad, y los clics de BrunOS son sintéticos. Ver
+    /// `FullscreenBridge.js`. Va en el mundo de la página, que es quien llama
+    /// a `requestFullscreen`.
+    private func installFullscreenBridge() {
+        guard let url = Bundle.main.url(forResource: "FullscreenBridge", withExtension: "js"),
+              let source = try? String(contentsOf: url, encoding: .utf8)
+        else { return }
+        let controller = webView.configuration.userContentController
+        controller.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        controller.add(FullscreenRelay(tab: self), contentWorld: .page, name: "brunosFullscreen")
+    }
+
+    /// La página ha entrado (`true`) o salido de la pantalla completa. Lo
+    /// resuelve el panel: esconde sus barras y lleva la ventana a todo el
+    /// monitor.
+    var onFullscreenRequest: (@MainActor (Bool) -> Void)?
+    private(set) var isPageFullscreen = false
+
+    fileprivate func fullscreenRequested(_ on: Bool) {
+        isPageFullscreen = on
+        onFullscreenRequest?(on)
+    }
+
+    /// Esc, cambiar de pestaña o cerrar: la página tiene que enterarse de que
+    /// ya no está a pantalla completa, o su reproductor se quedaría estirado.
+    func exitPageFullscreen() {
+        guard isPageFullscreen else { return }
+        isPageFullscreen = false
+        webView.evaluateJavaScript(
+            "window.__brunosFullscreen && window.__brunosFullscreen.exit();", in: nil, in: .page
+        ) { _ in }
     }
 
     /// Corrige el ancho del viewport en las páginas de escritorio.
@@ -834,6 +871,63 @@ final class BrowserTab: NSObject {
         // Aviso de la página cuando aparece o arranca un vídeo. Antes el
         // panel lo preguntaba cada 3 segundos, se viera o no.
         controller.add(MediaHintRelay(tab: self), contentWorld: world, name: "brunosMedia")
+
+        // El que pliega los huecos de lo bloqueado, en todos los marcos
+        // también: los anuncios suelen ir en iframes dentro de iframes.
+        if let url = Bundle.main.url(forResource: "BlockerCollapse", withExtension: "js"),
+           let collapse = try? String(contentsOf: url, encoding: .utf8) {
+            controller.addUserScript(WKUserScript(
+                source: collapse,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false,
+                in: world
+            ))
+            controller.add(CollapseRelay(tab: self), contentWorld: world, name: "brunosCollapse")
+        }
+
+        // Los avisos de cookies: cada marco dice dónde está y Swift le mete
+        // las reglas de su sitio. En su propio mundo, sin los canales de
+        // BrunOS: ver `CookieNoticeBlocker`.
+        controller.addUserScript(WKUserScript(
+            source: """
+                if (/^https?:$/.test(location.protocol) && window.webkit && window.webkit.messageHandlers.brunosCookies) {
+                    window.webkit.messageHandlers.brunosCookies.postMessage(location.hostname);
+                }
+                """,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false,
+            in: CookieNoticeBlocker.world
+        ))
+        controller.add(CookieRelay(tab: self), contentWorld: CookieNoticeBlocker.world, name: "brunosCookies")
+    }
+
+    /// Un marco pide las reglas de cookies de su sitio. Se mira si están
+    /// apagadas para la página de arriba, que es la que sale en la barra.
+    fileprivate func answerCookies(host: String, in frame: WKFrameInfo) {
+        let notices = AppServices.shared.cookieNotices
+        guard notices.isEnabled(for: webView.url?.host() ?? host),
+              let script = notices.injection(forHost: host)
+        else { return }
+        webView.evaluateJavaScript(script, in: frame, in: CookieNoticeBlocker.world) { _ in }
+    }
+
+    /// `BlockerCollapse.js` pregunta si el bloqueador está encendido en esta
+    /// página y cuáles de esos dominios de iframe están bloqueados enteros. Se
+    /// contesta en el mismo marco que preguntó.
+    fileprivate func answerCollapse(hosts: [String], in frame: WKFrameInfo) {
+        let blocker = AppServices.shared.blocker
+        let enabled = blocker.collapsesBlocked && blocker.isEnabled(for: webView.url?.host())
+        var blocked: [String: Bool] = [:]
+        for host in hosts.prefix(200) {
+            blocked[host] = enabled && blocker.isBlockedHost(host)
+        }
+        let reply: [String: Any] = ["enabled": enabled, "blocked": blocked]
+        guard let data = try? JSONSerialization.data(withJSONObject: reply) else { return }
+        webView.evaluateJavaScript(
+            "window.__brunosCollapse && window.__brunosCollapse.answer(\(String(decoding: data, as: UTF8.self)));",
+            in: frame,
+            in: world
+        ) { _ in }
     }
 
     /// La página tiene un vídeo nuevo, o ha cambiado lo que reproduce.
@@ -994,6 +1088,8 @@ extension BrowserTab: WKNavigationDelegate {
     /// cargar, que es cuando arranca el vídeo que se reproduce solo.
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         if isMuted { applyMute(in: nil) }
+        // Otra página: lo que estuviera a pantalla completa ya no existe.
+        if isPageFullscreen { fullscreenRequested(false) }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
@@ -1285,6 +1381,55 @@ private final class MediaHintRelay: NSObject, WKScriptMessageHandler {
         // También de los iframes: un reproductor incrustado (YouTube en otra
         // web) avisa desde el suyo, y es lo que enciende el altavoz.
         tab?.mediaHint()
+    }
+}
+
+/// Recibe las preguntas de `BlockerCollapse.js`, con referencia débil por lo
+/// mismo que `FrameRegistrar`.
+@MainActor
+private final class CollapseRelay: NSObject, WKScriptMessageHandler {
+    weak var tab: BrowserTab?
+
+    init(tab: BrowserTab) {
+        self.tab = tab
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any] else { return }
+        let hosts = (body["hosts"] as? [Any])?.compactMap { $0 as? String } ?? []
+        tab?.answerCollapse(hosts: hosts, in: message.frameInfo)
+    }
+}
+
+/// Recibe las peticiones de `answerCookies`, con referencia débil por lo
+/// mismo que `FrameRegistrar`.
+@MainActor
+private final class CookieRelay: NSObject, WKScriptMessageHandler {
+    weak var tab: BrowserTab?
+
+    init(tab: BrowserTab) {
+        self.tab = tab
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let host = message.body as? String, !host.isEmpty else { return }
+        tab?.answerCookies(host: host, in: message.frameInfo)
+    }
+}
+
+/// Recibe la pantalla completa de `FullscreenBridge.js`, sólo del marco
+/// principal: los iframes se lo piden al de fuera, y éste a Swift.
+@MainActor
+private final class FullscreenRelay: NSObject, WKScriptMessageHandler {
+    weak var tab: BrowserTab?
+
+    init(tab: BrowserTab) {
+        self.tab = tab
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame, let on = message.body as? Bool else { return }
+        tab?.fullscreenRequested(on)
     }
 }
 

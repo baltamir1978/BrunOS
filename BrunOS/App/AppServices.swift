@@ -27,6 +27,7 @@ final class AppServices {
     let tailscale = TailscaleMonitor()
     let wallpaper = WallpaperStore()
     let blocker = ContentBlocker()
+    let cookieNotices = CookieNoticeBlocker()
     let files = FileService()
     let history = BrowserHistory()
     let favicons = FaviconStore()
@@ -67,6 +68,7 @@ final class AppServices {
             MainActor.assumeIsolated { AppServices.shared.files.rebuild() }
         }
         Task { await blocker.prepare() }
+        Task { await cookieNotices.prepare() }
     }
 
     /// Gestiona la vuelta desde Atajos por `brunos://`.
