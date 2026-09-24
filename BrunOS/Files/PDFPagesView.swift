@@ -110,7 +110,7 @@ final class PDFPagesView: UIView {
 
     func setZoom(_ value: CGFloat) {
         let page = currentPage
-        zoom = min(max(value, 0.4), 4)
+        zoom = min(max(value, 0.25), 6)
         go(toPage: page)
     }
 

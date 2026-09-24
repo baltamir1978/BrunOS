@@ -430,3 +430,13 @@ no pasa, por eso la primera prueba no lo vio. Ahora el elemento a pantalla compl
 píxeles con `innerWidth`/`innerHeight` (`fit()`, y otra vez con cada `resize`). En el simulador:
 vídeo de 402×812 con franjas negras, subtítulos visibles y controles dentro. **Probar siempre en
 el simulador de iOS, no sólo en macOS**, lo que dependa del viewport.
+
+### Reddit con la letra enorme: el autoajuste de texto de iOS (24-sep-2026, noche)
+
+Bruno: «en Reddit tengo la sensación de que el texto detecta algo, porque es muy grande». Medido con
+Reddit real en el simulador de iOS frente a macOS, en un panel de 1400×900: títulos de 21 px en
+vez de 18 y párrafos de 24 en vez de 14. **Era `-webkit-text-size-adjust: auto`**, el autoajuste
+de texto de iOS, que agranda la letra de las páginas anchas; con `100%` sale igual que en el Mac.
+Va en `installDesktopHints`, con dos cosas más: `screen` mide lo que la ventana (decía 402×874, la
+del iPhone) y `matchMedia` contesta «ratón» a `pointer`/`hover` desde JavaScript (el CSS no se puede
+cambiar). Comprobado en el simulador con el script tal cual.

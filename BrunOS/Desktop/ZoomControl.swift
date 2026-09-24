@@ -1,9 +1,9 @@
 import UIKit
 
 /// «−  125 %  +», el control de zoom de los visores (la vista previa de
-/// Ficheros y el visor de Fotos). Lo pidió Bruno el 24-sep-2026: el PDF, las
-/// fotos y los vídeos sólo se podían ampliar con Cmd + / −, sin nada a la
-/// vista que dijera cómo ni cuánto.
+/// Ficheros y el visor de Fotos), de 25 % a 600 %. Lo pidió Bruno el
+/// 24-sep-2026: el PDF, las fotos y los vídeos sólo se podían ampliar con
+/// Cmd + / −, sin nada a la vista que dijera cómo ni cuánto.
 ///
 /// Dibujado y resuelto por geometría, como todo en el monitor: quien lo lleva
 /// le pregunta `hit(at:)` con el punto en sus coordenadas. Pulsar el
@@ -99,13 +99,16 @@ struct ZoomState {
     private(set) var zoom: CGFloat = 1
     private(set) var pan: CGPoint = .zero
 
-    static let steps: [CGFloat] = [1, 1.25, 1.5, 2, 3, 4, 6]
+    /// También por debajo de 100 %: Bruno quería poder alejar, no sólo
+    /// acercar (24-sep-2026).
+    static let steps: [CGFloat] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6]
 
     mutating func step(_ direction: Int) {
         let index = Self.steps.lastIndex { $0 <= zoom + 0.001 } ?? 0
         let next = min(max(index + direction, 0), Self.steps.count - 1)
         zoom = Self.steps[next]
-        if zoom == 1 { pan = .zero }
+        // Sin ampliar no hay nada que mover: vuelve al centro.
+        if zoom <= 1 { pan = .zero }
     }
 
     mutating func reset() {

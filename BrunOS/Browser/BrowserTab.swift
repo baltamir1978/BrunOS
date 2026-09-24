@@ -177,6 +177,20 @@ final class BrowserTab: NSObject {
     ///
     /// Va en el mundo **de la página**, no en el propio de BrunOS: tiene que
     /// verlo el JavaScript del sitio.
+    ///
+    /// **Y tres cosas más, por Reddit** (24-sep-2026: «el texto detecta algo
+    /// porque es muy grande»). Medido con Reddit de verdad en el simulador de
+    /// iOS frente a macOS, con un panel de 1400×900: títulos de 21 px en vez de
+    /// 18 y párrafos de 24 en vez de 14.
+    ///
+    /// - **El autoajuste de texto de iOS** (`-webkit-text-size-adjust: auto`)
+    ///   agranda la letra de las páginas anchas pensando en un móvil. Era eso:
+    ///   con `100%`, Reddit sale igual que en el Mac.
+    /// - `screen` decía 402×874, la pantalla del iPhone: ahora, lo que mide la
+    ///   ventana, como en un navegador de escritorio.
+    /// - `matchMedia` de `pointer`/`hover` decía «dedo, sin ratón». Se contesta
+    ///   «ratón» a lo que pregunte el JavaScript; lo que pregunte el CSS no se
+    ///   puede cambiar desde aquí.
     private func installDesktopHints() {
         let source = """
             (function () {
@@ -186,6 +200,44 @@ final class BrowserTab: NSObject {
                     delete window.ontouchstart;
                     delete window.ontouchmove;
                     delete window.ontouchend;
+                } catch (error) {}
+                try {
+                    const style = document.createElement('style');
+                    style.textContent = 'html { -webkit-text-size-adjust: 100% !important; text-size-adjust: 100% !important; }';
+                    document.documentElement.appendChild(style);
+                } catch (error) {}
+                try {
+                    const size = {
+                        width: () => window.innerWidth, height: () => window.innerHeight,
+                        availWidth: () => window.innerWidth, availHeight: () => window.innerHeight,
+                    };
+                    for (const key of Object.keys(size)) {
+                        Object.defineProperty(Screen.prototype, key, { get: size[key], configurable: true });
+                    }
+                } catch (error) {}
+                try {
+                    const original = window.matchMedia.bind(window);
+                    const mouse = {
+                        '(pointer: coarse)': false, '(pointer:coarse)': false,
+                        '(any-pointer: coarse)': false, '(any-pointer:coarse)': false,
+                        '(pointer: fine)': true, '(pointer:fine)': true,
+                        '(any-pointer: fine)': true, '(any-pointer:fine)': true,
+                        '(hover: none)': false, '(hover:none)': false,
+                        '(hover: hover)': true, '(hover:hover)': true,
+                        '(any-hover: hover)': true, '(any-hover:hover)': true,
+                    };
+                    window.matchMedia = function (query) {
+                        const list = original(query);
+                        const key = String(query).trim().toLowerCase();
+                        if (!(key in mouse)) return list;
+                        return new Proxy(list, {
+                            get(target, name) {
+                                if (name === 'matches') return mouse[key];
+                                const value = Reflect.get(target, name);
+                                return typeof value === 'function' ? value.bind(target) : value;
+                            },
+                        });
+                    };
                 } catch (error) {}
             })();
             """

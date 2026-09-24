@@ -214,7 +214,7 @@ en un vídeo, pausa y sigue. **Sin probar en el iPhone.**
 
 ### Control de zoom en los visores (24-sep-2026, noche)
 
-`ZoomControl` («−  100 %  +», el porcentaje vuelve a ajustar) y `ZoomState` (pasos de 100 a 600 %,
+`ZoomControl` («−  100 %  +», el porcentaje vuelve a ajustar) y `ZoomState` (pasos de 25 a 600 %,
 y moverse con la rueda por lo ampliado sin pasarse del borde), en `Desktop/ZoomControl.swift`.
 Los usan la vista previa de Ficheros (PDF, imagen y vídeo; el PDF con su propio zoom, que además
 se mueve a los lados) y el visor de Fotos. Cmd + / − / 0 hacen lo mismo: en la vista previa por
