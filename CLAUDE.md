@@ -501,6 +501,9 @@ Además, también sin subir:
 6–100 % en vertical**: arriba iOS no deja entrar el puntero en la franja de la isla. Así que:
 
 - **Manda el puntero indirecto** (posición absoluta), y `GCMouse` sólo si no hay indirecto.
+- **La rueda tiene su propia preferencia**: `GCMouse` si la entrega, que es la que Bruno confirmó
+  con su sentido; si no, la del indirecto. Con la preferencia del movimiento, el scroll de
+  `GCMouse` se habría filtrado.
 - **El vertical se estira** desde lo más alto que alcanza el puntero de verdad (`topReach`: el
   área segura de arriba, o el 6 % si iOS no la diera, o lo más alto visto si sube más) hasta
   abajo, para que ese 6 % sea el borde de arriba del monitor.

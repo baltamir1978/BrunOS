@@ -138,9 +138,26 @@ final class MouseRouter: MouseSourceDelegate {
     func mouseSource(_ source: any MouseSource, didMove delta: MouseDelta) {
         count(source)
         noteMove(source, delta)
+
+        // **La rueda tiene su propia preferencia: `GCMouse` si la entrega.**
+        // El movimiento lo manda el indirecto (ver `preferred`), pero el scroll
+        // que Bruno confirmó bueno, con su sentido, venía por `GCMouse`, y con
+        // el indirecto mandando se habría filtrado. Si `GCMouse` no da rueda,
+        // vale la del indirecto. Nunca las dos a la vez: desplazaría el doble.
+        if delta.scroll != .zero, delta.translation == .zero, delta.position == nil {
+            let now = CACurrentMediaTime()
+            if source === gcSource { lastGCScroll = now }
+            guard source === gcSource || now - lastGCScroll > 0.5 else { return }
+            delegate?.mouseSource(source, didMove: delta)
+            return
+        }
+
         guard isActive(source) else { return }
         delegate?.mouseSource(source, didMove: delta)
     }
+
+    /// Cuándo llegó rueda por última vez de `GCMouse`.
+    private var lastGCScroll: CFTimeInterval = 0
 
     /// Se cuenta **antes** de filtrar por fuente activa: interesa saber si los
     /// eventos llegan, aunque acaben descartándose.
