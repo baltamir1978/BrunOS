@@ -171,6 +171,17 @@ final class TrackpadUIView: UIView {
         lastPoint = nil
     }
 
+    /// Si la vista se va (el iPhone sale del modo mando) con el botón
+    /// pulsado, el toque ya no le llega a nadie: se suelta aquí.
+    override func willMove(toWindow newWindow: UIWindow?) {
+        super.willMove(toWindow: newWindow)
+        if newWindow == nil {
+            releaseMouseButtonIfNeeded()
+            finishDragIfNeeded()
+            lastPoint = nil
+        }
+    }
+
     private func releaseMouseButtonIfNeeded() {
         guard isMouseButton else { return }
         isMouseButton = false

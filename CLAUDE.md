@@ -22,7 +22,12 @@ barra; el desplegable del tiempo no, ver abajo).
 color plano (dibujaba fuera de su tarjeta); las sugerencias de la barra de direcciones, con el
 texto desplazado por lo mismo; los nombres largos de la barra lateral de Ficheros, con «…» y la
 barra a 180 puntos; el icono de Tailscale comprobado cada 10 segundos; y el texto que explica el
-atajo «BrunOS Tailscale» (alterna la VPN).
+atajo «BrunOS Tailscale» (alterna la VPN); y **el iPhone en blanco y el ratón mal al volver de
+Atajos** (ver «Al volver de Atajos»), con el registro de sucesos en Ajustes › Rendimiento.
+
+**Visto bien por Bruno en la 2609241157, todo lo demás** (24-sep por la tarde): las cinco cosas de
+la 2609240858, Exposé, el conmutador, fijar y silenciar, la selección múltiple y el progreso de
+Ficheros, recordar el escritorio, Notas y la barra superior.
 
 **Para seguir en el Mac** (rama `claude/admiring-mendel-ncfej4`, ya juntada con `main`). Todo lo de la
 tarde del 24-sep se escribió en una sesión de Linux **sin Xcode ni compilador**; sólo se pasó un
@@ -428,6 +433,25 @@ soltar, botón suelto.
 suponiendo que caía justo bajo el puntero. No es así —Bruno lo vio en el iPhone—: cada clic hacía
 saltar el cursor y el arrastre era imposible. **La posición del toque de AssistiveTouch no es
 fiable; su desplazamiento, sí.**
+
+### Al volver de Atajos, el iPhone en blanco y el ratón mal (24-sep-2026)
+
+Bruno lo vio tras encender y apagar Tailscale, que pasa por Atajos. **Sin reproducir**: esto es
+lo que el código explica. Mientras BrunOS está en otra app, `updateProperties` ve el accesorio
+como no disponible y `detach()` da el monitor por desconectado (fuera el cursor, el iPhone sale
+del modo mando). Al volver, **iOS puede reutilizar la misma escena externa** sin llamar otra vez a
+`scene(_:willConnectTo:)`, y nadie la enganchaba. Además, «Conectar» actúa al pulsar, la app se va
+antes de que llegue el soltar, y si la vista del trackpad ya no estaba, `isHoldingButton` se
+quedaba en `true` y **se ignoraba el movimiento del puntero** (`mouseSource(_:didMove:)`).
+
+- `ExternalSceneDelegate.reattachIfNeeded()` vuelve a enganchar monitor y cursor **si no hay
+  ninguno enganchado**: al volver al frente la escena externa, al activarse la del iPhone y cuando
+  el accesorio vuelve a estar disponible (`updateProperties`).
+- El botón se suelta al dejar de estar activa la app (`sceneWillResignActive`) y cuando la vista
+  del trackpad sale de la ventana.
+- **`EventLog`**: las últimas 30 cosas de la app y del monitor (conectar, segundo plano, vueltas
+  por `brunos://`), en Ajustes › Rendimiento, porque sin Modo de desarrollador no hay log. Si
+  vuelve a pasar esto o lo de la pantalla duplicada al arrancar, es lo primero que hay que pedirle.
 
 ### Al desconectar, el iPhone se quedaba en modo mando
 

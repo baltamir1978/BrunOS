@@ -23,11 +23,16 @@ final class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
     /// Vuelta desde Atajos por `brunos://`, tras encender AssistiveTouch.
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         for context in URLContexts {
+            EventLog.note("Vuelta por \(context.url.scheme ?? "")://\(context.url.host() ?? "")")
             AppServices.shared.handle(url: context.url)
         }
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
+        EventLog.note("iPhone: activa")
+        // Por si la escena del monitor se quedó suelta mientras estábamos en
+        // otra app (ver `ExternalSceneDelegate.reattachIfNeeded`).
+        ExternalSceneDelegate.reattachAll()
         AppServices.shared.assistiveTouch.refresh()
         // Tailscale ha podido cambiar desde Atajos o desde su app.
         AppServices.shared.tailscale.refresh()
@@ -36,7 +41,22 @@ final class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
         UIApplication.shared.isIdleTimerDisabled = true
     }
 
+    /// **Se suelta el botón del ratón al irse.** Un clic que manda a otra app
+    /// (el «Conectar» de Tailscale abre Atajos al pulsar) no llega a soltarse:
+    /// el toque de AssistiveTouch se corta, y si la vista del trackpad ya no
+    /// está para enterarse, BrunOS se quedaba con el botón «pulsado» e
+    /// ignoraba el movimiento del puntero al volver.
+    func sceneWillResignActive(_ scene: UIScene) {
+        EventLog.note("iPhone: deja de estar activa")
+        let services = AppServices.shared
+        if services.pointer.isHoldingButton {
+            services.pointer.isHoldingButton = false
+            services.desktopViewController?.deliverPointer(.up(button: .left), modifiers: [])
+        }
+    }
+
     func sceneDidEnterBackground(_ scene: UIScene) {
+        EventLog.note("iPhone: en segundo plano")
         UIApplication.shared.isIdleTimerDisabled = false
         // Si iOS cierra la app en segundo plano, que no se lleve las cookies.
         CookieVault.shared.saveNow()

@@ -68,8 +68,13 @@ final class PhoneRootViewController: UIViewController {
         let manager = services.externalDisplay
         guard let registration = manager.registration else { return }
         if !registration.isAvailable, manager.currentProfile != nil {
-            Log.display.info("El accesorio externo ya no está disponible")
+            EventLog.note("Monitor: el accesorio deja de estar disponible")
             manager.detach()
+        } else if registration.isAvailable, manager.currentProfile == nil {
+            // Vuelve a estar disponible y la escena sigue viva: si iOS no
+            // conecta una nueva, hay que engancharla otra vez (ver
+            // `ExternalSceneDelegate.reattachIfNeeded`).
+            ExternalSceneDelegate.reattachAll()
         }
     }
 

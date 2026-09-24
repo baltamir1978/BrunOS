@@ -123,7 +123,7 @@ final class ExternalDisplayManager {
         // Llega por dos vías —`sceneDidDisconnect` y la disponibilidad del
         // accesorio— y la segunda no tiene que hacer nada.
         guard externalWindow != nil || currentProfile != nil else { return }
-        Log.display.info("Pantalla externa desconectada; se conserva el estado de los paneles")
+        EventLog.note("Monitor: se da por desconectado (se conservan los paneles)")
         AppServices.shared.pointer.detach()
         externalWindow = nil
         currentScreen = nil

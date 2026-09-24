@@ -239,6 +239,15 @@ enum SettingsPages {
                         SettingsRow("Pestañas despiertas", .value("\(tabs.live) de \(tabs.total)")),
                     ]
                 ),
+                SettingsGroup(
+                    "Lo último que ha pasado",
+                    footer: "La app y el monitor, al conectarse, irse a segundo plano o volver de Atajos. "
+                        + "Si algo se queda raro (el iPhone en blanco, la pantalla duplicada), esto dice qué "
+                        + "pasó justo antes. Se borra al cerrar la app.",
+                    rows: EventLog.entries.suffix(12).reversed().map { entry in
+                        SettingsRow(entry.text, .value(entry.time.formatted(date: .omitted, time: .standard)))
+                    }
+                ),
             ]
         }
         page.isLive = true
