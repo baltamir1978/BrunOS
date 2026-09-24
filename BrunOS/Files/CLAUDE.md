@@ -151,3 +151,8 @@ El tipo se deduce de la ruta, que es lo único que da iOS: `smbclientd` → serv
 
 Lo preguntó Bruno el 22-sep. Citadel ya da SFTP, que es el mismo canal SSH y permite listar,
 renombrar y borrar; SCP sólo sabe copiar. Lo que faltaba era leer por trozos, y ya está.
+
+### Barra lateral
+
+180 puntos de ancho (antes 150) y los nombres con «…» al final: sin ancho, uno largo se salía y
+quedaba cortado por el borde (Bruno, 24-sep-2026).

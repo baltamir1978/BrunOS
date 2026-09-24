@@ -56,7 +56,15 @@ final class AddressSuggestions: UIView {
         // **La tarjeta dibuja su propio contenido.** Una vista pinta su
         // `draw(_:)` por debajo de sus subvistas, así que las filas dibujadas
         // en el fondo quedarían tapadas por la tarjeta opaca.
-        card.drawContent = { [weak self] in self?.drawRows(in: $0) }
+        //
+        // `CardView` entrega el contexto en coordenadas del panel, y las filas
+        // van desde la esquina de la tarjeta: sin compensarlo, el texto salía
+        // desplazado (Bruno lo vio el 24-sep-2026).
+        card.drawContent = { [weak self] context in
+            guard let self else { return }
+            context.translateBy(x: self.card.frame.minX, y: self.card.frame.minY)
+            self.drawRows(in: context)
+        }
         addSubview(card)
     }
 

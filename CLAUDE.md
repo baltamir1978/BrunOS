@@ -311,7 +311,9 @@ estaba, abre otra ventana** (24-sep-2026: Bruno volvía a pulsar el icono espera
   2609241157): dibujaba en coordenadas de la tarjeta, pero `CardView` entrega el contexto en
   coordenadas de la ventana (ver «Los ajustes salían vacíos»), así que todo caía fuera del
   recorte. Ahora compensa con `translateBy`, como `SettingsWindow`. **Quien use `CardView` y
-  dibuje desde la esquina de la tarjeta tiene que hacer lo mismo.**
+  dibuje desde la esquina de la tarjeta tiene que hacer lo mismo.** Las sugerencias de la barra
+  de direcciones tenían el mismo fallo (texto desplazado) y ya está; los menús, el historial, los
+  formularios y el diálogo de texto sí sumaban el origen de la tarjeta.
 - **El desplegable imita el widget del Tiempo de macOS con los colores del fondo Golden Gate**
   (Bruno lo pidió): degradado de azul del crepúsculo a ámbar, texto blanco y la barra de
   temperaturas en ámbar; de noche, el mismo cielo apagado. Colores fijos a propósito: no cambian

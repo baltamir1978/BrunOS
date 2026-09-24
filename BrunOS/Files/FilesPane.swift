@@ -9,7 +9,7 @@ import UIKit
 @MainActor
 final class FilesPane: UIView, Pane {
 
-    private static let sidebarWidth: CGFloat = 150
+    private static let sidebarWidth: CGFloat = 180
     private static let headerHeight: CGFloat = 36
     private static let rowHeight: CGFloat = 26
 
@@ -452,11 +452,16 @@ final class FilesPane: UIView, Pane {
                 color: isOffline ? tint.withAlphaComponent(0.45) : tint
             )
             let label = isActive ? Tokens.Color.text : Tokens.Color.textSecondary
+            // Con ancho y «…»: sin él, un nombre largo se salía de la barra y
+            // quedaba cortado en seco por el borde (Bruno, 24-sep-2026).
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.lineBreakMode = .byTruncatingTail
             (provider.name as NSString).draw(
-                at: CGPoint(x: frame.minX + 28, y: frame.midY - 8),
+                in: CGRect(x: frame.minX + 28, y: frame.midY - 9, width: frame.maxX - 6 - (frame.minX + 28), height: 18),
                 withAttributes: [
                     .font: Tokens.sans(13),
                     .foregroundColor: isOffline ? label.withAlphaComponent(0.45) : label,
+                    .paragraphStyle: paragraph,
                 ]
             )
         }
