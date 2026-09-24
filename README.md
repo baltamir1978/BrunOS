@@ -30,16 +30,13 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios con las listas de uBlock Origin, avisos de cookies fuera, descargas e iframes pulsables (reCAPTCHA, pagos, logins) | ✅ |
 | **Favoritos** con barra propia, iconos de cada sitio, sugerencias al escribir, modo lectura e historial (Cmd+Y y botón en la barra) | ✅ |
 | **Descargar vídeos** de la página, también por trozos (HLS) y los incrustados de otra web (RedGifs en Reddit), con progreso; pantalla completa de vídeo (YouTube, Plex) y guardar la página como PDF | ✅ |
-| **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa con zoom (PDF, imágenes y vídeo, también por SFTP/SMB mientras llega), selección múltiple, copiar carpetas por trozos con progreso y arrastrar entre ventanas | ✅ SMB sin probar con un servidor |
+| **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa con zoom (PDF, imágenes y vídeo, también por SFTP/SMB mientras llega), selección múltiple, copiar carpetas por trozos con progreso y arrastrar entre ventanas | ✅ |
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | ✅ |
 | **Notas** con historial del portapapeles, cuarta app del dock (Cmd+4) | ✅ |
 | **Fotos**: las fotos y los vídeos de una carpeta de cualquier ubicación, en rejilla, con visor con zoom, reproductor y pase de diapositivas (Cmd+5) | ✅ |
 | **Barra superior** con Tailscale (estado cada 10 s y conectar por Atajos), el tiempo en un desplegable (Open-Meteo) y un calendario del mes al pulsar la hora | ✅ |
 
-Casi todo está probado con un monitor de verdad. Falta rodaje en el SMB propio contra un servidor,
-la reconexión del terminal tras una caída, el dictado, el teclado en pantalla y el overscan. El
-ratón, la pantalla completa de vídeo y el zoom de los visores tienen arreglos recientes todavía sin
-probar en el iPhone.
+Todo lo de la tabla está probado con un monitor de verdad.
 
 El dock funciona como el de macOS: un icono por app, que la trae al escritorio junto a las demás;
 si ya está delante, volver a pulsarlo abre otra ventana, y con el botón derecho se abre otra o se

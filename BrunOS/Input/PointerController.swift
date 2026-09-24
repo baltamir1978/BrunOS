@@ -78,6 +78,9 @@ final class MouseRouter: MouseSourceDelegate {
     /// La fuente que manda: **`GCMouse` si entrega**, y si no el puntero
     /// indirecto.
     ///
+    /// **Regla de Bruno, para siempre** (24-sep-2026, al cerrar las pruebas):
+    /// hagamos lo que hagamos en esta app, `GCMouse` va mucho mejor.
+    ///
     /// **Decidido con Bruno, con las dos probadas** (24-sep-2026). Con
     /// `GCMouse` delante (la 2609241727) el cursor iba suave y llegaba a los
     /// bordes del monitor. Con el indirecto delante (la 2609241832) iba mucho

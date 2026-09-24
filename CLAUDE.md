@@ -32,9 +32,8 @@ del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, e
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
-**Última build subida: 2609241916 (24-sep-2026, noche)**, la octava del día (Apple no cortó):
-el ratón con `GCMouse` delante otra vez y YouTube a pantalla completa sin recortar en iOS. **Sin
-probar en el iPhone**; tampoco encajar la tercera ventana, que el ratón de la anterior no dejó.
+**Última build subida: 2609241916 (24-sep-2026, noche)**, la octava del día: todo funcionando
+según Bruno, que cerró las pruebas. Lo siguiente es trabajo nuevo: ver «Pendientes».
 
 **Anterior: 2609241832 (24-sep-2026, tarde)**, la séptima del día: el ratón por la
 posición absoluta (6 % de arriba estirado, rueda de `GCMouse`), YouTube a pantalla completa, el
@@ -145,62 +144,14 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
-## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241916)
+## Pruebas: cerradas (24-sep-2026, con la 2609241916)
 
-Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está escrito» con
-«funciona». **Esta es la lista buena**: las marcas «sin probar» repartidas por los CLAUDE.md
-pueden estar viejas. Al confirmar algo, se quita de aquí.
+**Bruno dio por cerradas todas las pruebas**: «está todo funcionando». Lo que se añada a partir
+de aquí se prueba de nuevo por tandas, con una lista como la que había aquí: apuntar lo escrito y
+sin probar, y quitarlo al confirmarlo. No confundir «está escrito» con «funciona».
 
-**En la 2609241832**
-- ~~El ratón por la posición absoluta~~: peor (ver «El ratón se atascaba en el borde»). En la
-  2609241916: vuelta a `GCMouse` delante, como en la 2609241727.
-- YouTube a pantalla completa: sólo el vídeo, con sus controles, no la web entera. **Se cortaba
-  por abajo** en el iPhone (100vh de iOS); arreglado en la 2609241916, comprobado en el simulador.
-- El control de zoom de la vista previa (PDF, imagen, vídeo) y del visor de Fotos.
-- Con dos mitades, soltar una tercera en una esquina: la de esa mitad se encoge al cuarto.
-
-**Navegador**
-- «Descargar vídeo» con el botón derecho en un RedGifs dentro de Reddit, y en redgifs.com.
-- Descargas de vídeo de la página (el botón de medios), el gestor ⤓ y los HLS.
-- La pantalla completa de vídeo en YouTube y Plex: el botón, la F de YouTube, Esc para salir, y
-  que la barra del vídeo no saque el dock. Y Plex en general.
-- El botón de historial en la barra y el «125 %» del zoom.
-- Que no queden recuadros grises donde había anuncios.
-
-**Fotos** (Cmd+5)
-- Rejilla y miniaturas (también por SFTP/SMB), visor, vídeo con su barra, pase de diapositivas,
-  «Abrir en Fotos» desde Ficheros y el icono del dock.
-
-**Ficheros**
-- La vista previa de PDF: nitidez (dibujada por BrunOS), y de imágenes y texto.
-- SMB propio contra un servidor de verdad; el vídeo por SFTP/SMB mientras llega.
-
-**Terminal**
-- El scroll en el mismo sentido que el navegador; tmux y vim con ratón (y la rueda dentro).
-- `known_hosts` ante una clave que cambie, la reconexión tras una caída real, entrar con clave
-  ed25519 e importar una cifrada.
-
-**Escritorio**
-- Los marcos de las ventanas sin línea doble en las esquinas.
-- El hueco de 4 puntos entre ventanas y el tercer encaje en una esquina que hace sitio.
-- El dictado, el teclado en pantalla, el overscan y las escalas 1,25×, 1,75× y 2,25×.
-
-**Confirmado por Bruno el 24-sep, en la 2609241727**: el navegador (salvo YouTube a pantalla
-completa), Ficheros (pidió zoom en los visores), Fotos, el terminal y el hueco entre ventanas.
-
-**Confirmado por Bruno el 24-sep, en la 2609241652**: el login de Reddit, el bloqueador con las
-listas de uBlock, los avisos de cookies (parece), la selección del terminal y la rueda y las
-páginas del PDF. **No**: la resolución del PDF (rehecho), RedGifs dentro de Reddit (arreglado), el
-ratón (arreglado), y los marcos de las ventanas con línea doble (arreglado).
-
-**Confirmado por Bruno el 24-sep**: todo lo nuevo de la 2609241450 (modo mando, Atajos, «mira
-el iPhone», calendario, tiempo, renombrar, iCloud, Tailscale cada 10 s), el cursor de
-redimensionar, los divisores, Cmd+P, Cmd+F, la nitidez (parece), la barra de favoritos y los
-iconos, guardar como PDF, Ficheros salvo la vista previa de PDF, volver a pulsar el dock, barras, quitar ubicaciones, cookies
-de Google (parece), scroll, Notas, la barra superior, el tiempo, las sugerencias, la barra lateral
-de Ficheros, el fondo al reconectar, la nitidez, encajar ventanas y el dock que se aparta,
-redimensionar juntas, Ajustes como ventana, Exposé, el conmutador, fijar y silenciar pestañas,
-selección múltiple y progreso en Ficheros, y recordar el escritorio.
+**Regla del ratón, para siempre**: manda `GCMouse` (ver «El ratón se atascaba en el borde»). Lo
+dijo Bruno al cerrar: hagamos lo que hagamos, con esta app `GCMouse` va mucho mejor.
 
 ## Cómo se cierra cada bloque de trabajo
 
