@@ -15,6 +15,12 @@ emergencia, teclado, dictado y ajustes.
 **Última build subida: 2609241157 (24-sep-2026, mediodía)**, con todo: lo de la nube (abajo) y
 los arreglos de «Lo que Bruno vio en la 2609240858». **Nada de esto probado en el iPhone.**
 
+**Sin subir desde entonces** (Bruno pidió esperar): el desplegable del tiempo, que salía de un
+color plano (dibujaba fuera de su tarjeta); las sugerencias de la barra de direcciones, con el
+texto desplazado por lo mismo; los nombres largos de la barra lateral de Ficheros, con «…» y la
+barra a 180 puntos; el icono de Tailscale comprobado cada 10 segundos; y el texto que explica el
+atajo «BrunOS Tailscale» (alterna la VPN).
+
 **Para seguir en el Mac** (rama `claude/admiring-mendel-ncfej4`, ya juntada con `main`). Todo lo de la
 tarde del 24-sep se escribió en una sesión de Linux **sin Xcode ni compilador**; sólo se pasó un
 análisis de sintaxis (tree-sitter) y una revisión a mano del diff. Por orden:
