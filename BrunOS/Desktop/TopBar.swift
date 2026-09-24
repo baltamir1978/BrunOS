@@ -51,7 +51,7 @@ final class TopBar: UIView {
     }
 
     /// Dónde está un elemento, para colgar de él su menú o su desplegable.
-    func frame(of target: Target) -> CGRect {
+    func itemFrame(_ target: Target) -> CGRect {
         switch target {
         case .tailscale: tailscaleLabel.frame
         case .weather: weatherLabel.frame

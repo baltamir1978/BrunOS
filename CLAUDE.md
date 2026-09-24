@@ -10,7 +10,28 @@ emergencia, teclado, dictado y ajustes.
 
 ---
 
-## ⚠ ESTADO ACTUAL — LEER PRIMERO (23-sep-2026)
+## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
+
+**Para seguir en el Mac** (rama `claude/admiring-mendel-ncfej4`, PR #1 en borrador). Todo lo de la
+tarde del 24-sep se escribió en una sesión de Linux **sin Xcode ni compilador**; sólo se pasó un
+análisis de sintaxis (tree-sitter) y una revisión a mano del diff. Por orden:
+
+1. `git pull` de la rama y `./Tools/build.sh`. **Saldrán errores de tipos**: arreglarlos antes que
+   nada. Lo menos seguro: `WKWebView.requestMediaPlaybackState()` (altavoz de las pestañas), las
+   firmas de progreso de AMSMB2 (comprobadas contra su `master`), `UITextDirection.storage(_:)` y
+   la geometría de `UITextInput` en el editor de Notas, y el aislamiento de los cierres
+   `@MainActor` que se pasan a `ProgressThrottle`.
+2. Mantener **cero warnings** en código propio, como hasta ahora.
+3. Probar en el simulador lo que se pueda (Notas, el tiempo, Ficheros con varias ventanas) y
+   luego en el iPhone. **Avisar a Bruno antes de subir a TestFlight.**
+4. Crear en Atajos el atajo «BrunOS Tailscale» (ver «Tailscale y el tiempo en la barra»).
+
+Lo que lleva: fijar y silenciar pestañas; Ficheros con ubicación propia por ventana, selección
+múltiple y progreso por bytes; Exposé (Cmd+E) y conmutador (Cmd+º); los clics con modificadores
+(`KeyboardRouter.heldModifiers`); la app de Notas y portapapeles (Cmd+4); Tailscale y el tiempo en
+la barra superior. Cada cosa, en su sección y en los CLAUDE.md de cada carpeta.
+
+## Historial del estado (23-sep-2026)
 
 **23-sep-2026**: subida la 2609231826. Bruno confirma que **el ratón funciona** (clic y
 arrastre) y que **lo pendiente de antes también** (ratón conectado que se desmarca, salir del

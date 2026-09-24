@@ -2149,10 +2149,10 @@ final class DesktopViewController: UIViewController {
         case .display:
             presentSettings(.global, page: 1)
         case .tailscale:
-            let frame = topBar.frame(of: .tailscale)
+            let frame = topBar.itemFrame(.tailscale)
             presentContextMenu(tailscaleMenu(), at: CGPoint(x: frame.minX, y: topBar.frame.maxY))
         case .weather:
-            let frame = topBar.frame(of: .weather)
+            let frame = topBar.itemFrame(.weather)
             presentWeather(anchor: CGPoint(x: frame.midX, y: topBar.frame.maxY))
         case .none:
             break
