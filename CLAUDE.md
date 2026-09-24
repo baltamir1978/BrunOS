@@ -114,7 +114,8 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 
 **Navegador**
 - Descargas de vídeo de la página, el gestor ⤓ y los HLS; «Descargar vídeo» en RedGifs.
-- Contraseñas: **Bruno quiere rehacer los logins** (24-sep); ver con él cómo antes de tocar.
+- El login de Reddit (y cualquier otro): sin la hoja de contraseñas, que tapaba el trackpad;
+  la lógica de contraseñas está quitada entera (Bruno las escribe a mano).
 - Plex.
 - Sin subir: el botón de historial en la barra y el indicador de zoom («125 %» un segundo).
 
@@ -457,7 +458,7 @@ un fallo posible aunque no fuera éste.
 ### Mira el iPhone, Atajos y el calendario (24-sep-2026)
 
 - **`PhoneNotice`**: aviso en el monitor cuando algo se hace en el iPhone (el selector de
-  carpetas, las contraseñas, el paso por Atajos). Se va solo a los 7 segundos.
+  carpetas, el paso por Atajos). Se va solo a los 7 segundos.
 - **Ajustes › Atajos** junta AssistiveTouch y Tailscale, con cómo crear cada atajo, el estado y
   un botón para probar el de Tailscale. `SettingsPages.shortcutsPageIndex` es su posición; el
   «Cómo crear el atajo…» del menú de Tailscale lleva ahí.

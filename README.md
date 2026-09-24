@@ -27,7 +27,7 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Escritorio** con ventanas flotantes o en mosaico estilo i3, las tres apps a la vez, dock con varias ventanas por app, pantalla completa, Exposé (Cmd+E) y cambio de ventana con Cmd+º | 🚧 flotantes sin rodaje |
 | **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él | ✅ |
 | **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
-| **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios editable, descargas, contraseñas de iOS e iframes pulsables (reCAPTCHA, pagos) | ✅ YouTube probado |
+| **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios editable, descargas e iframes pulsables (reCAPTCHA, pagos) | ✅ YouTube probado |
 | **Favoritos** con barra propia, iconos de cada sitio, sugerencias al escribir, modo lectura e historial (Cmd+Y) | 🚧 sin rodaje |
 | **Descargar vídeos** de la página, también por trozos (HLS), con progreso, y guardar la página como PDF | 🚧 sin rodaje |
 | **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa, selección múltiple, copiar carpetas por trozos con progreso y arrastrar entre ventanas | 🚧 a falta de rodaje |
@@ -106,8 +106,6 @@ Son de iOS, no del programa, y no hay intención de pelearse con ellas:
 - **No se pueden mostrar otras apps de iOS** en la pantalla externa. Sólo BrunOS.
 - **En segundo plano, iOS vuelve a duplicar la pantalla.** La app tiene que quedarse delante.
 - **El círculo del puntero de AssistiveTouch no se puede ocultar.**
-- **Las contraseñas de Safari se eligen tocando el iPhone**: iOS sólo las ofrece en su teclado,
-  sobre un campo nativo. Al pinchar un campo de acceso en una web, sale en el teléfono.
 - **El contenido con DRM puede salir en negro** en la salida externa.
 - **El botón izquierdo del ratón no llega a la app como tal**: con AssistiveTouch, iOS lo convierte
   en un toque en la pantalla del teléfono. Por eso, con monitor conectado, todo el iPhone hace de

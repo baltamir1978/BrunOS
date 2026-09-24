@@ -258,7 +258,6 @@ function describe(x, y) {
     const selection = String(window.getSelection() || '').trim();
 
     return {
-        login: loginRole(target),
         selection: selection.length > 0 ? selection.slice(0, 500) : null,
         tag: tag,
         link: link,
@@ -835,79 +834,6 @@ function moveFocus(current, direction) {
     }
 }
 
-// INICIO DE SESIÓN
-//
-// Para el autorrelleno con las contraseñas de iOS: se detecta que se ha
-// pinchado un campo de usuario o de contraseña, y luego se rellenan los dos.
-
-/// 'password', 'username' o null según el campo.
-function loginRole(element) {
-    if (!element || !element.tagName || element.tagName.toLowerCase() !== 'input') return null;
-    const type = (element.getAttribute('type') || '').toLowerCase();
-    if (type === 'password') return 'password';
-    const autocomplete = (element.getAttribute('autocomplete') || '').toLowerCase();
-    if (autocomplete.includes('username') || autocomplete === 'email') return 'username';
-    // Un campo de texto o de correo justo antes de uno de contraseña, en el
-    // mismo formulario, es el del usuario aunque no lo diga.
-    if (type === '' || type === 'text' || type === 'email') {
-        return findPasswordField(element) ? 'username' : null;
-    }
-    return null;
-}
-
-function findPasswordField(near) {
-    const scope = (near && (near.form || near.closest('form'))) || document;
-    return Array.from(scope.querySelectorAll('input[type=password]'))
-        .find(field => !field.disabled && field.offsetParent !== null) || null;
-}
-
-function findUsernameField(password) {
-    const scope = (password && (password.form || password.closest('form'))) || document;
-    const inputs = Array.from(scope.querySelectorAll('input'))
-        .filter(field => !field.disabled && field.offsetParent !== null);
-    const explicit = inputs.find(field => {
-        const autocomplete = (field.getAttribute('autocomplete') || '').toLowerCase();
-        return autocomplete.includes('username') || autocomplete === 'email';
-    });
-    if (explicit) return explicit;
-    // Si no, el último campo de texto antes de la contraseña.
-    const index = inputs.indexOf(password);
-    const before = (index >= 0 ? inputs.slice(0, index) : inputs).reverse();
-    return before.find(field => {
-        const type = (field.getAttribute('type') || '').toLowerCase();
-        return type === '' || type === 'text' || type === 'email';
-    }) || null;
-}
-
-/// Escribe en un campo como si se tecleara: con `execCommand`, que genera los
-/// eventos que esperan React y compañía.
-function setFieldValue(field, value) {
-    if (!field || value == null) return;
-    field.focus();
-    try { field.select(); } catch (error) {}
-    if (!document.execCommand('insertText', false, value)) {
-        field.value = value;
-        field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-    }
-    field.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-}
-
-/// Rellena el formulario de inicio de sesión que tiene el foco o el primero
-/// que haya. Si el usuario viene vacío, sólo la contraseña (hay webs que piden
-/// una cosa en cada paso).
-function fillLogin(username, password) {
-    const active = deepActiveElement();
-    const passwordField = (active && (active.getAttribute('type') || '').toLowerCase() === 'password')
-        ? active
-        : findPasswordField(active);
-    const usernameField = passwordField ? findUsernameField(passwordField)
-        : (loginRole(active) === 'username' ? active : null);
-    if (username && usernameField) setFieldValue(usernameField, username);
-    if (password && passwordField) setFieldValue(passwordField, password);
-    if (passwordField) passwordField.focus();
-    return !!(usernameField || passwordField);
-}
-
 // MARK: iframes
 
 function isFrame(element) {
@@ -1020,7 +946,6 @@ window.__brunos = {
     describe: describe,
     insertText: insertText,
     key: key,
-    fillLogin: fillLogin,
     media: mediaItems,
     reader: readerArticle,
     mediaAt: mediaAt,

@@ -147,24 +147,19 @@ iCloud; al arrancar repone las que falten **antes de la primera carga**. **Si al
   como gesto) y `isElementFullscreenEnabled`. **YouTube funciona en el iPhone** (lo confirmó Bruno
   el 22-sep-2026); Plex, que va por el mismo camino, sin probar.
 
-### Contraseñas: las de iOS, a través del iPhone (22-sep-2026)
+### Contraseñas: quitadas (24-sep-2026)
 
-Bruno eligió las contraseñas de iOS, las de Safari, en vez de un gestor propio. El autorrelleno de
-iOS sólo se ofrece en el teclado del sistema, sobre un campo nativo y con el dedo, así que hay un
-puente (`PasswordBridge`): al pinchar en la página un campo de usuario o de contraseña, se abre en
-el iPhone `PasswordAutoFillView`, dos campos con `textContentType` de usuario y contraseña, donde
-iOS pone la llave de Contraseñas. Lo elegido se pasa a la página con `__brunos.fillLogin` y **no se
-guarda en ningún sitio**.
+Había un puente a las contraseñas de iOS (`PasswordBridge`, `PasswordAutoFillView`): al pinchar un
+campo de acceso, salía en el iPhone una hoja con la llave de Contraseñas. **Bruno pidió quitarlo
+entero**; las escribe a mano. Además era lo que rompía el login de Reddit: con el iPhone de mando,
+**la hoja tapaba el trackpad**, así que los clics de AssistiveTouch caían en ella y el teclado
+físico escribía en su campo. Ni clicar ni escribir en la web.
 
-- El autorrelleno escribe la contraseña de golpe y a mano va letra a letra: un salto de más de un
-  carácter se manda solo, sin pulsar Rellenar.
-- Mientras la hoja está abierta, el teclado físico escribe en ella (es el primer respondedor), así
-  que Esc tiene que cerrarla desde la propia hoja. Al cerrarse se devuelve el teclado al
-  controlador raíz.
-- Si se cancela, en esa web no se vuelve a ofrecer hasta que se cargue otra página.
-- **Comprobado en un `WKWebView` de macOS**: se detectan los campos, también el de usuario sin
-  `autocomplete`, y se rellenan con comillas incluidas. **Sin probar en el iPhone**, que es donde
-  tiene que salir la llave de Contraseñas.
+Comprobado en un `WKWebView` de macOS contra `reddit.com/login` con el inyector: el clic llega al
+campo de usuario, que está dentro de un *shadow root*, y el texto se escribe.
+
+**Regla que queda**: con monitor, nada puede presentarse en el iPhone sin que el usuario lo pida
+desde allí (el selector de carpetas sí, porque lo pide él y avisa `PhoneNotice`).
 
 **Trampa que salió aquí y afectaba a más cosas**: con `allowAccessingClosedShadowRoots`, buscar
 qué hay bajo el cursor se metía también en el shadow root **interno** de un `<input>` y devolvía su

@@ -1,8 +1,8 @@
 import UIKit
 
 /// «Mira el iPhone»: un aviso en el monitor cada vez que algo sólo se puede
-/// hacer en la pantalla del teléfono (elegir una carpeta, una contraseña, el
-/// paso por Atajos).
+/// hacer en la pantalla del teléfono (elegir una carpeta, el paso por
+/// Atajos).
 ///
 /// Con el monitor delante, el iPhone está en negro y nadie lo mira: el
 /// selector de carpetas salía allí y parecía que la app no hacía nada. Lo
