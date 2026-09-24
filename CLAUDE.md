@@ -80,7 +80,11 @@ conviene no confundir "está escrito" con "funciona":
 - **Si el espacio lógico sale nítido** a todas las escalas: el lienzo se escala con un
   `CGAffineTransform` y, si el factor estuviera mal, se vería borroso o cortado.
 
-**24-sep-2026 (mañana), sin subir**: Bruno pidió seis cosas y están escritas y compiladas:
+**Última build subida: 2609240858 (24-sep-2026, mañana)**: lleva todo lo de abajo, la nitidez de
+las webs a 1,5×, la ronda de optimización (Ajustes › Rendimiento), encajar ventanas y recordar
+el escritorio al arrancar. **Nada de esto probado en el iPhone.**
+
+**24-sep-2026 (mañana)**: Bruno pidió seis cosas y están escritas y compiladas:
 volver a pulsar el dock abre otra ventana; barras de ventana más altas y con letra algo mayor
 (terminal y Ficheros 36, navegador 42) y escalas intermedias (1,25×, 1,75×, 2,25×); quitar
 ubicaciones de Ficheros (botón derecho en la barra lateral y en Ajustes, y «quitar las que no
