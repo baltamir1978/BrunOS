@@ -957,10 +957,12 @@ if (window.top !== window) {
     } catch (error) {}
 }
 
-// Avisa a Swift cuando aparece o arranca un vídeo, para el botón de medios.
+// Avisa a Swift cuando aparece, arranca o se para un vídeo: para el botón de
+// medios y para el altavoz de la pestaña. En todos los marcos, porque un
+// reproductor incrustado vive en su iframe.
 // `loadedmetadata` y `play` no burbujean: se escuchan en la fase de captura.
 // Un feed dispara decenas seguidas: se junta en un aviso cada medio segundo.
-if (window.top === window) {
+{
     let pendingMediaHint = null;
     const hint = function () {
         if (pendingMediaHint) return;
@@ -971,9 +973,37 @@ if (window.top === window) {
             } catch (error) {}
         }, 500);
     };
-    for (const name of ['loadedmetadata', 'play', 'emptied']) {
+    for (const name of ['loadedmetadata', 'play', 'pause', 'ended', 'emptied']) {
         document.addEventListener(name, hint, true);
     }
+}
+
+// Silenciar la pestaña. WebKit no ofrece un «silenciar página» público: se
+// pone `muted` a cada `<video>` y `<audio>`, también a los que aparezcan
+// después o a los que la página les devuelva el volumen. Al quitarlo, sólo
+// recuperan el sonido los que silenció BrunOS.
+let brunosMuted = false;
+const brunosSilenced = new WeakSet();
+function muteElement(element) {
+    if (!(element instanceof HTMLMediaElement) || element.muted) return;
+    element.muted = true;
+    brunosSilenced.add(element);
+}
+function setMuted(on) {
+    brunosMuted = on;
+    for (const element of document.querySelectorAll('video, audio')) {
+        if (on) {
+            muteElement(element);
+        } else if (brunosSilenced.has(element)) {
+            element.muted = false;
+            brunosSilenced.delete(element);
+        }
+    }
+}
+for (const name of ['play', 'loadedmetadata', 'volumechange']) {
+    document.addEventListener(name, function (event) {
+        if (brunosMuted) muteElement(event.target);
+    }, true);
 }
 
 // Lo que Swift puede llamar.
@@ -995,4 +1025,5 @@ window.__brunos = {
     reader: readerArticle,
     mediaAt: mediaAt,
     iconURL: iconURL,
+    setMuted: setMuted,
 };

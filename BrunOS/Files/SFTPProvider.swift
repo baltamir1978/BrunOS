@@ -233,6 +233,7 @@ final class SFTPProvider: FileProvider, @unchecked Sendable {
         do {
             let handle = try FileHandle(forWritingTo: partial)
             defer { try? handle.close() }
+            let report = TransferProgress.report
             try await sftp.withFile(filePath: path, flags: .read) { file in
                 var offset: UInt64 = 0
                 while true {
@@ -241,6 +242,7 @@ final class SFTPProvider: FileProvider, @unchecked Sendable {
                     guard buffer.readableBytes > 0 else { break }
                     try handle.write(contentsOf: buffer.readableBytesView)
                     offset += UInt64(buffer.readableBytes)
+                    report?(Int64(offset))
                 }
             }
             try? FileManager.default.removeItem(at: url)
@@ -256,12 +258,14 @@ final class SFTPProvider: FileProvider, @unchecked Sendable {
         do {
             let handle = try FileHandle(forReadingFrom: url)
             defer { try? handle.close() }
+            let report = TransferProgress.report
             try await sftp.withFile(filePath: path, flags: [.write, .create, .truncate]) { file in
                 var offset: UInt64 = 0
                 while let data = try handle.read(upToCount: Int(Self.chunk)), !data.isEmpty {
                     try Task.checkCancellation()
                     try await file.write(ByteBuffer(bytes: data), at: offset)
                     offset += UInt64(data.count)
+                    report?(Int64(offset))
                 }
             }
         } catch {

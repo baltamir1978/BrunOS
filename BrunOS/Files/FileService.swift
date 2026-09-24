@@ -14,13 +14,23 @@ final class FileService {
     private(set) var providers: [any FileProvider] = []
     private(set) var currentIndex = 0
 
-    /// Lo copiado o cortado, a la espera de pegarse.
-    private(set) var clipboard: (provider: any FileProvider, item: FileItem, isCut: Bool)?
+    /// Lo copiado o cortado, a la espera de pegarse. Varios elementos de una
+    /// vez, siempre de un mismo origen: el de la ventana donde se copiaron.
+    private(set) var clipboard: (provider: any FileProvider, items: [FileItem], isCut: Bool)?
 
     let externalFolders = ExternalFolderStore()
 
+    /// **La última ubicación elegida en cualquier ventana**, que es donde se
+    /// abre una ventana nueva. Cada `FilesPane` lleva la suya
+    /// (`provider(forKey:)`): antes todas miraban ésta, y con dos ventanas de
+    /// Ficheros cambiar de ubicación en una cambiaba lo que veía la otra.
     var currentProvider: any FileProvider {
         providers[min(currentIndex, providers.count - 1)]
+    }
+
+    /// La ubicación con esa clave (`key(of:)`), si sigue estando.
+    func provider(forKey key: String) -> (any FileProvider)? {
+        providers.first { Self.key(of: $0) == key }
     }
 
     /// **No se construyen los orígenes aquí.**
@@ -136,12 +146,14 @@ final class FileService {
 
     // MARK: - Portapapeles
 
-    func copy(_ item: FileItem) {
-        clipboard = (currentProvider, item, false)
+    func copy(_ items: [FileItem], from provider: any FileProvider) {
+        guard !items.isEmpty else { return }
+        clipboard = (provider, items, false)
     }
 
-    func cut(_ item: FileItem) {
-        clipboard = (currentProvider, item, true)
+    func cut(_ items: [FileItem], from provider: any FileProvider) {
+        guard !items.isEmpty else { return }
+        clipboard = (provider, items, true)
     }
 
     func clearClipboard() {
@@ -156,6 +168,8 @@ final class FileService {
         var bytesTotal: Int64 = 0
         /// El fichero que se está copiando ahora.
         var current = ""
+        /// Se mueve en vez de copiar: cambia el rótulo de la barra.
+        var isMove = false
 
         var fraction: Double {
             if bytesTotal > 0 { return min(1, Double(bytesDone) / Double(bytesTotal)) }
@@ -175,76 +189,122 @@ final class FileService {
     /// como en el Finder. Así copiar y pegar en la misma carpeta funciona.
     ///
     /// Se puede cancelar: se mira entre fichero y fichero.
-    func paste(into directory: String, progress: @escaping @MainActor (Progress) -> Void) async throws {
+    func paste(
+        into directory: String,
+        of target: any FileProvider,
+        progress: @escaping @MainActor (Progress) -> Void
+    ) async throws {
         guard let clipboard else { return }
+        // Lo cortado se va de donde estaba: el portapapeles ya no sirve. Lo
+        // copiado se puede volver a pegar, como en el Finder.
+        if clipboard.isCut { self.clipboard = nil }
         try await transfer(
-            clipboard.item,
+            clipboard.items,
             from: clipboard.provider,
-            to: currentProvider,
+            to: target,
             into: directory,
             move: clipboard.isCut,
             progress: progress
         )
-        self.clipboard = nil
     }
 
-    /// Copia o mueve algo de un origen a una carpeta de otro, o del mismo. Lo
-    /// usan pegar y arrastrar.
+    /// Copia o mueve varias cosas de un origen a una carpeta de otro, o del
+    /// mismo. Lo usan pegar y arrastrar.
+    ///
+    /// **Una sola barra para todo**: primero se recorre todo lo elegido para
+    /// saber cuántos ficheros y bytes son, y luego se copia en orden. Dentro
+    /// de cada fichero la barra avanza también (`TransferProgress`), para que
+    /// un vídeo de varios gigas no se quede en 0 % hasta el final.
     func transfer(
-        _ item: FileItem,
+        _ items: [FileItem],
         from source: any FileProvider,
         to target: any FileProvider,
         into directory: String,
         move: Bool,
         progress: @escaping @MainActor (Progress) -> Void
     ) async throws {
-        // Meter una carpeta dentro de sí misma no tiene fin.
-        if source === target, item.isDirectory,
-           directory == item.path || directory.hasPrefix(item.path + "/") {
+        for item in items where source === target && item.isDirectory
+            && (directory == item.path || directory.hasPrefix(item.path + "/")) {
+            // Meter una carpeta dentro de sí misma no tiene fin.
             throw FileError.failed("No se puede meter \(item.name) dentro de sí misma.")
         }
+
+        var state = Progress()
+        state.isMove = move
 
         // Mover dentro del mismo origen conserva el nombre y, si ya hay algo
         // que se llama igual, se para en vez de inventarse una «copia» de
         // algo que se quería mover.
         if move, source === target {
-            let existing = Set(try await target.list(directory).map(\.name))
-            guard !existing.contains(item.name) else {
-                throw FileError.failed("Ya hay algo que se llama \(item.name) en esa carpeta.")
+            var existing = Set(try await target.list(directory).map(\.name))
+            let items = items.filter { ($0.path as NSString).deletingLastPathComponent != directory }
+            if let clash = items.first(where: { existing.contains($0.name) }) {
+                throw FileError.failed("Ya hay algo que se llama \(clash.name) en esa carpeta.")
             }
-            try await moveWithinProvider(item, in: target, to: directory)
+            state.filesTotal = items.count
+            for item in items {
+                try Task.checkCancellation()
+                state.current = item.name
+                progress(state)
+                try await moveWithinProvider(item, in: target, to: directory)
+                existing.insert(item.name)
+                state.filesDone += 1
+                progress(state)
+            }
             return
         }
 
-        var state = Progress()
         state.current = "Contando…"
         progress(state)
-        let plan = try await collect(item, from: source)
-        state.filesTotal = plan.filter { !$0.item.isDirectory }.count
-        state.bytesTotal = plan.reduce(0) { $0 + ($1.item.isDirectory ? 0 : $1.item.size) }
+        var plans: [(item: FileItem, plan: [(item: FileItem, relative: String)])] = []
+        for item in items {
+            let plan = try await collect(item, from: source)
+            plans.append((item, plan))
+        }
+        let entries = plans.flatMap(\.plan)
+        state.filesTotal = entries.filter { !$0.item.isDirectory }.count
+        state.bytesTotal = entries.reduce(0) { $0 + ($1.item.isDirectory ? 0 : $1.item.size) }
         progress(state)
 
-        let existing = Set(try await target.list(directory).map(\.name))
-        let rootName = Self.uniqueName(item.name, avoiding: existing)
-        let root = Self.join(directory, rootName)
+        var existing = Set(try await target.list(directory).map(\.name))
+        for (item, plan) in plans {
+            let rootName = Self.uniqueName(item.name, avoiding: existing)
+            existing.insert(rootName)
+            let root = Self.join(directory, rootName)
 
-        for entry in plan {
-            try Task.checkCancellation()
-            let destination = entry.relative.isEmpty ? root : Self.join(root, entry.relative)
-            if entry.item.isDirectory {
-                try await target.createDirectory(destination)
-            } else {
-                state.current = entry.item.name
-                progress(state)
-                try await Self.copyFile(entry.item.path, from: source, to: destination, in: target)
-                state.filesDone += 1
-                state.bytesDone += entry.item.size
-                progress(state)
+            for entry in plan {
+                try Task.checkCancellation()
+                let destination = entry.relative.isEmpty ? root : Self.join(root, entry.relative)
+                if entry.item.isDirectory {
+                    try await target.createDirectory(destination)
+                } else {
+                    state.current = entry.item.name
+                    progress(state)
+                    // Lo que va de este fichero, por encima de lo ya copiado.
+                    let before = state
+                    let throttle = ProgressThrottle { done in
+                        Task { @MainActor in
+                            var partial = before
+                            partial.bytesDone = before.bytesDone + min(done, entry.item.size)
+                            progress(partial)
+                        }
+                    }
+                    try await TransferProgress.$report.withValue(throttle.report) {
+                        try await Self.copyFile(
+                            entry.item.path, size: entry.item.size,
+                            from: source, to: destination, in: target
+                        )
+                    }
+                    throttle.stop()
+                    state.filesDone += 1
+                    state.bytesDone += entry.item.size
+                    progress(state)
+                }
             }
-        }
 
-        if move {
-            try await deleteRecursively(item, from: source)
+            if move {
+                try await deleteRecursively(item, from: source)
+            }
         }
     }
 
@@ -270,6 +330,7 @@ final class FileService {
     /// del iPhone.
     private static func copyFile(
         _ path: String,
+        size: Int64 = 0,
         from source: any FileProvider,
         to destination: String,
         in target: any FileProvider
@@ -287,8 +348,18 @@ final class FileService {
         let staging = FileManager.default.temporaryDirectory
             .appendingPathComponent("brunos-copy-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: staging) }
-        try await source.download(path, to: staging)
-        try await target.upload(from: staging, to: destination)
+        // Por un temporal, el fichero viaja dos veces: bajar es la primera
+        // mitad de la barra y subir la segunda. Si no, llegaría al final y
+        // volvería a empezar.
+        let report = TransferProgress.report
+        let firstHalf: (@Sendable (Int64) -> Void)? = report.map { report in { done in report(done / 2) } }
+        let secondHalf: (@Sendable (Int64) -> Void)? = report.map { report in { done in report(size / 2 + done / 2) } }
+        try await TransferProgress.$report.withValue(firstHalf) {
+            try await source.download(path, to: staging)
+        }
+        try await TransferProgress.$report.withValue(secondHalf) {
+            try await target.upload(from: staging, to: destination)
+        }
     }
 
     private func moveWithinProvider(_ item: FileItem, in provider: any FileProvider, to directory: String) async throws {
@@ -310,7 +381,7 @@ final class FileService {
             if entry.item.isDirectory {
                 try await provider.createDirectory(destination)
             } else {
-                try await Self.copyFile(entry.item.path, from: provider, to: destination, in: provider)
+                try await Self.copyFile(entry.item.path, size: entry.item.size, from: provider, to: destination, in: provider)
             }
         }
         try await deleteRecursively(item, from: provider)
@@ -345,5 +416,48 @@ final class FileService {
 
     static func join(_ directory: String, _ name: String) -> String {
         directory.hasSuffix("/") ? directory + name : directory + "/" + name
+    }
+}
+
+
+/// Cuánto lleva el fichero que se está copiando, en bytes.
+///
+/// Va por un valor de tarea y no por un parámetro de `download`/`upload`:
+/// así el protocolo `FileProvider` no cambia, y cada origen informa si sabe
+/// (SFTP a cada trozo, SMB con el aviso de AMSMB2). Los locales copian con
+/// `copyItem`, que no dice nada, y se quedan sin barra por dentro.
+enum TransferProgress {
+    @TaskLocal static var report: (@Sendable (Int64) -> Void)?
+}
+
+/// Deja pasar un aviso de progreso cada décima de segundo como mucho. SFTP
+/// avisa cada 256 KB y SMB más a menudo: repintar el panel a ese ritmo se
+/// notaba en el cursor.
+final class ProgressThrottle: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last = Date.distantPast
+    private var stopped = false
+    private let forward: @Sendable (Int64) -> Void
+
+    init(_ forward: @escaping @Sendable (Int64) -> Void) {
+        self.forward = forward
+    }
+
+    var report: @Sendable (Int64) -> Void {
+        { [self] done in
+            let now = Date()
+            let pass: Bool = lock.withLock {
+                guard !stopped, now.timeIntervalSince(last) >= 0.1 else { return false }
+                last = now
+                return true
+            }
+            if pass { forward(done) }
+        }
+    }
+
+    /// Ya terminó el fichero: un aviso que llegue tarde pintaría la barra
+    /// hacia atrás.
+    func stop() {
+        lock.withLock { stopped = true }
     }
 }

@@ -20,6 +20,8 @@ struct SavedDesktop: Codable {
         /// Navegador: las direcciones de sus pestañas (`nil`, la de inicio).
         var tabs: [String?]?
         var activeTab: Int?
+        /// Cuáles de esas pestañas iban fijadas.
+        var pinnedTabs: [Bool]?
 
         /// Terminal: las máquinas de sus sesiones, por su id.
         var hosts: [UUID]?

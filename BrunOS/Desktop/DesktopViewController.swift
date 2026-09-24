@@ -189,6 +189,9 @@ final class DesktopViewController: UIViewController {
         // densidad (y la página ya va a 1:1, ver `BrowserTab.place`). Además,
         // su árbol de capas es enorme y esto se recorre en cada maquetación.
         guard !(view is WKWebView) else { return }
+        // Las instantáneas de Exposé se encogen: con `.nearest` saldrían a
+        // trozos. Ver `OverviewThumbnail`.
+        guard !(view is OverviewThumbnail) else { return }
         if view.layer.contentsScale != contentsScale {
             view.layer.contentsScale = contentsScale
             view.setNeedsDisplay()
@@ -260,6 +263,7 @@ final class DesktopViewController: UIViewController {
         prompt?.frame = CGRect(origin: .zero, size: logicalSize)
         launcher?.frame = CGRect(origin: .zero, size: logicalSize)
         historyWindow?.frame = CGRect(origin: .zero, size: logicalSize)
+        overview?.frame = CGRect(origin: .zero, size: logicalSize)
 
         // Una ventana que ocupa el sitio del dock (una encajada llega hasta
         // abajo) lo esconde, como la pantalla completa: asoma al llevar el
@@ -406,7 +410,16 @@ final class DesktopViewController: UIViewController {
     /// `perform` estando abiertas (el interruptor de pantalla completa de
     /// Ajustes), y con la guardia dentro se quedaban sin efecto.
     func performShortcut(_ command: DesktopCommand) -> Bool {
-        performOverModal(command) ?? perform(command)
+        // El conmutador y Exposé mandan sobre sí mismos aunque estén delante.
+        switch command {
+        case .switchWindow, .endWindowSwitch:
+            return perform(command)
+        case .expose where overview != nil:
+            return perform(command)
+        default:
+            break
+        }
+        return performOverModal(command) ?? perform(command)
     }
 
     /// Ejecuta una orden, venga del teclado o de un botón.
@@ -481,6 +494,7 @@ final class DesktopViewController: UIViewController {
             switch workspace.focusedPane {
             case let terminal as TerminalPane: terminal.copySelection()
             case let browser as BrowserPane: browser.copySelection()
+            case let files as FilesPane: files.copySelection()
             default: return false
             }
 
@@ -488,6 +502,7 @@ final class DesktopViewController: UIViewController {
             switch workspace.focusedPane {
             case let terminal as TerminalPane: terminal.paste()
             case let browser as BrowserPane: browser.paste()
+            case let files as FilesPane: files.pasteHere()
             default: return false
             }
 
@@ -541,6 +556,23 @@ final class DesktopViewController: UIViewController {
             case let files as FilesPane: files.showFind()
             default: return false
             }
+
+        case .switchWindow(let backwards):
+            cycleWindows(backwards: backwards)
+            return true
+
+        case .endWindowSwitch:
+            // Llega con cada Cmd que se suelta: sin conmutador, nada.
+            endWindowSwitch()
+            return true
+
+        case .expose:
+            toggleExpose()
+            return true
+
+        case .muteTab:
+            guard let browser = workspace.focusedPane as? BrowserPane else { return false }
+            browser.toggleMuteActiveTab()
         }
 
         services.desktop.notifyChange()
@@ -568,6 +600,7 @@ final class DesktopViewController: UIViewController {
                 let session = browser.sessionTabs
                 saved.tabs = session.urls
                 saved.activeTab = session.active
+                saved.pinnedTabs = session.pinned.contains(true) ? session.pinned : nil
             case let terminal as TerminalPane:
                 let session = terminal.sessionHosts
                 saved.hosts = session.ids
@@ -644,7 +677,7 @@ final class DesktopViewController: UIViewController {
 
             switch pane {
             case let browser as BrowserPane:
-                browser.restore(urls: window.tabs ?? [], active: window.activeTab ?? 0)
+                browser.restore(urls: window.tabs ?? [], pinned: window.pinnedTabs ?? [], active: window.activeTab ?? 0)
             case let terminal as TerminalPane:
                 terminal.restore(hosts: window.hosts ?? [], active: window.activeHost)
             case let files as FilesPane:
@@ -751,9 +784,9 @@ final class DesktopViewController: UIViewController {
     private var quickLook: QuickLookView?
 
     /// Vista previa con la barra espaciadora, como en el Finder.
-    func presentQuickLook(for item: FileItem) {
+    func presentQuickLook(for item: FileItem, from provider: any FileProvider) {
         quickLook?.removeFromSuperview()
-        let view = QuickLookView(item: item, frame: CGRect(origin: .zero, size: logicalSize))
+        let view = QuickLookView(item: item, provider: provider, frame: CGRect(origin: .zero, size: logicalSize))
         view.onDismiss = { [weak self] in
             self?.quickLook?.removeFromSuperview()
             self?.quickLook = nil
@@ -948,7 +981,7 @@ final class DesktopViewController: UIViewController {
     ///
     /// Devuelve `nil` si no hay ninguna modal.
     private func performOverModal(_ command: DesktopCommand) -> Bool? {
-        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher]
+        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, overview]
         guard modals.contains(where: { $0 != nil }) else { return nil }
 
         switch command {
@@ -1096,6 +1129,10 @@ final class DesktopViewController: UIViewController {
             Launcher.Entry(title: "Historial", subtitle: "Acción · Cmd+Y", symbol: "clock.arrow.circlepath") {
                 [weak self] in self?.presentHistory()
             },
+            Launcher.Entry(title: "Todas las ventanas", subtitle: "Acción · Cmd+E", symbol: "rectangle.3.group") {
+                // Después de cerrarse el lanzador, que si no cuenta como modal.
+                [weak self] in DispatchQueue.main.async { self?.toggleExpose() }
+            },
             Launcher.Entry(title: "Ajustes", subtitle: "Acción", symbol: "gearshape") {
                 [weak self] in self?.presentSettings(.global)
             },
@@ -1209,10 +1246,20 @@ final class DesktopViewController: UIViewController {
     /// los huecos entre paneles no pertenecen a nadie y son la zona de arrastre
     /// para redimensionar.
     func deliverPointer(_ kind: PointerEvent.Kind, modifiers: UIKeyModifierFlags) {
+        // El puntero no sabe qué teclas hay pulsadas: se miran en el teclado.
+        let modifiers = modifiers.union(KeyboardRouter.heldModifiers)
         let position = services.pointer.position
         let frames = currentFrames()
 
         if case .moved = kind { updateCursorShape(at: position) }
+
+        // El conmutador se confirma al soltar Cmd. Si esa tecla no llegara
+        // (iOS no siempre avisa de un modificador suelto), el primer
+        // movimiento del ratón sin Cmd hace lo mismo.
+        if case .moved = kind, let overview, overview.style == .switcher, !modifiers.contains(.command) {
+            endWindowSwitch()
+        }
+        if let overview, overview.handlePointer(kind, at: position) { return }
 
         // Lo modal manda, y la vista previa va por encima de todo.
         if let contextMenu, contextMenu.handlePointer(kind, at: position) { return }
@@ -1562,7 +1609,7 @@ final class DesktopViewController: UIViewController {
         if let divider = activeDivider { return Self.shape(for: divider.axis) }
         guard windowDrag == nil, fileDrag == nil else { return .arrow }
 
-        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu]
+        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu, overview]
         guard modals.allSatisfy({ $0 == nil }) else { return .arrow }
 
         if let (_, frame) = floatingWindow(at: position, margin: Self.resizeMargin) {
@@ -1793,10 +1840,133 @@ final class DesktopViewController: UIViewController {
         }
     }
 
+    // MARK: - Cambiar de ventana y Exposé
+
+    /// Exposé o el conmutador, cuando están abiertos. Ver `WindowOverview`.
+    private var overview: WindowOverview?
+
+    /// Si hay otra ventana modal delante: entonces ni el conmutador ni
+    /// Exposé se abren, que taparían algo a medio hacer.
+    private var hasOtherModal: Bool {
+        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher]
+        return modals.contains { $0 != nil }
+    }
+
+    /// Todas las ventanas, por orden de uso: la que tiene el foco, la de
+    /// antes… y al final las minimizadas que nunca tuvieron foco.
+    private func overviewEntries() -> [WindowOverview.Entry] {
+        let workspace = services.desktop.active
+        let frames = currentFrames()
+        let minimizedIDs = workspace.minimized.map(\.id)
+
+        var order = workspace.recent.filter { workspace.pane($0) != nil || minimizedIDs.contains($0) }
+        for id in workspace.floatingOrder.reversed() + workspace.layout.panes + minimizedIDs
+        where !order.contains(id) {
+            order.append(id)
+        }
+
+        return order.compactMap { id in
+            if let pane = workspace.pane(id) {
+                // Un panel tapado por el maximizado no está en pantalla: sale
+                // sin foto, como uno minimizado.
+                let onScreen = pane.view.window != nil && frames[id] != nil
+                let frame = frames[id] ?? pane.view.bounds
+                return WindowOverview.Entry(
+                    id: id,
+                    title: pane.title,
+                    kind: PaneKind.of(pane),
+                    frame: frame,
+                    snapshot: onScreen ? pane.view.snapshotView(afterScreenUpdates: false) : nil,
+                    isMinimized: false
+                )
+            }
+            guard let entry = workspace.minimized.first(where: { $0.id == id }) else { return nil }
+            return WindowOverview.Entry(
+                id: id,
+                title: entry.pane.title,
+                kind: PaneKind.of(entry.pane),
+                frame: entry.frame ?? entry.pane.view.bounds,
+                snapshot: nil,
+                isMinimized: true
+            )
+        }
+    }
+
+    private func presentOverview(_ style: WindowOverview.Style, entries: [WindowOverview.Entry], selected: Int) {
+        overview?.removeFromSuperview()
+        let view = WindowOverview(style: style, entries: entries, selected: selected)
+        view.frame = CGRect(origin: .zero, size: logicalSize)
+        view.onPick = { [weak self] id in self?.pickWindow(id) }
+        view.onDismiss = { [weak self] in self?.dismissOverview() }
+        canvas.addSubview(view)
+        overview = view
+        applyContentsScale(to: view)
+        // Delante del cursor no: el cursor es una capa aparte, siempre encima.
+        services.pointer.shape = .arrow
+    }
+
+    private func dismissOverview() {
+        overview?.removeFromSuperview()
+        overview = nil
+    }
+
+    /// Cmd+º: abre el conmutador en la ventana de antes o, si ya está
+    /// abierto, pasa a la siguiente.
+    private func cycleWindows(backwards: Bool) {
+        if let overview {
+            if overview.style == .switcher { overview.advance(by: backwards ? -1 : 1) }
+            return
+        }
+        guard !hasOtherModal else { return }
+        let entries = overviewEntries()
+        guard entries.count > 1 else { return }
+        presentOverview(.switcher, entries: entries, selected: backwards ? entries.count - 1 : 1)
+    }
+
+    /// Se soltó Cmd: a la ventana elegida.
+    private func endWindowSwitch() {
+        guard let overview, overview.style == .switcher else { return }
+        if let id = overview.selectedID {
+            pickWindow(id)
+        } else {
+            dismissOverview()
+        }
+    }
+
+    /// Cmd+E: abre o cierra Exposé.
+    func toggleExpose() {
+        if overview != nil {
+            dismissOverview()
+            return
+        }
+        guard !hasOtherModal else { return }
+        let entries = overviewEntries()
+        guard !entries.isEmpty else { return }
+        presentOverview(.expose, entries: entries, selected: 0)
+    }
+
+    /// Lleva a una ventana: le da el foco y la trae delante; si estaba en el
+    /// dock, la saca; si otro panel del mosaico estaba maximizado y la tapa,
+    /// deja de estarlo.
+    private func pickWindow(_ id: PaneID) {
+        dismissOverview()
+        let workspace = services.desktop.active
+        if workspace.minimized.contains(where: { $0.id == id }) {
+            restoreMinimized(id)
+            return
+        }
+        guard workspace.pane(id) != nil else { return }
+        if let maximized = workspace.layout.maximized, maximized != id, !workspace.isFloating(id) {
+            workspace.layout.maximized = nil
+        }
+        workspace.setFocus(id)
+        services.desktop.notifyChange()
+    }
+
     // MARK: - Arrastrar ficheros
 
     private struct FileDrag {
-        var item: FileItem
+        var items: [FileItem]
         var provider: any FileProvider
         weak var source: FilesPane?
         var ghost: UIView
@@ -1807,15 +1977,16 @@ final class DesktopViewController: UIViewController {
 
     /// Un panel de Ficheros empieza a arrastrar algo. A partir de aquí el
     /// escritorio lleva el cursor: el arrastre puede acabar en otro panel.
-    func beginFileDrag(_ item: FileItem, from provider: any FileProvider, source: FilesPane) {
+    func beginFileDrag(_ items: [FileItem], from provider: any FileProvider, source: FilesPane) {
+        guard let item = items.first else { return }
         let ghost = UILabel()
         let icon = NSTextAttachment()
         icon.image = UIImage(
-            systemName: item.isDirectory ? "folder.fill" : "doc.fill",
+            systemName: items.count > 1 ? "doc.on.doc.fill" : (item.isDirectory ? "folder.fill" : "doc.fill"),
             withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .medium)
         )?.withTintColor(Tokens.Color.accent.resolvedColor(with: traitCollection), renderingMode: .alwaysOriginal)
         let text = NSMutableAttributedString(attachment: icon)
-        text.append(NSAttributedString(string: "  " + item.name, attributes: [
+        text.append(NSAttributedString(string: "  " + (items.count > 1 ? "\(items.count) elementos" : item.name), attributes: [
             .font: Tokens.sans(12.5, weight: .medium),
             .foregroundColor: Tokens.Color.text,
         ]))
@@ -1830,7 +2001,7 @@ final class DesktopViewController: UIViewController {
         ghost.frame.size = CGSize(width: min(size.width + 24, 320), height: 28)
         canvas.addSubview(ghost)
         applyContentsScale(to: ghost)
-        fileDrag = FileDrag(item: item, provider: provider, source: source, ghost: ghost, target: nil)
+        fileDrag = FileDrag(items: items, provider: provider, source: source, ghost: ghost, target: nil)
         moveGhost(to: services.pointer.position)
     }
 
@@ -1867,7 +2038,7 @@ final class DesktopViewController: UIViewController {
             drag.target?.highlightDrop(nil)
             fileDrag = nil
             if let (pane, local) = filesPane(at: position), let target = pane.dropTarget(at: local) {
-                pane.drop(drag.item, from: drag.provider, at: target)
+                pane.drop(drag.items, from: drag.provider, at: target)
             }
 
         default:
@@ -2034,6 +2205,7 @@ final class DesktopViewController: UIViewController {
 
     /// Entrega una tecla al panel con foco.
     func deliverKey(_ event: KeyEvent) {
+        if let overview, overview.handleKey(event) { return }
         if let contextMenu, contextMenu.handleKey(event) { return }
         if let prompt, prompt.handleKey(event) { return }
         if let quickLook, quickLook.handleKey(event) { return }

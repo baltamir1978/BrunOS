@@ -264,7 +264,14 @@ final class BrowserPane: UIView, Pane {
     private func refreshChrome() {
         let url = activeTab?.webView.url
         chrome.update(
-            tabs: tabs.map { BrowserChrome.Tab(title: $0.title, host: $0.webView.url?.host()) },
+            tabs: tabs.map { tab in
+                BrowserChrome.Tab(
+                    title: tab.title,
+                    host: tab.webView.url?.host() ?? (tab.isSuspended ? tab.sessionURL?.host() : nil),
+                    isPinned: tab.isPinned,
+                    audio: tab.isMuted ? .muted : (tab.isPlayingMedia ? .playing : .silent)
+                )
+            },
             active: activeIndex,
             address: isEditingAddress ? addressDraft : (activeTab?.urlText ?? ""),
             isEditing: isEditingAddress,
@@ -529,26 +536,28 @@ final class BrowserPane: UIView, Pane {
     // MARK: - Sesión
 
     /// Las direcciones de las pestañas, para el próximo arranque.
-    var sessionTabs: (urls: [String?], active: Int) {
-        (tabs.map { $0.sessionURL?.absoluteString }, activeIndex)
+    var sessionTabs: (urls: [String?], pinned: [Bool], active: Int) {
+        (tabs.map { $0.sessionURL?.absoluteString }, tabs.map(\.isPinned), activeIndex)
     }
 
     /// Recupera las pestañas guardadas. Sólo carga la que se ve; las demás
     /// esperan dormidas a que se pulsen.
-    func restore(urls: [String?], active: Int) {
+    func restore(urls: [String?], pinned: [Bool] = [], active: Int) {
         guard !urls.isEmpty else {
             newTab()
             return
         }
         let active = min(max(active, 0), urls.count - 1)
         for (index, address) in urls.enumerated() {
+            let tab: BrowserTab
             if index != active, let address, let url = URL(string: address) {
-                let tab = makeTab()
+                tab = makeTab()
                 tab.prepareSuspended(at: url)
                 tab.webView.isHidden = true
             } else {
-                newTab(url: address)
+                tab = newTab(url: address)
             }
+            tab.isPinned = pinned.indices.contains(index) && pinned[index]
         }
         activate(active)
     }
@@ -597,8 +606,49 @@ final class BrowserPane: UIView, Pane {
         return tab
     }
 
+    /// Cmd+W. Una fijada no se cierra así, como en Safari: se pierde sin
+    /// querer justo la que se quería tener siempre a mano.
     func closeActiveTab() {
+        if activeTab?.isPinned == true {
+            toast("Pestaña fijada · suéltala o ciérrala desde su menú")
+            return
+        }
         close(at: activeIndex)
+    }
+
+    // MARK: - Fijar y silenciar
+
+    /// Fija o suelta una pestaña. Las fijadas van siempre delante: al fijarla
+    /// pasa al final de las fijadas, y al soltarla, justo detrás de ellas.
+    func togglePin(_ tab: BrowserTab) {
+        let pinnedCount = tabs.filter(\.isPinned).count
+        tab.isPinned.toggle()
+        move(tab, to: tab.isPinned ? pinnedCount : pinnedCount - 1)
+        refreshChrome()
+        AppServices.shared.desktop.notifyTitleChange()
+    }
+
+    /// Cambia una pestaña de sitio sin perder cuál es la que se ve.
+    private func move(_ tab: BrowserTab, to destination: Int) {
+        guard let from = tabs.firstIndex(where: { $0 === tab }) else { return }
+        let shown = activeTab
+        tabs.remove(at: from)
+        tabs.insert(tab, at: max(0, min(destination, tabs.count)))
+        if let shown, let index = tabs.firstIndex(where: { $0 === shown }) {
+            activeIndex = index
+        }
+    }
+
+    func toggleMute(_ tab: BrowserTab) {
+        tab.setMuted(!tab.isMuted)
+        refreshChrome()
+    }
+
+    /// Silencia o devuelve el sonido a la pestaña que se ve.
+    func toggleMuteActiveTab() {
+        guard let tab = activeTab else { return }
+        toggleMute(tab)
+        toast(tab.isMuted ? "Pestaña silenciada" : "Sonido activado")
     }
 
     private func close(at index: Int) {
@@ -637,7 +687,29 @@ final class BrowserPane: UIView, Pane {
                 guard let url = tab.webView.url else { return }
                 self?.newTab(url: url.absoluteString)
             },
+            ContextMenu.Entry(
+                title: tab.isPinned ? "Soltar pestaña" : "Fijar pestaña",
+                symbol: tab.isPinned ? "pin.slash" : "pin"
+            ) { [weak self] in
+                self?.togglePin(tab)
+            },
+            ContextMenu.Entry(
+                title: tab.isMuted ? "Activar el sonido" : "Silenciar pestaña",
+                symbol: tab.isMuted ? "speaker.wave.2" : "speaker.slash"
+            ) { [weak self] in
+                self?.toggleMute(tab)
+            },
         ]
+        if tabs.contains(where: { $0 !== tab && $0.isPlayingMedia && !$0.isMuted }) {
+            entries.append(ContextMenu.Entry(title: "Silenciar las demás", symbol: "speaker.slash.circle") {
+                [weak self] in
+                guard let self else { return }
+                for other in self.tabs where other !== tab && other.isPlayingMedia {
+                    other.setMuted(true)
+                }
+                self.refreshChrome()
+            })
+        }
         if let url = tab.webView.url, url.scheme == "http" || url.scheme == "https" {
             entries.append(ContextMenu.Entry(title: "Copiar enlace", symbol: "link") {
                 UIPasteboard.general.url = url
@@ -646,16 +718,18 @@ final class BrowserPane: UIView, Pane {
         entries.append(ContextMenu.Entry(title: "Cerrar", symbol: "xmark") { [weak self] in
             self?.close(at: index)
         })
+        // Las fijadas se quedan, como en Safari.
         entries.append(ContextMenu.Entry(
             title: "Cerrar las demás",
             symbol: "xmark.square",
-            isEnabled: tabs.count > 1
+            isEnabled: tabs.contains { $0 !== tab && !$0.isPinned }
         ) { [weak self] in
             guard let self else { return }
-            for position in self.tabs.indices.reversed() where position != index {
+            for position in self.tabs.indices.reversed()
+            where self.tabs[position] !== tab && !self.tabs[position].isPinned {
                 self.close(at: position)
             }
-            self.activate(0)
+            if let index = self.tabs.firstIndex(where: { $0 === tab }) { self.activate(index) }
         })
         if !closedTabs.isEmpty {
             entries.append(ContextMenu.Entry(title: "Reabrir la última cerrada", symbol: "arrow.uturn.left") {
@@ -1175,8 +1249,11 @@ final class BrowserPane: UIView, Pane {
         case .tab(let index):
             activate(index)
         case .closeTab(let index):
-            activate(index)
-            closeActiveTab()
+            close(at: index)
+        case .tabAudio(let index):
+            if tabs.indices.contains(index) { toggleMute(tabs[index]) }
+        case .audio:
+            if let activeTab { toggleMute(activeTab) }
         case .newTab:
             newTab()
         case .back:

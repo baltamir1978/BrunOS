@@ -19,6 +19,8 @@ final class QuickLookView: UIView {
     var onDismiss: (() -> Void)?
 
     private let item: FileItem
+    /// De dónde es: cada ventana de Ficheros puede estar en una ubicación.
+    private let provider: any FileProvider
     private let card = UIView()
     private let titleLabel = UILabel()
     private let detailLabel = UILabel()
@@ -30,8 +32,9 @@ final class QuickLookView: UIView {
     private var player: AVPlayer?
     private var animationTask: Task<Void, Never>?
 
-    init(item: FileItem, frame: CGRect) {
+    init(item: FileItem, provider: any FileProvider, frame: CGRect) {
         self.item = item
+        self.provider = provider
         super.init(frame: frame)
 
         backgroundColor = UIColor.black.withAlphaComponent(0.6)
@@ -90,7 +93,7 @@ final class QuickLookView: UIView {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let url = try await AppServices.shared.files.currentProvider.localURL(for: item)
+                let url = try await self.provider.localURL(for: self.item)
                 self.present(url)
             } catch {
                 self.statusLabel.text = error.localizedDescription

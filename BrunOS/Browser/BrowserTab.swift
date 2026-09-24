@@ -21,6 +21,15 @@ final class BrowserTab: NSObject {
     var canGoBack = false
     var canGoForward = false
 
+    /// Fijada, como en Safari: a la izquierda, sólo con el icono, y no se
+    /// cierra con Cmd+W ni con «Cerrar las demás».
+    var isPinned = false
+
+    /// Silenciada desde BrunOS. Ver `setMuted(_:)`.
+    private(set) var isMuted = false
+    /// Suena algo en la página ahora mismo, para el altavoz de la pestaña.
+    private(set) var isPlayingMedia = false
+
     /// Lo último que dijo `describe()` sobre lo que hay bajo el cursor.
     private(set) var hoveredLink: String?
 
@@ -381,6 +390,7 @@ final class BrowserTab: NSObject {
         suspendedScroll = webView.scrollView.contentOffset
         isSuspended = true
         webView.loadHTMLString("", baseURL: nil)
+        refreshPlaybackState()
     }
 
     /// La dirección que se guarda para el próximo arranque: la de la página
@@ -843,7 +853,53 @@ final class BrowserTab: NSObject {
     var onMediaHint: (@MainActor () -> Void)?
 
     fileprivate func mediaHint() {
+        if isMuted { applyMute(in: nil) }
+        refreshPlaybackState()
         onMediaHint?()
+    }
+
+    // MARK: - Silenciar
+
+    /// Silencia o devuelve el sonido de la pestaña.
+    ///
+    /// **WebKit no tiene un «silenciar página» público** (el de Safari es
+    /// privado), así que lo hace el inyector: pone `muted` a los `<video>` y
+    /// `<audio>` de la página y de sus iframes, y a los que vayan apareciendo
+    /// (escucha `play` y `volumechange` en captura). Al quitarlo sólo devuelve
+    /// el sonido a los que silenció él: un vídeo que la página ya tenía mudo
+    /// se queda mudo. Lo que suene por Web Audio no se puede callar así.
+    func setMuted(_ muted: Bool) {
+        guard muted != isMuted else { return }
+        isMuted = muted
+        applyMute(in: nil)
+        for frame in frames { applyMute(in: frame.info) }
+        onChange?()
+    }
+
+    private func applyMute(in frame: WKFrameInfo?) {
+        webView.evaluateJavaScript(
+            "window.__brunos && window.__brunos.setMuted(\(isMuted));", in: frame, in: world
+        ) { _ in }
+    }
+
+    /// Pregunta a WebKit si la página está reproduciendo. Se llama cuando la
+    /// página avisa (`play`, `pause`, `ended`…), no con un temporizador.
+    private func refreshPlaybackState() {
+        guard !isSuspended else {
+            if isPlayingMedia {
+                isPlayingMedia = false
+                onChange?()
+            }
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            let state = await self.webView.requestMediaPlaybackState()
+            let playing = state == .playing
+            guard playing != self.isPlayingMedia else { return }
+            self.isPlayingMedia = playing
+            self.onChange?()
+        }
     }
 
     // MARK: - Iframes
@@ -856,6 +912,9 @@ final class BrowserTab: NSObject {
     fileprivate func register(_ frame: WKFrameInfo, url: String) {
         frames.removeAll { $0.url == url }
         frames.append((frame, url))
+        // Un iframe que llega con la pestaña ya silenciada (un reproductor
+        // incrustado que se carga tarde) nace con sonido.
+        if isMuted { applyMute(in: frame) }
         if frames.count > 40 { frames.removeFirst(frames.count - 40) }
     }
 
@@ -944,6 +1003,13 @@ extension BrowserTab: WKNavigationDelegate {
         refresh()
         // Lo que declara la página (`og:video`) ya está al terminar de cargar.
         mediaHint()
+    }
+
+    /// La página nueva empieza sin silenciar: el inyector se carga de cero.
+    /// Se vuelve a poner en cuanto hay documento, antes de que termine de
+    /// cargar, que es cuando arranca el vídeo que se reproduce solo.
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        if isMuted { applyMute(in: nil) }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
@@ -1232,7 +1298,8 @@ private final class MediaHintRelay: NSObject, WKScriptMessageHandler {
     }
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame else { return }
+        // También de los iframes: un reproductor incrustado (YouTube en otra
+        // web) avisa desde el suyo, y es lo que enciende el altavoz.
         tab?.mediaHint()
     }
 }

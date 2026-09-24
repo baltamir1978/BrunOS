@@ -20,6 +20,10 @@ final class BrowserChrome: UIView {
     enum Target: Equatable {
         case tab(Int)
         case closeTab(Int)
+        /// El altavoz de una pestaña: silencia o devuelve el sonido.
+        case tabAudio(Int)
+        /// El altavoz de la cápsula de dirección, el de la pestaña que se ve.
+        case audio
         case newTab
         case back
         case forward
@@ -40,7 +44,27 @@ final class BrowserChrome: UIView {
     struct Tab: Equatable {
         var title: String
         var host: String?
+        var isPinned = false
+        var audio: Audio = .silent
     }
+
+    /// Lo que se oye en una pestaña, para su altavoz.
+    enum Audio: Equatable {
+        case silent
+        case playing
+        case muted
+
+        var symbol: String? {
+            switch self {
+            case .silent: nil
+            case .playing: "speaker.wave.2.fill"
+            case .muted: "speaker.slash.fill"
+            }
+        }
+    }
+
+    /// Ancho de una pestaña fijada: sólo cabe el icono, como en Safari.
+    private static let pinnedTabWidth: CGFloat = 34
 
     private var tabItems: [Tab] = []
     private var activeIndex = 0
@@ -70,6 +94,10 @@ final class BrowserChrome: UIView {
 
     private var tabFrames: [CGRect] = []
     private var closeFrames: [CGRect] = []
+    /// El altavoz de cada pestaña; `.zero` si no suena ni está silenciada.
+    private var audioFrames: [CGRect] = []
+    /// El de la cápsula de dirección.
+    private var addressAudioFrame: CGRect = .zero
     private var newTabFrame: CGRect = .zero
     private var backFrame: CGRect = .zero
     private var forwardFrame: CGRect = .zero
@@ -170,23 +198,38 @@ final class BrowserChrome: UIView {
         // está en la barra superior del escritorio y aquí sólo robaría sitio.
         let showTabs = tabItems.count > 1
         if showTabs {
+            // Las fijadas, estrechas y sin aspa; el resto se reparte lo que
+            // queda del 42 % del ancho, con un tope de 150.
             let gap: CGFloat = 3
-            let tabWidth = min(150, (bounds.width * 0.42) / CGFloat(tabItems.count))
-            let tabsWidth = tabWidth * CGFloat(tabItems.count) + gap * CGFloat(tabItems.count - 1)
+            let pinnedCount = tabItems.filter(\.isPinned).count
+            let normalCount = tabItems.count - pinnedCount
+            let pinnedWidth = CGFloat(pinnedCount) * Self.pinnedTabWidth
+            let budget = max(0, bounds.width * 0.42 - pinnedWidth)
+            let tabWidth = normalCount > 0 ? min(150, budget / CGFloat(normalCount)) : 0
+            let tabsWidth = pinnedWidth + tabWidth * CGFloat(normalCount)
+                + gap * CGFloat(tabItems.count - 1)
             let rightmost = rightmostButtonX
-            let start = rightmost - tabsWidth - 6
-            tabFrames = tabItems.indices.map { index in
-                CGRect(
-                    x: start + CGFloat(index) * (tabWidth + gap), y: 4,
-                    width: tabWidth, height: Self.height - 8
-                )
+            var x = rightmost - tabsWidth - 6
+            tabFrames = tabItems.map { item -> CGRect in
+                let width = item.isPinned ? Self.pinnedTabWidth : tabWidth
+                defer { x += width + gap }
+                return CGRect(x: x, y: 4, width: width, height: Self.height - 8)
             }
-            closeFrames = tabFrames.map { frame in
-                CGRect(x: frame.maxX - 18, y: frame.midY - 7, width: 14, height: 14)
+            closeFrames = zip(tabItems, tabFrames).map { item, frame -> CGRect in
+                item.isPinned ? .zero : CGRect(x: frame.maxX - 18, y: frame.midY - 7, width: 14, height: 14)
+            }
+            // El altavoz, a la izquierda del aspa. En una fijada no cabe: su
+            // icono se sustituye por el altavoz, y pulsarlo silencia.
+            audioFrames = zip(tabItems, tabFrames).map { item, frame -> CGRect in
+                guard item.audio != .silent else { return .zero }
+                return item.isPinned
+                    ? CGRect(x: frame.midX - 8, y: frame.midY - 8, width: 16, height: 16)
+                    : CGRect(x: frame.maxX - 36, y: frame.midY - 8, width: 16, height: 16)
             }
         } else {
             tabFrames = []
             closeFrames = []
+            audioFrames = []
         }
 
         // La dirección no se come la barra entera: con un ancho tope y
@@ -205,6 +248,13 @@ final class BrowserChrome: UIView {
         if isWebPage {
             readerFrame.origin.x = addressFrame.minX - size - 2
         }
+        // El altavoz de la pestaña que se ve, dentro de la cápsula a la
+        // derecha, como en Safari. Con una sola pestaña es el único sitio
+        // donde sale.
+        let activeAudio = tabItems.indices.contains(activeIndex) ? tabItems[activeIndex].audio : .silent
+        addressAudioFrame = activeAudio != .silent && !isEditing
+            ? CGRect(x: addressFrame.maxX - 26, y: addressFrame.midY - 10, width: 20, height: 20)
+            : .zero
     }
 
     /// Dónde empieza el grupo de botones de la derecha, que es hasta dónde
@@ -235,7 +285,10 @@ final class BrowserChrome: UIView {
         if let button = WindowControls.button(at: point, x: Self.controlsX, midY: Self.height / 2) {
             return .window(button)
         }
-        if let index = closeFrames.firstIndex(where: { $0.insetBy(dx: -3, dy: -3).contains(point) }) {
+        if let index = audioFrames.firstIndex(where: { $0 != .zero && $0.insetBy(dx: -2, dy: -2).contains(point) }) {
+            return .tabAudio(index)
+        }
+        if let index = closeFrames.firstIndex(where: { $0 != .zero && $0.insetBy(dx: -3, dy: -3).contains(point) }) {
             return .closeTab(index)
         }
         if let index = tabFrames.firstIndex(where: { $0.contains(point) }) {
@@ -251,6 +304,9 @@ final class BrowserChrome: UIView {
         if forwardFrame.contains(point) { return .forward }
         if reloadFrame.contains(point) { return .reload }
         if blockerFrame.contains(point) { return .blocker }
+        if addressAudioFrame != .zero, addressAudioFrame.insetBy(dx: -2, dy: -2).contains(point) {
+            return .audio
+        }
         // La dirección se mira la última y con holgura: es la zona más grande y
         // la que más se pulsa, así que conviene que perdone puntería.
         if addressFrame.insetBy(dx: -4, dy: -4).contains(point) { return .address }
@@ -335,6 +391,23 @@ final class BrowserChrome: UIView {
                 ))
             }
 
+            let item = tabItems[index]
+            let audioColor = item.audio == .muted ? Tokens.Color.textSecondary : Tokens.Color.accent
+
+            // Fijada: sólo el icono del sitio, o el altavoz si suena.
+            if item.isPinned {
+                if let symbol = item.audio.symbol {
+                    drawSymbol(symbol, in: audioFrames[index], color: audioColor, size: 10)
+                } else {
+                    FaviconStore.drawSiteIcon(
+                        for: item.host.map { "https://\($0)" } ?? "",
+                        in: CGRect(x: frame.midX - 7, y: frame.midY - 7, width: 14, height: 14),
+                        context: context
+                    )
+                }
+                continue
+            }
+
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
                 .foregroundColor: isActive ? Tokens.Color.text : Tokens.Color.textSecondary,
@@ -342,18 +415,22 @@ final class BrowserChrome: UIView {
             // El icono del sitio, como en Safari: con cuatro pestañas abiertas
             // se reconocen antes por el icono que por un título recortado.
             var textX = frame.minX + 8
-            if let icon = AppServices.shared.favicons.icon(for: tabItems[index].host) {
+            if let icon = AppServices.shared.favicons.icon(for: item.host) {
                 icon.draw(in: CGRect(x: textX, y: frame.midY - 6, width: 12, height: 12))
                 textX += 16
             }
-            (tabItems[index].title as NSString).draw(
+            let textEnd = item.audio == .silent ? frame.maxX - 20 : audioFrames[index].minX - 2
+            (item.title as NSString).draw(
                 in: CGRect(
                     x: textX, y: frame.midY - 8,
-                    width: max(0, frame.maxX - 20 - textX), height: 16
+                    width: max(0, textEnd - textX), height: 16
                 ),
                 withAttributes: attributes
             )
 
+            if let symbol = item.audio.symbol {
+                drawSymbol(symbol, in: audioFrames[index], color: audioColor, size: 9.5)
+            }
             drawSymbol("xmark", in: closeFrames[index], color: Tokens.Color.textSecondary, size: 9)
         }
     }
@@ -423,13 +500,23 @@ final class BrowserChrome: UIView {
             context.fillPath()
         }
 
+        let textWidth = addressAudioFrame == .zero ? addressFrame.width - 16 : addressAudioFrame.minX - x - 4
         text.draw(
             in: CGRect(
                 x: x, y: addressFrame.midY - textSize.height / 2,
-                width: addressFrame.width - 16, height: textSize.height
+                width: max(0, textWidth), height: textSize.height
             ),
             withAttributes: attributes
         )
+
+        if addressAudioFrame != .zero, tabItems.indices.contains(activeIndex),
+           let symbol = tabItems[activeIndex].audio.symbol {
+            drawSymbol(
+                symbol, in: addressAudioFrame,
+                color: tabItems[activeIndex].audio == .muted ? Tokens.Color.textSecondary : Tokens.Color.accent,
+                size: 11
+            )
+        }
     }
 
     /// Dibuja un símbolo del sistema centrado en un rectángulo.

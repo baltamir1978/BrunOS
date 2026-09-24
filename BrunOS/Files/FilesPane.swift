@@ -24,7 +24,15 @@ final class FilesPane: UIView, Pane {
     private var isFinding = false
     private var filter = ""
     private var path: String
+    /// La ubicación de **esta** ventana, por su clave (`FileService.key(of:)`).
+    /// Con la clave y no con el objeto: `rebuild()` crea los orígenes de nuevo.
+    private var locationKey: String
+    /// El elemento con el foco: el último pulsado, el que mueven las flechas
+    /// y desde donde cuenta Mayús+clic.
     private var selectedIndex: Int?
+    /// Todo lo seleccionado, con Cmd+clic, Mayús+clic o Cmd+A. Incluye
+    /// siempre `selectedIndex`.
+    private var selection: Set<Int> = []
     private var hoveredIndex: Int?
     private var scrollOffset: CGFloat = 0
     private var status: String?
@@ -141,8 +149,13 @@ final class FilesPane: UIView, Pane {
     private static let dateColumnInset: CGFloat = 238
     private static let gridPadding: CGFloat = 12
 
+    /// El origen que enseña esta ventana. Si se quitó, el iPhone.
+    private var provider: any FileProvider {
+        services.files.provider(forKey: locationKey) ?? services.files.providers[0]
+    }
+
     var title: String {
-        let provider = services.files.currentProvider
+        let provider = self.provider
         let relative = path == provider.rootPath
             ? ""
             : " · " + (path as NSString).lastPathComponent
@@ -152,7 +165,10 @@ final class FilesPane: UIView, Pane {
     var view: UIView { self }
 
     override init(frame: CGRect) {
-        path = services.files.currentProvider.rootPath
+        // Una ventana nueva abre donde se estuvo la última vez.
+        let start = AppServices.shared.files.currentProvider
+        locationKey = FileService.key(of: start)
+        path = start.rootPath
         super.init(frame: frame)
 
         backgroundColor = Tokens.Color.panel
@@ -186,7 +202,7 @@ final class FilesPane: UIView, Pane {
     // MARK: - Datos
 
     private func reload() {
-        let provider = services.files.currentProvider
+        let provider = self.provider
         let path = self.path
         status = nil
 
@@ -200,8 +216,8 @@ final class FilesPane: UIView, Pane {
                 self.pendingSelection = nil
                 self.thumbnails = [:]
                 self.pendingThumbnails = []
-                self.selectedIndex = wanted.flatMap { name in self.items.firstIndex { $0.name == name } }
-                    ?? (self.items.isEmpty ? nil : 0)
+                self.selectOnly(wanted.flatMap { name in self.items.firstIndex { $0.name == name } }
+                    ?? (self.items.isEmpty ? nil : 0))
                 self.scrollOffset = 0
                 self.setNeedsLayout()
                 self.setNeedsDisplay()
@@ -209,6 +225,7 @@ final class FilesPane: UIView, Pane {
             } catch {
                 self?.items = []
                 self?.allItems = []
+                self?.selectOnly(nil)
                 self?.status = error.localizedDescription
                 self?.setNeedsDisplay()
             }
@@ -240,13 +257,13 @@ final class FilesPane: UIView, Pane {
     }
 
     private func goUp() {
-        guard let parent = services.files.currentProvider.parent(of: path) else { return }
+        guard let parent = provider.parent(of: path) else { return }
         path = parent
         reload()
     }
 
     private func preview(_ item: FileItem) {
-        services.desktopViewController?.presentQuickLook(for: item)
+        services.desktopViewController?.presentQuickLook(for: item, from: provider)
     }
 
     // MARK: - Maquetación
@@ -290,7 +307,7 @@ final class FilesPane: UIView, Pane {
     private func applyFilter(_ text: String) {
         filter = text
         items = filtered(allItems)
-        selectedIndex = items.isEmpty ? nil : 0
+        selectOnly(items.isEmpty ? nil : 0)
         scrollOffset = 0
         findBar.status = text.isEmpty ? nil : (items.count == 1 ? "1 elemento" : "\(items.count) elementos")
         recomputeFrames()
@@ -415,7 +432,7 @@ final class FilesPane: UIView, Pane {
         for (index, provider) in services.files.providers.enumerated() {
             guard index < sidebarFrames.count else { break }
             let frame = sidebarFrames[index]
-            let isActive = provider === services.files.currentProvider
+            let isActive = FileService.key(of: provider) == locationKey
             // Un servidor de red desmontado, o un USB desenchufado, se queda
             // en la lista **apagado**: sigue ahí, pero se ve que no responde.
             // Desaparecer sin más parecía que la ubicación no se hubiera
@@ -455,7 +472,7 @@ final class FilesPane: UIView, Pane {
             width: bounds.width - listX, height: 1
         ))
 
-        let canGoUp = services.files.currentProvider.parent(of: path) != nil
+        let canGoUp = provider.parent(of: path) != nil
         drawSymbol("chevron.left", in: upFrame,
                    color: canGoUp ? Tokens.Color.text : Tokens.Color.textSecondary.withAlphaComponent(0.35))
         drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.text.withAlphaComponent(0.72), pointSize: 13.5)
@@ -475,8 +492,8 @@ final class FilesPane: UIView, Pane {
         }
 
         // El nombre de la carpeta, como la barra de título del Finder.
-        let folder = path == services.files.currentProvider.rootPath
-            ? services.files.currentProvider.name
+        let folder = path == provider.rootPath
+            ? provider.name
             : (path as NSString).lastPathComponent
         (folder as NSString).draw(
             in: CGRect(
@@ -544,7 +561,7 @@ final class FilesPane: UIView, Pane {
             // tiene por qué costar mil dibujados.
             guard frame.maxY > Self.headerHeight, frame.minY < bounds.height else { continue }
 
-            if index == selectedIndex {
+            if selection.contains(index) {
                 context.setFillColor(Tokens.Color.accent.withAlphaComponent(0.22).desktopCGColor)
                 context.fill(frame)
             } else if index == hoveredIndex {
@@ -621,7 +638,7 @@ final class FilesPane: UIView, Pane {
 
             // El resalte abraza icono y nombre, no la casilla entera: así se
             // distingue qué está seleccionado aunque las casillas se toquen.
-            let isSelected = index == selectedIndex
+            let isSelected = selection.contains(index)
             if isSelected || index == hoveredIndex {
                 let color = isSelected
                     ? Tokens.Color.accent.withAlphaComponent(0.22)
@@ -680,7 +697,7 @@ final class FilesPane: UIView, Pane {
     /// una foto de 48 megapíxeles para enseñarla a 84 puntos se come la memoria
     /// en cuanto hay unas cuantas en la carpeta.
     private func thumbnail(for item: FileItem) -> UIImage? {
-        guard item.kind == .image, services.files.currentProvider is LocalProvider else { return nil }
+        guard item.kind == .image, provider is LocalProvider else { return nil }
         if let image = thumbnails[item.path] { return image }
         guard !pendingThumbnails.contains(item.path) else { return nil }
         pendingThumbnails.insert(item.path)
@@ -767,9 +784,12 @@ final class FilesPane: UIView, Pane {
                items.indices.contains(press.index) {
                 self.press = nil
                 lastClick = nil
+                // Se arrastra todo lo seleccionado si se agarró por uno de
+                // ellos; si no, sólo ése, como en el Finder.
+                if !selection.contains(press.index) { selectOnly(press.index) }
                 AppServices.shared.desktopViewController?.beginFileDrag(
-                    items[press.index],
-                    from: services.files.currentProvider,
+                    selectedItems,
+                    from: provider,
                     source: self
                 )
                 return
@@ -791,9 +811,7 @@ final class FilesPane: UIView, Pane {
                 return
             }
             if let index = sidebarFrames.firstIndex(where: { $0.contains(event.location) }) {
-                services.files.select(index)
-                path = services.files.currentProvider.rootPath
-                reload()
+                showProvider(at: index)
                 return
             }
             if settingsFrame.contains(event.location) {
@@ -823,26 +841,96 @@ final class FilesPane: UIView, Pane {
                         && hypot($0.location.x - event.location.x, $0.location.y - event.location.y) < 6
                 } ?? false
 
-                if isDouble, items.indices.contains(index) {
+                if isDouble, items.indices.contains(index), event.modifiers.isDisjoint(with: [.command, .shift]) {
                     lastClick = nil
                     open(items[index])
                     return
                 }
                 lastClick = (index, now, event.location)
-                press = (index, event.location)
-                selectedIndex = index
+                if event.modifiers.contains(.command) {
+                    // Cmd+clic: añade o quita uno, sin tocar los demás.
+                    if selection.contains(index) {
+                        selection.remove(index)
+                        selectedIndex = selection.isEmpty ? nil : index
+                    } else {
+                        selection.insert(index)
+                        selectedIndex = index
+                    }
+                } else if event.modifiers.contains(.shift), let anchor = selectedIndex {
+                    // Mayús+clic: todo lo que hay entre el último y éste.
+                    selection = Set(min(anchor, index)...max(anchor, index))
+                } else {
+                    // Un clic sobre algo ya seleccionado no suelta lo demás
+                    // hasta ver si es un arrastre: si no, no se podría
+                    // arrastrar más de uno.
+                    if !selection.contains(index) { selectOnly(index) }
+                    press = (index, event.location)
+                    pendingSingleSelect = index
+                }
                 setNeedsDisplay()
                 AppServices.shared.desktop.notifyTitleChange()
             } else if upFrame.contains(event.location) {
                 goUp()
+            } else if event.location.x >= Self.sidebarWidth, event.location.y > Self.headerHeight,
+                      event.modifiers.isDisjoint(with: [.command, .shift]) {
+                // Un clic en el hueco suelta la selección, como en el Finder.
+                selectOnly(nil)
+                setNeedsDisplay()
             }
 
         case .scroll(let delta):
             scroll(by: -delta.dy)
 
         case .up:
+            // Clic sin arrastre sobre algo de una selección de varios: ahora
+            // sí se queda sólo ése.
+            if press != nil, let index = pendingSingleSelect, selection.count > 1 {
+                selectOnly(index)
+                setNeedsDisplay()
+            }
             press = nil
+            pendingSingleSelect = nil
         }
+    }
+
+    // MARK: - Selección
+
+    /// Un clic sobre algo que ya estaba en una selección de varios: al
+    /// soltar sin arrastrar, se queda sólo ése.
+    private var pendingSingleSelect: Int?
+
+    /// Deja seleccionado sólo uno, o nada.
+    private func selectOnly(_ index: Int?) {
+        selectedIndex = index
+        selection = index.map { [$0] } ?? []
+    }
+
+    /// Lo seleccionado, en el orden de la carpeta.
+    private var selectedItems: [FileItem] {
+        selection.sorted().compactMap { items.indices.contains($0) ? items[$0] : nil }
+    }
+
+    /// Cmd+A.
+    private func selectAll() {
+        guard !items.isEmpty else { return }
+        selection = Set(items.indices)
+        if selectedIndex == nil { selectedIndex = 0 }
+        setNeedsDisplay()
+    }
+
+    /// Cmd+C y el menú: lo seleccionado, al portapapeles de Ficheros.
+    func copySelection() {
+        services.files.copy(selectedItems, from: provider)
+    }
+
+    /// Cmd+X.
+    func cutSelection() {
+        services.files.cut(selectedItems, from: provider)
+    }
+
+    /// Cmd+V: lo copiado o cortado, a la carpeta que se ve.
+    func pasteHere() {
+        paste()
     }
 
     /// La cabecera vacía y la franja de arriba de la barra lateral, donde van
@@ -868,13 +956,33 @@ final class FilesPane: UIView, Pane {
             return sidebarMenuEntries(at: location)
         }
         let index = itemIndex(at: location)
-        if let index { selectedIndex = index; setNeedsDisplay() }
+        // Sobre algo de la selección, el menú es para toda la selección; sobre
+        // otra cosa, se queda sólo ésa, como en el Finder.
+        if let index, !selection.contains(index) { selectOnly(index) }
+        if index != nil { setNeedsDisplay() }
         let item = index.flatMap { items.indices.contains($0) ? items[$0] : nil }
         let files = services.files
+        let provider = self.provider
+        let chosen = selectedItems
 
         var entries: [ContextMenu.Entry] = []
 
-        if let item {
+        if item != nil, chosen.count > 1 {
+            let count = chosen.count
+            entries.append(ContextMenu.Entry(title: "Copiar \(count) elementos", symbol: "doc.on.doc") {
+                files.copy(chosen, from: provider)
+            })
+            entries.append(ContextMenu.Entry(title: "Cortar \(count) elementos", symbol: "scissors") {
+                files.cut(chosen, from: provider)
+            })
+            entries.append(ContextMenu.Entry(
+                title: "Borrar \(count) elementos",
+                symbol: "trash",
+                isDestructive: true
+            ) { [weak self] in
+                self?.confirmDelete(chosen)
+            })
+        } else if let item {
             if !item.isDirectory {
                 entries.append(ContextMenu.Entry(title: "Vista previa", symbol: "eye") { [weak self] in
                     self?.preview(item)
@@ -899,10 +1007,10 @@ final class FilesPane: UIView, Pane {
                 })
             }
             entries.append(ContextMenu.Entry(title: "Copiar", symbol: "doc.on.doc") {
-                files.copy(item)
+                files.copy([item], from: provider)
             })
             entries.append(ContextMenu.Entry(title: "Cortar", symbol: "scissors") {
-                files.cut(item)
+                files.cut([item], from: provider)
             })
             entries.append(ContextMenu.Entry(title: "Renombrar", symbol: "pencil") { [weak self] in
                 self?.startRename(item)
@@ -912,12 +1020,13 @@ final class FilesPane: UIView, Pane {
                 symbol: "trash",
                 isDestructive: true
             ) { [weak self] in
-                self?.confirmDelete(item)
+                self?.confirmDelete([item])
             })
         }
 
+        let pasteCount = files.clipboard?.items.count ?? 0
         entries.append(ContextMenu.Entry(
-            title: "Pegar",
+            title: pasteCount > 1 ? "Pegar \(pasteCount) elementos" : "Pegar",
             symbol: "doc.on.clipboard",
             isEnabled: files.clipboard != nil
         ) { [weak self] in
@@ -926,6 +1035,11 @@ final class FilesPane: UIView, Pane {
         entries.append(ContextMenu.Entry(title: "Nueva carpeta", symbol: "folder.badge.plus") { [weak self] in
             self?.createFolder()
         })
+        if item == nil, !items.isEmpty {
+            entries.append(ContextMenu.Entry(title: "Seleccionar todo", symbol: "checkmark.circle") {
+                [weak self] in self?.selectAll()
+            })
+        }
         for kind in [Sort.name, .size, .date] where kind != sort {
             entries.append(ContextMenu.Entry(
                 title: "Ordenar por \(kind.label.lowercased())",
@@ -996,7 +1110,7 @@ final class FilesPane: UIView, Pane {
                 isDestructive: true
             ) { [weak self] in
                 guard let self else { return }
-                let before = self.services.files.currentProvider
+                let before = self.provider
                 self.services.files.removeUnavailable()
                 self.afterLocationsChanged(previous: before)
             })
@@ -1008,15 +1122,15 @@ final class FilesPane: UIView, Pane {
     }
 
     private func removeLocation(_ provider: any FileProvider) {
-        let before = services.files.currentProvider
+        let before = self.provider
         services.files.remove(provider)
         afterLocationsChanged(previous: before)
     }
 
     /// Si la ubicación que se estaba viendo ya no está, se vuelve al iPhone.
     private func afterLocationsChanged(previous: any FileProvider) {
-        if FileService.key(of: services.files.currentProvider) != FileService.key(of: previous) {
-            showProvider(at: services.files.currentIndex)
+        if services.files.provider(forKey: locationKey) == nil {
+            showProvider(at: 0)
         }
         setNeedsLayout()
         setNeedsDisplay()
@@ -1029,7 +1143,7 @@ final class FilesPane: UIView, Pane {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let url = try await self.services.files.currentProvider.localURL(for: item)
+                let url = try await self.provider.localURL(for: item)
                 self.services.desktopViewController?.openInBrowser(url)
             } catch {
                 self.show(error)
@@ -1043,7 +1157,7 @@ final class FilesPane: UIView, Pane {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let url = try await self.services.files.currentProvider.localURL(for: item)
+                let url = try await self.provider.localURL(for: item)
                 try self.services.wallpaper.setCustomImage(from: url)
             } catch {
                 self.show(error)
@@ -1058,12 +1172,14 @@ final class FilesPane: UIView, Pane {
         pasteTask = Task { [weak self] in
             guard let self else { return }
             do {
-                try await self.services.files.paste(into: self.path) { [weak self] progress in
+                try await self.services.files.paste(into: self.path, of: self.provider) { [weak self] progress in
                     self?.copyProgress = progress
                     self?.setNeedsDisplay()
                 }
                 self.finishPaste()
                 self.reload()
+                // Lo cortado ya no está en la ventana de donde salió.
+                AppServices.shared.desktopViewController?.refreshFilesPanes()
             } catch is CancellationError {
                 self.finishPaste()
                 self.status = "Copia cancelada. Lo que ya se había copiado se queda."
@@ -1103,8 +1219,11 @@ final class FilesPane: UIView, Pane {
         let bytes: (Int64) -> String = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
         let detail = progress.filesTotal == 0
             ? progress.current
-            : "\(progress.filesDone) de \(progress.filesTotal) · \(bytes(progress.bytesDone)) de \(bytes(progress.bytesTotal))"
-        ("Copiando \(progress.current.isEmpty ? "" : "«\(progress.current)»")" as NSString).draw(
+            : progress.bytesTotal == 0
+                ? "\(progress.filesDone) de \(progress.filesTotal)"
+                : "\(progress.filesDone) de \(progress.filesTotal) · \(bytes(progress.bytesDone)) de \(bytes(progress.bytesTotal))"
+        let verb = progress.isMove ? "Moviendo" : "Copiando"
+        ("\(verb) \(progress.current.isEmpty ? "" : "«\(progress.current)»")" as NSString).draw(
             in: CGRect(x: panel.minX + 14, y: panel.minY + 8, width: panel.width - 130, height: 16),
             withAttributes: [.font: Tokens.sans(12, weight: .medium), .foregroundColor: Tokens.Color.text]
         )
@@ -1145,7 +1264,7 @@ final class FilesPane: UIView, Pane {
             guard let self, let newName, newName != item.name else { return }
             Task {
                 do {
-                    try await self.services.files.currentProvider.rename(item.path, to: newName)
+                    try await self.provider.rename(item.path, to: newName)
                     self.reload()
                 } catch {
                     self.show(error)
@@ -1163,7 +1282,7 @@ final class FilesPane: UIView, Pane {
             let path = self.path.hasSuffix("/") ? self.path + name : self.path + "/" + name
             Task {
                 do {
-                    try await self.services.files.currentProvider.createDirectory(path)
+                    try await self.provider.createDirectory(path)
                     self.reload()
                 } catch {
                     self.show(error)
@@ -1173,19 +1292,24 @@ final class FilesPane: UIView, Pane {
     }
 
     /// Borrar **siempre pregunta**: no hay papelera de donde recuperarlo.
-    private func confirmDelete(_ item: FileItem) {
+    private func confirmDelete(_ targets: [FileItem]) {
+        guard let first = targets.first else { return }
+        let provider = self.provider
         services.desktopViewController?.presentConfirm(
-            title: "¿Borrar \(item.name)?",
+            title: targets.count == 1 ? "¿Borrar \(first.name)?" : "¿Borrar \(targets.count) elementos?",
             message: "No se puede deshacer: BrunOS no tiene papelera.",
             destructive: "Borrar"
         ) { [weak self] confirmed in
             guard let self, confirmed else { return }
             Task {
                 do {
-                    try await self.services.files.deleteRecursively(item, from: self.services.files.currentProvider)
+                    for item in targets {
+                        try await self.services.files.deleteRecursively(item, from: provider)
+                    }
                     self.reload()
                 } catch {
                     self.show(error)
+                    self.reload()
                 }
             }
         }
@@ -1222,15 +1346,29 @@ final class FilesPane: UIView, Pane {
             }
         }
 
+        let flags = event.key.modifierFlags
+        // Los de Cmd que no son del escritorio llegan aquí: Cmd+A, Cmd+X y
+        // Cmd+⌫, como en el Finder. Cmd+C y Cmd+V pasan por `perform`.
+        if flags.contains(.command) {
+            switch event.key.keyCode {
+            case .keyboardA: selectAll()
+            case .keyboardX: cutSelection()
+            case .keyboardDeleteOrBackspace: confirmDelete(selectedItems)
+            default: break
+            }
+            return
+        }
+        let extend = flags.contains(.shift)
+
         switch event.key.keyCode {
         case .keyboardUpArrow:
-            move(by: -columns)
+            move(by: -columns, extending: extend)
         case .keyboardDownArrow:
-            move(by: columns)
+            move(by: columns, extending: extend)
         case .keyboardLeftArrow where mode != .list:
-            move(by: -1)
+            move(by: -1, extending: extend)
         case .keyboardRightArrow where mode != .list:
-            move(by: 1)
+            move(by: 1, extending: extend)
         case .keyboardReturnOrEnter:
             if let index = selectedIndex, items.indices.contains(index) {
                 open(items[index])
@@ -1247,10 +1385,16 @@ final class FilesPane: UIView, Pane {
         }
     }
 
-    private func move(by delta: Int) {
+    /// Con Mayús, la selección crece hasta donde se llega, como en el Finder.
+    private func move(by delta: Int, extending: Bool = false) {
         guard !items.isEmpty else { return }
         let next = min(max((selectedIndex ?? 0) + delta, 0), items.count - 1)
-        selectedIndex = next
+        if extending {
+            selection.insert(next)
+            selectedIndex = next
+        } else {
+            selectOnly(next)
+        }
         reveal(next)
         setNeedsLayout()
         setNeedsDisplay()
@@ -1300,25 +1444,29 @@ final class FilesPane: UIView, Pane {
     /// Como en el Finder: **dentro del mismo origen se mueve, entre orígenes
     /// distintos se copia**. Arrastrar del iPhone a una máquina por SFTP no
     /// debería borrar nada del teléfono.
-    func drop(_ item: FileItem, from source: any FileProvider, at target: DropTarget) {
+    func drop(_ dropped: [FileItem], from source: any FileProvider, at target: DropTarget) {
         highlightDrop(nil)
         let files = services.files
         let (provider, directory): (any FileProvider, String) = switch target {
         case .location(let index):
             (files.providers[index], files.providers[index].rootPath)
         case .folder(let index):
-            (files.currentProvider, items[index].path)
+            (self.provider, items[index].path)
         case .here:
-            (files.currentProvider, path)
+            (self.provider, path)
         }
         let move = source === provider
-        // Soltarlo donde ya estaba no hace nada.
-        if move, (item.path as NSString).deletingLastPathComponent == directory { return }
-        runTransfer(item, from: source, to: provider, into: directory, move: move)
+        // Soltarlo donde ya estaba no hace nada. Ni sobre sí mismo: una
+        // carpeta de la selección soltada encima de ella.
+        let moving = dropped.filter { item in
+            !(move && ((item.path as NSString).deletingLastPathComponent == directory || item.path == directory))
+        }
+        guard !moving.isEmpty else { return }
+        runTransfer(moving, from: source, to: provider, into: directory, move: move)
     }
 
     private func runTransfer(
-        _ item: FileItem,
+        _ moving: [FileItem],
         from source: any FileProvider,
         to target: any FileProvider,
         into directory: String,
@@ -1331,7 +1479,7 @@ final class FilesPane: UIView, Pane {
             guard let self else { return }
             do {
                 try await self.services.files.transfer(
-                    item, from: source, to: target, into: directory, move: move
+                    moving, from: source, to: target, into: directory, move: move
                 ) { [weak self] progress in
                     self?.copyProgress = progress
                     self?.setNeedsDisplay()
@@ -1372,9 +1520,14 @@ final class FilesPane: UIView, Pane {
 
     /// Enseña la raíz de un origen. Lo usa el lanzador.
     func showProvider(at index: Int) {
+        guard services.files.providers.indices.contains(index) else { return }
+        // También queda como la última elegida: ahí abrirá la próxima ventana.
         services.files.select(index)
-        path = services.files.currentProvider.rootPath
+        let provider = services.files.providers[index]
+        locationKey = FileService.key(of: provider)
+        path = provider.rootPath
         reload()
+        setNeedsDisplay()
     }
 
     /// El dictado o pegar, con el filtro abierto, van a él.
@@ -1387,15 +1540,14 @@ final class FilesPane: UIView, Pane {
 
     /// Qué ubicación y qué carpeta se estaban viendo.
     var sessionLocation: (location: String, path: String) {
-        (FileService.key(of: services.files.currentProvider), path)
+        (locationKey, path)
     }
 
     /// Vuelve a la ubicación y la carpeta guardadas. Si la ubicación ya no
     /// está (se quitó), se queda en el iPhone.
     func restore(location: String, path: String) {
-        guard let index = services.files.providers.firstIndex(where: { FileService.key(of: $0) == location })
-        else { return }
-        services.files.select(index)
+        guard services.files.provider(forKey: location) != nil else { return }
+        locationKey = location
         self.path = path
         reload()
     }
@@ -1403,8 +1555,8 @@ final class FilesPane: UIView, Pane {
     /// Enseña una carpeta del iPhone y, si se dice, deja marcado un fichero.
     /// Lo usa el aviso de descarga del navegador.
     func show(localDirectory directory: String, selecting name: String?) {
-        guard let index = services.files.providers.firstIndex(where: { $0 is LocalProvider }) else { return }
-        services.files.select(index)
+        guard let local = services.files.providers.first(where: { $0 is LocalProvider }) else { return }
+        locationKey = FileService.key(of: local)
         path = directory
         pendingSelection = name
         reload()

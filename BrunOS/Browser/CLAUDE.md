@@ -300,6 +300,25 @@ El icono de cada fila es el de la barra de favoritos, ahora en `FaviconStore.dra
 
 ### Pestañas
 
-Menú del clic derecho sobre una pestaña (recargar, duplicar, cerrar, cerrar las demás) y
-**Cmd+Mayús+T** para reabrir la última cerrada. De las cerradas se guarda **sólo la dirección**:
-mantener vivo un `WKWebView` por si acaso es justo lo que hace que iOS mate la app.
+Menú del clic derecho sobre una pestaña (recargar, duplicar, fijar, silenciar, cerrar, cerrar las
+demás) y **Cmd+Mayús+T** para reabrir la última cerrada. De las cerradas se guarda **sólo la
+dirección**: mantener vivo un `WKWebView` por si acaso es justo lo que hace que iOS mate la app.
+
+### Fijar y silenciar pestañas (24-sep-2026)
+
+Lo pidió Bruno, como en Safari. **Sin probar en el iPhone ni compilar** (se escribió desde Linux).
+
+- **Fijadas**: van siempre delante, estrechas y sólo con el icono, sin aspa. Cmd+W no las cierra
+  (sale un aviso), «Cerrar las demás» se las salta, y se recuerdan al arrancar
+  (`SavedDesktop.Window.pinnedTabs`). Desde su menú sí se pueden cerrar.
+- **Silenciar**: **WebKit no tiene un «silenciar página» público** (el de Safari, `_setPageMuted`,
+  es privado). Lo hace el inyector: `muted` en cada `<video>` y `<audio>`, en todos los marcos, y
+  en los que vayan apareciendo o a los que la página devuelva el volumen (`play`,
+  `loadedmetadata`, `volumechange` en captura). Al quitarlo sólo recuperan el sonido los que
+  silenció BrunOS (`WeakSet`). Swift lo vuelve a poner en `didCommit`, en `didFinish`, con cada
+  aviso de medios y en cada iframe que se presenta. **Lo que suene por Web Audio no se calla.**
+- **El altavoz** sale en la pestaña y en la cápsula de dirección cuando suena algo
+  (`requestMediaPlaybackState`, preguntado cuando la página avisa de `play`/`pause`/`ended`, no con
+  un temporizador) o está silenciada. Pulsarlo silencia. El aviso de medios llega ahora también de
+  los iframes: un reproductor incrustado vive en el suyo.
+- Cmd+Ctrl+M silencia la pestaña que se ve; «Silenciar las demás» en el menú.

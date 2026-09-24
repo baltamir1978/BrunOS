@@ -83,6 +83,16 @@ conviene no confundir "está escrito" con "funciona":
 **Hay arreglos sin subir** (ver «Lo que Bruno vio en la 2609240858»). **Bruno pidió no subir
 todavía.**
 
+**24-sep-2026 (tarde), escrito desde una sesión en Linux, SIN COMPILAR**: no había Xcode, sólo un
+análisis de sintaxis con tree-sitter. **Lo primero al volver al Mac es `./Tools/build.sh`** y
+arreglar lo que salga. Bruno eligió cuatro cosas de una lista de propuestas: fijar y silenciar
+pestañas (`BrunOS/Browser/CLAUDE.md`), copiar con progreso por bytes y arrastrar entre ventanas
+con selección múltiple (`BrunOS/Files/CLAUDE.md`), y Exposé con el conmutador de ventanas
+(«Exposé y Cmd+º», abajo). De paso salieron dos fallos: las ventanas de Ficheros compartían
+ubicación y **los clics nunca traían modificadores** (Cmd+clic no funcionaba en ningún sitio).
+Lo siguiente que quiere: una app de notas/portapapeles en el dock, y en la barra superior un
+interruptor de Tailscale (si iOS lo permite) y el tiempo en un desplegable al estilo macOS.
+
 **Última build subida: 2609240858 (24-sep-2026, mañana)**: lleva todo lo de abajo, la nitidez de
 las webs a 1,5×, la ronda de optimización (Ajustes › Rendimiento), encajar ventanas y recordar
 el escritorio al arrancar. **Nada de esto probado en el iPhone.**
@@ -230,6 +240,28 @@ recuerda qué había, no el árbol exacto de divisiones. **Sin probar en el iPho
 directo a una. También Cmd+N (de la app que está delante) y «Nuevo terminal /
 navegador / gestor de ficheros» en el lanzador. **El clic normal trae la app delante y, si ya lo
 estaba, abre otra ventana** (24-sep-2026: Bruno volvía a pulsar el icono esperando una segunda).
+
+### Exposé y Cmd+º (24-sep-2026)
+
+`WindowOverview`, la misma vista en dos formas. **Sin compilar ni probar.**
+
+- **Cmd+Tab no se puede**: iOS se lo reserva. El conmutador va con **Cmd+º**, la tecla de debajo
+  de Esc (el Cmd+` de macOS), reconocida por su código y no por lo que escribe (`º` en español,
+  `` ` `` en inglés; también la de al lado de la Mayúscula, que los ISO de Apple intercambian).
+  Mientras se mantiene Cmd, cada pulsación pasa a la siguiente (con Mayús, a la anterior); al
+  soltar Cmd se va a la elegida. La primera pulsación lleva a la ventana de antes:
+  `Workspace.recent` guarda el orden de uso, minimizadas incluidas.
+- **Soltar Cmd** llega como la tecla `keyboardLeftGUI` que sube (`.endWindowSwitch`). Por si iOS
+  no la entregara, el primer movimiento del ratón sin Cmd pulsado (`heldModifiers`) también
+  confirma, y cualquier otra tecla también.
+- **Exposé (Cmd+E**, o desde el lanzador): todas las ventanas en una rejilla, la que deja las
+  miniaturas más grandes. Clic o Intro para ir, Esc o clic en el fondo para salir.
+- Las miniaturas son `snapshotView(afterScreenUpdates: false)`, no las vistas de verdad. Las
+  minimizadas y las tapadas por una maximizada salen con el icono de su app. El hueco de la foto es
+  `OverviewThumbnail`, que `applyContentsScale` se salta: con `.nearest` la foto encogida saldría a
+  trozos.
+- Es una modal más: está en las tres listas (puntero, cursor y `performOverModal`) y en
+  `deliverKey`.
 
 ### Rendimiento (24-sep-2026)
 
@@ -505,7 +537,8 @@ excepción ni traza. Los orígenes se montan ahora desde `AppServices.start()`.
 **Regla**: nada de lo que cuelga de `AppServices.shared` puede mirar a `AppServices.shared` en su
 `init`.
 
-**Pendiente**: copiar carpetas enteras con progreso, y arrastrar entre ubicaciones.
+Copiar carpetas con progreso y arrastrar entre ubicaciones y ventanas ya están (ver
+`BrunOS/Files/CLAUDE.md`).
 
 ## Cómo se compila
 
@@ -648,4 +681,4 @@ con un responsable identificable. Comprobado en `Package.resolved`: `swift-nio-s
    del 22-sep.
 2. Mientras tanto, lo pequeño de "Pendientes": Cmd+clic al navegador propio y el lanzador
    completo.
-3. Cerrar la Fase 4: copiar carpetas con progreso y arrastrar entre ubicaciones.
+3. Compilar lo del 24-sep por la tarde (escrito sin Xcode) y probarlo en el iPhone.

@@ -31,6 +31,14 @@ enum DesktopCommand: Equatable {
     case zoomOut
     case zoomReset
     case history
+    /// Cmd+º: la siguiente ventana, con Mayús la anterior. Ver `WindowOverview`.
+    case switchWindow(backwards: Bool)
+    /// Se ha soltado Cmd: el conmutador va a la ventana elegida.
+    case endWindowSwitch
+    /// Cmd+E: todas las ventanas a la vez.
+    case expose
+    /// Silenciar la pestaña del navegador.
+    case muteTab
 
     /// Lo que se rotula en la ayuda y en los ajustes.
     var label: String {
@@ -57,6 +65,10 @@ enum DesktopCommand: Equatable {
         case .zoomOut: "Reducir"
         case .zoomReset: "Tamaño normal"
         case .history: "Historial"
+        case .switchWindow: "Cambiar de ventana"
+        case .endWindowSwitch: "Cambiar de ventana"
+        case .expose: "Todas las ventanas"
+        case .muteTab: "Silenciar pestaña"
         }
     }
 }
@@ -135,10 +147,22 @@ enum Shortcuts {
             Entry(input: "0", modifiers: .command, command: .zoomReset, title: "Tamaño normal"),
             // El de Safari.
             Entry(input: "y", modifiers: .command, command: .history, title: "Historial"),
+            Entry(input: "e", modifiers: .command, command: .expose, title: "Todas las ventanas"),
+            // Safari no tiene atajo para silenciar; Cmd+M solo sería minimizar.
+            Entry(input: "m", modifiers: [.command, .control], command: .muteTab, title: "Silenciar pestaña"),
         ]
 
         return entries
     }()
+
+    /// Las teclas del conmutador de ventanas, por su posición y no por lo que
+    /// escriben: la de debajo de Esc es «º» en un teclado español y «`» en uno
+    /// inglés. Los teclados ISO de Apple la cambian por la de al lado de la
+    /// Mayúscula izquierda («<»), así que valen las dos.
+    static let windowSwitchKeys: Set<UIKeyboardHIDUsage> = [
+        .keyboardGraveAccentAndTilde,
+        .keyboardNonUSBackslash,
+    ]
 
     /// Busca qué orden corresponde a una combinación concreta.
     static func command(input: String, modifiers: UIKeyModifierFlags) -> DesktopCommand? {

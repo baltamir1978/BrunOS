@@ -15,6 +15,11 @@ final class Workspace {
     private(set) var panes: [PaneID: any Pane] = [:]
     var focused: PaneID?
 
+    /// Las ventanas por orden de uso, la última con foco primero, minimizadas
+    /// incluidas. Es el orden del conmutador (Cmd+º): la primera pulsación
+    /// lleva a la de antes, como Cmd+Tab en macOS.
+    private(set) var recent: [PaneID] = []
+
     /// Paneles mandados al dock con el botón amarillo, en el orden en que se
     /// minimizaron. Siguen vivos —la sesión SSH, la página—, sólo que fuera
     /// del mosaico.
@@ -111,6 +116,7 @@ final class Workspace {
         layout.remove(id)
         floating[id] = nil
         floatingOrder.removeAll { $0 == id }
+        recent.removeAll { $0 == id }
         if focused == id {
             focused = nil
             setFocus(floatingOrder.last ?? layout.panes.first)
@@ -123,6 +129,8 @@ final class Workspace {
         }
         focused = id
         if let id, let pane = panes[id] {
+            recent.removeAll { $0 == id }
+            recent.insert(id, at: 0)
             pane.setFocused(true)
             // Como en macOS: la ventana que recibe el foco pasa delante.
             raise(id)

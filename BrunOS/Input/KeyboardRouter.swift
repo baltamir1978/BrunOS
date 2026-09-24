@@ -1,3 +1,4 @@
+import GameController
 import UIKit
 
 @MainActor
@@ -92,8 +93,65 @@ final class KeyboardRouter: UIResponder {
         UIResponder.brunosCurrentFirstResponder is any UITextInput
     }
 
+    // MARK: - Modificadores pulsados
+
+    /// Los modificadores que se tienen pulsados ahora mismo, para el ratón.
+    ///
+    /// **El puntero no trae modificadores**: con AssistiveTouch, un clic es un
+    /// toque en el iPhone, y el toque no sabe nada del teclado. Todos los
+    /// clics llegaban con `[]`, así que Cmd+clic y Mayús+clic no hacían nada.
+    /// Se leen del teclado con `GCKeyboard`, que da el estado de cada tecla al
+    /// momento; si no hay, de lo que se ha visto pasar por aquí.
+    static var heldModifiers: UIKeyModifierFlags {
+        guard let input = GCKeyboard.coalesced?.keyboardInput else { return trackedModifiers }
+        func pressed(_ codes: GCKeyCode...) -> Bool {
+            codes.contains { input.button(forKeyCode: $0)?.isPressed == true }
+        }
+        var flags: UIKeyModifierFlags = []
+        if pressed(.leftGUI, .rightGUI) { flags.insert(.command) }
+        if pressed(.leftShift, .rightShift) { flags.insert(.shift) }
+        if pressed(.leftAlt, .rightAlt) { flags.insert(.alternate) }
+        if pressed(.leftControl, .rightControl) { flags.insert(.control) }
+        return flags
+    }
+
+    private static var trackedModifiers: UIKeyModifierFlags = []
+
+    private static func track(_ key: UIKey, phase: KeyEvent.Phase) {
+        let flag: UIKeyModifierFlags? = switch key.keyCode {
+        case .keyboardLeftGUI, .keyboardRightGUI: .command
+        case .keyboardLeftShift, .keyboardRightShift: .shift
+        case .keyboardLeftAlt, .keyboardRightAlt: .alternate
+        case .keyboardLeftControl, .keyboardRightControl: .control
+        default: nil
+        }
+        if let flag {
+            if phase == .down { trackedModifiers.insert(flag) } else { trackedModifiers.remove(flag) }
+        } else {
+            // Una tecla normal trae los modificadores de verdad: si se perdió
+            // el soltar de alguno, aquí se corrige.
+            trackedModifiers = key.modifierFlags.intersection([.command, .shift, .alternate, .control])
+        }
+    }
+
     private func forward(_ key: UIKey, phase: KeyEvent.Phase) -> Bool {
         guard !isEditingOnPhone else { return false }
+        Self.track(key, phase: phase)
+
+        // Cmd+º, el conmutador de ventanas. Va por el código de la tecla, no
+        // por la tabla: lo que escribe cambia con la distribución del teclado.
+        if key.modifierFlags.contains(.command), Shortcuts.windowSwitchKeys.contains(key.keyCode) {
+            if phase == .down {
+                let backwards = key.modifierFlags.contains(.shift)
+                _ = delegate?.keyboardRouter(self, didReceive: .switchWindow(backwards: backwards))
+            }
+            return true
+        }
+        // Al soltar Cmd, el conmutador va a la ventana elegida. La tecla sigue
+        // su camino al panel, como antes.
+        if phase == .up, key.keyCode == .keyboardLeftGUI || key.keyCode == .keyboardRightGUI {
+            _ = delegate?.keyboardRouter(self, didReceive: .endWindowSwitch)
+        }
 
         // Con Cmd pulsado manda la tabla de atajos. Si la combinación no está
         // en ella, se deja pasar: puede ser Cmd+C o Cmd+V, que son del panel.

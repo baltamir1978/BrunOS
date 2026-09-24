@@ -260,9 +260,15 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
     func download(_ path: String, to url: URL) async throws {
         let partial = url.appendingPathExtension("part")
         try? FileManager.default.removeItem(at: partial)
+        // El aviso de AMSMB2 llega fuera de la tarea: el valor de tarea se lee
+        // antes y se lleva dentro.
+        let report = TransferProgress.report
         do {
             try await perform(path) { manager, inner in
-                try await manager.downloadItem(atPath: inner, to: partial, progress: nil)
+                try await manager.downloadItem(atPath: inner, to: partial, progress: { bytes, _ in
+                    report?(bytes)
+                    return true
+                })
             }
             try? FileManager.default.removeItem(at: url)
             try FileManager.default.moveItem(at: partial, to: url)
@@ -285,8 +291,12 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
     }
 
     func upload(from url: URL, to path: String) async throws {
+        let report = TransferProgress.report
         try await perform(path) { manager, inner in
-            try await manager.uploadItem(at: url, toPath: inner, progress: nil)
+            try await manager.uploadItem(at: url, toPath: inner, progress: { bytes in
+                report?(bytes)
+                return true
+            })
         }
     }
 }

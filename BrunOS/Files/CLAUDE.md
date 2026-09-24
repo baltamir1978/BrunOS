@@ -75,6 +75,31 @@ incluido**: se lee de uno y se escribe en el otro (`FileService.transfer`).
   (`previewURL`: ruta, tamaño y fecha). Con sólo el nombre, dos `IMG_0001.jpg` de carpetas
   distintas se pisaban.
 
+### Cada ventana con su ubicación, selección múltiple y progreso por bytes (24-sep-2026)
+
+**Sin compilar ni probar** (escrito desde Linux, sin Xcode).
+
+- **Todas las ventanas de Ficheros compartían ubicación**: miraban `FileService.currentProvider`,
+  que es global. Con dos ventanas, cambiar de ubicación en una cambiaba lo que listaba la otra, y
+  arrastrar de una a otra copiaba al sitio equivocado. Ahora cada `FilesPane` lleva la suya por
+  clave (`locationKey`, resuelta con `FileService.provider(forKey:)`); `currentProvider` queda
+  como «la última elegida», que es donde abre una ventana nueva. La vista previa recibe el origen.
+- **Selección múltiple**, como en el Finder: Cmd+clic suma o quita, Mayús+clic coge el tramo,
+  Mayús+flechas lo alarga, Cmd+A todo y un clic en el hueco la suelta. Copiar, cortar (Cmd+C,
+  Cmd+X, Cmd+V), borrar (Cmd+⌫) y arrastrar van con todo lo seleccionado. Un clic sobre algo de la
+  selección no la suelta hasta ver que no es un arrastre.
+- **Los clics no traían modificadores**: con AssistiveTouch un clic es un toque, y el toque no sabe
+  del teclado; todos llegaban con `[]`. Ahora `KeyboardRouter.heldModifiers` los lee con
+  `GCKeyboard` (y si no hay, de las teclas que ha visto pasar), y `deliverPointer` los añade. Esto
+  arregla también el Cmd+clic del navegador, que nunca funcionó.
+- El portapapeles y `transfer` llevan varios elementos: **una sola barra para todo**. Lo copiado se
+  puede pegar varias veces; lo cortado, una.
+- **Progreso dentro de cada fichero**: un vídeo de 4 GB se quedaba en 0 % hasta el final. Va por un
+  valor de tarea (`TransferProgress.report`) para no tocar el protocolo: SFTP informa a cada trozo
+  y SMB con el aviso de AMSMB2 (se lee el valor antes, porque su aviso llega fuera de la tarea).
+  `ProgressThrottle` deja pasar uno cada décima. Por un temporal (remoto → remoto), bajar es la
+  primera mitad y subir la segunda. Los locales (`copyItem`) no informan.
+
 ### SMB: cliente propio con AMSMB2 (23-sep-2026)
 
 **El SDK de iOS 27 no trae cliente SMB.** Comprobado: no hay NetFS ni nada equivalente. El 22-sep
