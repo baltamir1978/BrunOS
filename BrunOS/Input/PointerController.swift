@@ -36,7 +36,7 @@ struct PointerSettings: Codable, Equatable, Sendable {
 
 /// Elige sola entre las dos fuentes de ratón y reenvía lo que llegue.
 ///
-/// Prefiere el puntero indirecto, que da la posición absoluta (ver
+/// Prefiere `GCMouse` si entrega, y si no el puntero indirecto (ver
 /// `preferred`). La decisión no es de una vez para siempre: se rehace cada vez
 /// que una fuente empieza o deja de entregar.
 @MainActor
@@ -75,33 +75,21 @@ final class MouseRouter: MouseSourceDelegate {
         indirectSource.stop()
     }
 
-    /// La fuente que manda: **el puntero indirecto si entrega**, y si no
-    /// `GCMouse`.
+    /// La fuente que manda: `GCMouse` si entrega, si no el puntero indirecto.
     ///
-    /// Antes era al revés, cuando `GCMouse` no veía el ratón de AssistiveTouch
-    /// y daba igual. Desde que `KeyboardRouter` lee los modificadores con
-    /// `GCKeyboard`, GameController está en marcha y `GCMouse` también
-    /// entrega: desplazamientos que salen del puntero de iOS, que se para en
-    /// el borde del iPhone. Mandaba él y **el cursor volvía a atascarse sin
-    /// llegar al borde del monitor** (Bruno, 24-sep-2026). El indirecto da la
-    /// posición absoluta: borde del iPhone = borde del monitor.
-    ///
-    /// **Pero sólo mientras llega de verdad.** Con él a secas, en la
-    /// 2609241652 el ratón dejó de ir del todo: si el indirecto deja de
-    /// llegar (o nunca llega en ese estado), el cursor se quedaba muerto
-    /// esperándolo. Ahora, si lleva medio segundo sin llegar y `GCMouse` sí se
-    /// mueve, manda `GCMouse`: en el peor caso, se vuelve a lo de antes en vez
-    /// de quedarse sin ratón.
+    /// **Es la preferencia con la que el ratón iba bien** (la 2609241352,
+    /// según Bruno). El 24-sep se probó poner el indirecto delante, pensando
+    /// que `GCMouse` era lo que atascaba el cursor, y fue a peor: tirones y sin
+    /// llegar al borde. Lo que había estropeado la 2609241450 era el modo
+    /// mando en negro forzado, ya quitado. **No cambiar esto sin datos**:
+    /// Ajustes › Ratón y teclado › Diagnóstico dice qué fuente entrega y hasta
+    /// dónde llega el puntero.
     private var preferred: (any MouseSource)? {
-        let now = CACurrentMediaTime()
-        if indirectSource.isDelivering, now - lastIndirectMove < 0.5 { return indirectSource }
         if gcSource.isDelivering { return gcSource }
         if indirectSource.isDelivering { return indirectSource }
         return nil
     }
 
-    /// Cuándo llegó el último movimiento del puntero indirecto.
-    private var lastIndirectMove: CFTimeInterval = 0
 
     private func isActive(_ source: any MouseSource) -> Bool {
         preferred === source
@@ -149,7 +137,6 @@ final class MouseRouter: MouseSourceDelegate {
     func mouseSource(_ source: any MouseSource, didMove delta: MouseDelta) {
         count(source)
         noteMove(source, delta)
-        if source === indirectSource { lastIndirectMove = CACurrentMediaTime() }
         guard isActive(source) else { return }
         delegate?.mouseSource(source, didMove: delta)
     }

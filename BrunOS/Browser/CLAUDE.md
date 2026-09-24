@@ -398,3 +398,13 @@ y un iframe de otro origen, entrar, salir y salir desde fuera).
 - El historial tiene botón en la barra, junto a atrás, adelante y recargar (Bruno no lo quería
   sólo con Cmd+Y).
 - Cmd + / − / 0 enseñan «125 %» en el centro de la página durante un segundo, como Safari.
+
+### RedGifs dentro de Reddit (24-sep-2026, noche)
+
+«Descargar vídeo» no salía: Reddit mete el reproductor de RedGifs en un iframe de otro dominio y
+`mediaAt` sólo miraba la página principal. Ahora, si bajo el cursor hay un iframe, devuelve
+`{frame, args}` como los clics, y `BrowserTab.media(at:)` le pregunta al inyector de ese iframe
+(hasta 6 niveles). Cada vídeo trae `page` (la dirección de la página donde se vio), y la descarga
+usa ésa como `Referer`: con la de Reddit, el CDN de RedGifs lo niega. **Comprobado en macOS** con
+un iframe en otro puerto: el punto llega bien descontado el margen y el borde, y el `Referer` es el
+del iframe. **Sin probar contra Reddit.**

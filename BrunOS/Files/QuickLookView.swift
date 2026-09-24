@@ -31,7 +31,7 @@ final class QuickLookView: UIView {
     /// cerrar la vista previa es de lo más molesto que hay.
     private var player: AVPlayer?
     private var animationTask: Task<Void, Never>?
-    private var pdfView: PDFView?
+    private var pdfView: PDFPagesView?
 
     init(item: FileItem, provider: any FileProvider, frame: CGRect) {
         self.item = item
@@ -213,78 +213,25 @@ final class QuickLookView: UIView {
         player.play()
     }
 
-    /// PDF con todas sus páginas, una debajo de otra, ajustado al ancho.
-    ///
-    /// La primera versión salía mal (Bruno, 24-sep-2026): sin adaptarse al
-    /// tamaño, una sola página y borroso. PDFKit dibuja a la densidad de la
-    /// pantalla, como WebKit, así que lleva la escala contraria a la del
-    /// lienzo (ver `layoutPDF`); y la rueda, las flechas y el zoom se le pasan
-    /// a mano, porque en el monitor no le llegan eventos del sistema.
+    /// PDF con todas sus páginas, una debajo de otra, ajustado al ancho y
+    /// dibujado por BrunOS a la densidad del monitor (`PDFPagesView`). Con
+    /// `PDFView` no salía nítido: PDFKit decide su resolución.
     private func presentPDF(_ url: URL) {
-        guard let document = PDFDocument(url: url) else {
+        guard let document = PDFDocument(url: url), document.pageCount > 0 else {
             statusLabel.text = "No se pudo abrir el PDF."
             return
         }
-        let view = PDFView(frame: .zero)
-        view.displayMode = .singlePageContinuous
-        view.displayDirection = .vertical
-        view.displaysPageBreaks = true
-        view.pageShadowsEnabled = true
-        view.backgroundColor = Tokens.Color.background
-        view.isUserInteractionEnabled = false
-        view.document = document
+        let view = PDFPagesView(document: document)
+        view.frame = content.bounds
+        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.onPageChange = { [weak self] page, total in
+            guard let self else { return }
+            self.detailLabel.text = "\(self.item.sizeLabel) · Página \(page) de \(total)"
+        }
         content.addSubview(view)
         pdfView = view
         statusLabel.isHidden = true
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(pdfPageChanged), name: .PDFViewPageChanged, object: view
-        )
-        layoutPDF()
-        pdfPageChanged()
-    }
-
-    /// El factor con el que el escritorio estira el lienzo, que el PDF deshace.
-    private var canvasFactor: CGFloat {
-        AppServices.shared.desktopViewController?.canvasFactor ?? 1
-    }
-
-    private func layoutPDF() {
-        guard let pdfView else { return }
-        let factor = canvasFactor
-        let size = content.bounds.size
-        pdfView.transform = .identity
-        pdfView.bounds = CGRect(x: 0, y: 0, width: size.width * factor, height: size.height * factor)
-        pdfView.center = CGPoint(x: size.width / 2, y: size.height / 2)
-        pdfView.transform = factor == 1 ? .identity : CGAffineTransform(scaleX: 1 / factor, y: 1 / factor)
-        pdfView.layoutIfNeeded()
-        pdfView.autoScales = true
-    }
-
-    @objc private func pdfPageChanged() {
-        guard let pdfView, let document = pdfView.document else { return }
-        let current = pdfView.currentPage.map { document.index(for: $0) + 1 } ?? 1
-        detailLabel.text = "\(item.sizeLabel) · Página \(current) de \(document.pageCount)"
-    }
-
-    /// El `UIScrollView` que PDFKit lleva dentro: es por donde se desplaza.
-    private var pdfScrollView: UIScrollView? {
-        func find(_ view: UIView) -> UIScrollView? {
-            if let scroll = view as? UIScrollView { return scroll }
-            for subview in view.subviews {
-                if let found = find(subview) { return found }
-            }
-            return nil
-        }
-        return pdfView.flatMap(find)
-    }
-
-    private func scrollPDF(by delta: CGFloat) {
-        guard let scroll = pdfScrollView else { return }
-        let maxY = max(0, scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)
-        var offset = scroll.contentOffset
-        // La rueda llega en puntos del escritorio; la vista va a otra escala.
-        offset.y = min(max(offset.y - delta * canvasFactor, -scroll.adjustedContentInset.top), maxY)
-        scroll.setContentOffset(offset, animated: false)
+        view.setNeedsLayout()
     }
 
     /// Cmd + / − / 0 en un PDF. Llega desde `performOverModal`: los atajos
@@ -292,12 +239,7 @@ final class QuickLookView: UIView {
     /// vuelve a ajustar al ancho.
     func zoom(by factor: CGFloat?) {
         guard let pdfView else { return }
-        guard let factor else {
-            pdfView.autoScales = true
-            return
-        }
-        pdfView.autoScales = false
-        pdfView.scaleFactor = min(max(pdfView.scaleFactor * factor, pdfView.minScaleFactor), pdfView.maxScaleFactor)
+        pdfView.setZoom(factor.map { pdfView.zoom * $0 } ?? 1)
     }
 
     private func presentText(_ url: URL) {
@@ -342,7 +284,6 @@ final class QuickLookView: UIView {
         detailLabel.frame = CGRect(x: 18, y: 36, width: width - 36, height: 14)
         content.frame = CGRect(x: 14, y: 58, width: width - 28, height: height - 72)
         statusLabel.frame = content.bounds
-        layoutPDF()
         player?.currentItem.map { _ in
             content.layer.sublayers?.first?.frame = content.bounds
         }
@@ -365,7 +306,7 @@ final class QuickLookView: UIView {
                 player.timeControlStatus == .playing ? player.pause() : player.play()
             }
         case .scroll(let delta):
-            scrollPDF(by: delta.dy)
+            pdfView?.scroll(by: delta.dy)
         default:
             break
         }
@@ -380,13 +321,13 @@ final class QuickLookView: UIView {
         case .keyboardSpacebar, .keyboardEscape, .keyboardReturnOrEnter:
             dismiss()
         case .keyboardDownArrow, .keyboardRightArrow, .keyboardPageDown:
-            pdfView?.goToNextPage(nil)
+            pdfView.map { $0.go(toPage: $0.currentPage + 1) }
         case .keyboardUpArrow, .keyboardLeftArrow, .keyboardPageUp:
-            pdfView?.goToPreviousPage(nil)
+            pdfView.map { $0.go(toPage: $0.currentPage - 1) }
         case .keyboardHome:
-            pdfView?.goToFirstPage(nil)
+            pdfView?.go(toPage: 0)
         case .keyboardEnd:
-            pdfView?.goToLastPage(nil)
+            pdfView.map { $0.go(toPage: $0.pageCount - 1) }
         default:
             break
         }

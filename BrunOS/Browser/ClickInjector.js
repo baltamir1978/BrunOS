@@ -311,6 +311,9 @@ function mediaItems() {
             height: element && element.videoHeight ? element.videoHeight : 0,
             duration: element && isFinite(element.duration) ? Math.round(element.duration) : 0,
             title: document.title || '',
+            // Desde qué página se ha visto: es el `Referer` que espera el
+            // servidor del vídeo, y en un iframe no es el de la pestaña.
+            page: location.href,
         });
     }
 
@@ -410,7 +413,13 @@ function hlsListFor(element) {
 /// El medio que hay bajo el cursor, para «Descargar vídeo» del clic derecho.
 function mediaAt(x, y) {
     const element = mediaElementAt(x, y);
-    if (!element) return null;
+    if (!element) {
+        // Un vídeo incrustado de otro sitio (RedGifs dentro de Reddit) vive
+        // en su iframe, y desde aquí no se ve: se le pregunta a su inyector,
+        // igual que se le reenvían los clics.
+        const under = deepElementFromPoint(x, y);
+        return under && isFrame(under) ? forwardToFrame(under, x, y, []) : null;
+    }
 
     const items = mediaItems();
     const own = new Set();
@@ -442,6 +451,9 @@ function mediaAt(x, y) {
             height: element.videoHeight || 0,
             duration: isFinite(element.duration) ? Math.round(element.duration) : 0,
             title: document.title || '',
+            // Desde qué página se ha visto: es el `Referer` que espera el
+            // servidor del vídeo, y en un iframe no es el de la pestaña.
+            page: location.href,
         };
     }
     if (mine.length > 0) return mine[0];

@@ -466,11 +466,19 @@ entrega desplazamientos que salen del puntero de iOS, que se para en el borde de
 AssistiveTouch. Ajustes › Ratón y teclado › «Fuente activa» dice cuál manda: con AssistiveTouch
 tiene que poner «puntero indirecto».
 
-**Y en la 2609241652 seguía**: el cursor se movía, pero a tirones y sin llegar al borde. Sin
-saber aún la causa (sin datos del iPhone), van tres cosas, **sin subir**:
+**Y en la 2609241652 seguía**: el cursor se movía, pero a tirones y **chocando con el límite
+del iPhone**, que es la firma de moverse por desplazamientos. La causa: el trackpad a pantalla
+completa decidía si el toque de AssistiveTouch era el ratón con `isPointerWorking`, que **se
+apaga solo a los 3 s** sin movimiento del puntero (y el puntero se calla con cada clic y en los
+arrastres). Apagado, el toque se tomaba por un dedo y movía el cursor por desplazamientos ×1,6,
+parados en el borde del teléfono; con la posición absoluta llegando a la vez, a tirones. Ahora
+usa `pointerEverWorked`, que no se apaga (`TrackpadUIView.isMouseSession`). **Sin subir.**
 
-- `MouseRouter` manda el indirecto **mientras llegue** (medio segundo); si deja de llegar y
-  `GCMouse` se mueve, manda `GCMouse`. «Fuente activa» se calcula al momento.
+Además, también sin subir:
+
+- La preferencia de `MouseRouter` vuelve a la de la 2609241352 (GCMouse primero): con la que el
+  ratón iba bien según Bruno. El cambio de la 2609241652 fue a ciegas. «Fuente activa» se calcula
+  al momento.
 - Una posición del indirecto con el botón «pulsado» es que el soltar se perdió: se suelta (con
   AssistiveTouch, mientras se pulsa no llegan posiciones). Antes se ignoraban todas y el cursor
   se quedaba quieto.

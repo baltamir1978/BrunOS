@@ -191,6 +191,16 @@ reproductor cancela un rango (al saltar), se corta su tarea.
 `FileService.rebuild()` avisa con `providersDidChange` y las barras laterales se repintan; antes
 renombrar desde Ajustes no se veía hasta que otra cosa las repintaba.
 
+### La vista previa de PDF, dibujada por BrunOS (24-sep-2026, noche)
+
+La rueda y las páginas iban, pero **la resolución seguía mal** con `PDFView` y la escala
+contraria: PDFKit decide a qué resolución pinta sus trozos. Ahora `PDFPagesView` dibuja cada
+página con `PDFPage.draw(with:to:)` en un `UIGraphicsImageRenderer` a la escala de la capa
+(`contentsScale`, la densidad exacta del monitor), del ancho en que se ve, y la guarda hasta que
+cambian el ancho, el zoom o la densidad; sólo las ±4 páginas cercanas. **Comprobado en el
+simulador**: una página de prueba a 1,5× sale derecha y nítida (600 px para 400 pt). Lo de abajo
+(rueda, flechas, zoom por `performOverModal`, «Página 3 de 12») sigue igual.
+
 ### La vista previa de PDF (24-sep-2026)
 
 Salía mal (Bruno): sin ajustarse al tamaño, una sola página y borrosa, y cualquier clic la cerraba.

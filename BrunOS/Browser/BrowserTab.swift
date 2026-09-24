@@ -646,6 +646,10 @@ final class BrowserTab: NSObject {
         var height: Int
         var duration: Int
         var pageTitle: String
+        /// La página desde la que se vio: el `Referer` de la descarga. En un
+        /// iframe (RedGifs dentro de Reddit) no es la de la pestaña, y con la
+        /// de la pestaña el servidor del vídeo lo niega.
+        var page: URL? = nil
 
         var symbol: String { isAudio ? "waveform" : "film" }
 
@@ -685,8 +689,64 @@ final class BrowserTab: NSObject {
     }
 
     /// El medio que hay bajo el cursor, para el clic derecho.
+    /// El vídeo o el audio bajo el cursor. Si cae en un iframe, se le
+    /// pregunta al inyector de ese iframe con sus coordenadas, y así hasta
+    /// seis niveles, como con los clics (`send`).
     func media(at point: CGPoint) async -> Media? {
-        await mediaList(from: "[window.__brunos.mediaAt(\(point.x), \(point.y))].filter(Boolean);").first
+        await media(x: point.x, y: point.y, in: nil, depth: 0)
+    }
+
+    /// Lo que contesta el inyector: un vídeo, o «pregúntale a este iframe».
+    private enum MediaAnswer: Sendable {
+        case found(Media)
+        case forward(target: [String: String], x: Double, y: Double)
+        case nothing
+    }
+
+    private func media(x: CGFloat, y: CGFloat, in frame: WKFrameInfo?, depth: Int) async -> Media? {
+        let answer: MediaAnswer = await withCheckedContinuation { continuation in
+            webView.evaluateJavaScript("window.__brunos.mediaAt(\(x), \(y));", in: frame, in: world) { result in
+                guard case .success(let value) = result, let entry = value as? [String: Any] else {
+                    continuation.resume(returning: .nothing)
+                    return
+                }
+                if let target = entry["frame"] as? [String: Any], let args = entry["args"] as? [Any],
+                   let nextX = (args.first as? NSNumber)?.doubleValue,
+                   let nextY = (args.dropFirst().first as? NSNumber)?.doubleValue {
+                    let strings = target.compactMapValues { $0 as? String }
+                    continuation.resume(returning: .forward(target: strings, x: nextX, y: nextY))
+                } else if let media = Self.media(from: entry) {
+                    continuation.resume(returning: .found(media))
+                } else {
+                    continuation.resume(returning: .nothing)
+                }
+            }
+        }
+        switch answer {
+        case .found(let media):
+            return media
+        case .forward(let target, let nextX, let nextY):
+            guard depth < 6, let info = self.frame(for: target) else { return nil }
+            return await media(x: nextX, y: nextY, in: info, depth: depth + 1)
+        case .nothing:
+            return nil
+        }
+    }
+
+    private static func media(from entry: [String: Any]) -> Media? {
+        guard let text = entry["url"] as? String, let url = URL(string: text) else { return nil }
+        return Media(
+            url: url,
+            isAudio: (entry["kind"] as? String) == "audio",
+            fileExtension: entry["extension"] as? String ?? "",
+            isStream: entry["stream"] as? Bool ?? false,
+            isHLS: entry["hls"] as? Bool ?? false,
+            width: entry["width"] as? Int ?? 0,
+            height: entry["height"] as? Int ?? 0,
+            duration: entry["duration"] as? Int ?? 0,
+            pageTitle: entry["title"] as? String ?? "",
+            page: (entry["page"] as? String).flatMap(URL.init(string:))
+        )
     }
 
     private func mediaList(from script: String) async -> [Media] {
@@ -698,20 +758,7 @@ final class BrowserTab: NSObject {
                     continuation.resume(returning: [])
                     return
                 }
-                continuation.resume(returning: array.compactMap { entry in
-                    guard let text = entry["url"] as? String, let url = URL(string: text) else { return nil }
-                    return Media(
-                        url: url,
-                        isAudio: (entry["kind"] as? String) == "audio",
-                        fileExtension: entry["extension"] as? String ?? "",
-                        isStream: entry["stream"] as? Bool ?? false,
-                        isHLS: entry["hls"] as? Bool ?? false,
-                        width: entry["width"] as? Int ?? 0,
-                        height: entry["height"] as? Int ?? 0,
-                        duration: entry["duration"] as? Int ?? 0,
-                        pageTitle: entry["title"] as? String ?? ""
-                    )
-                })
+                continuation.resume(returning: array.compactMap(Self.media(from:)))
             }
         }
     }
@@ -1181,13 +1228,13 @@ extension BrowserTab: WKDownloadDelegate {
     /// Guarda un medio de la página, directo o por trozos.
     func download(_ media: Media) {
         if media.isHLS {
-            downloadStream(media.url, named: media.suggestedName)
+            downloadStream(media.url, named: media.suggestedName, referer: media.page)
         } else {
-            download(media.url, named: media.suggestedName)
+            download(media.url, named: media.suggestedName, referer: media.page)
         }
     }
 
-    func downloadStream(_ url: URL, named name: String) {
+    func downloadStream(_ url: URL, named name: String, referer: URL? = nil) {
         let agent = webView.customUserAgent
         Task { @MainActor in
             let cookies = await webView.configuration.websiteDataStore.httpCookieStore.allCookies()
@@ -1195,7 +1242,7 @@ extension BrowserTab: WKDownloadDelegate {
             // por rangos: ése se guarda tal cual, por el camino de siempre, que
             // lleva el `Referer` y no depende de AVFoundation.
             if let file = await HLSDownloader.singleFile(behind: url, cookies: cookies, userAgent: agent) {
-                download(file, named: name)
+                download(file, named: name, referer: referer)
             } else {
                 AppServices.shared.hls.download(url, named: name, cookies: cookies, userAgent: agent)
             }
@@ -1279,14 +1326,15 @@ extension BrowserTab: WKDownloadDelegate {
     /// aposta: así la petición lleva **las cookies y la sesión de la pestaña**.
     /// Un vídeo detrás de un inicio de sesión, pedido por fuera, devuelve una
     /// página de error.
-    func download(_ url: URL, named name: String? = nil) {
+    func download(_ url: URL, named name: String? = nil, referer: URL? = nil) {
         var request = URLRequest(url: url)
         // **De dónde viene la petición.** Muchos sitios que sirven vídeo
         // (RedGifs, Imgur, medios con CDN propio) responden 403 a un mp4
         // pedido «a pelo», para que nadie lo enlace desde fuera. Pidiéndolo
         // como lo pide la propia página —mismo `Referer`, mismo origen— el
         // servidor ve lo mismo que vería con el reproductor y lo entrega.
-        if let page = webView.url, page.scheme == "http" || page.scheme == "https" {
+        // Si el vídeo se vio en un iframe, la página es la del iframe.
+        if let page = referer ?? webView.url, page.scheme == "http" || page.scheme == "https" {
             request.setValue(page.absoluteString, forHTTPHeaderField: "Referer")
             if let origin = page.host().map({ "\(page.scheme ?? "https")://\($0)" }) {
                 request.setValue(origin, forHTTPHeaderField: "Origin")

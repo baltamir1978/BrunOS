@@ -102,10 +102,26 @@ final class TrackpadUIView: UIView {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         let all = event?.allTouches ?? touches
         lastPoint = centroid(of: all)
-        isMouseButton = isFullScreen && services.assistiveTouch.isPointerWorking && all.count == 1
+        isMouseButton = isFullScreen && isMouseSession && all.count == 1
         guard isMouseButton else { return }
         services.pointer.isHoldingButton = true
         services.desktopViewController?.deliverPointer(.down(button: .left), modifiers: [])
+    }
+
+    /// Si el toque que llega es el del ratón de AssistiveTouch y no un dedo.
+    ///
+    /// **Con `pointerEverWorked`, que no se apaga solo**, y no con
+    /// `isPointerWorking`,
+    /// que se baja a los 3 s sin movimiento del puntero (y el puntero se calla
+    /// con cada clic y durante un arrastre). En cuanto se bajaba, el toque de
+    /// AssistiveTouch se tomaba por un dedo y movía el cursor por
+    /// desplazamientos, que se paran en el borde del iPhone: **el cursor
+    /// volvía a chocar con el límite del teléfono**, y con la posición
+    /// absoluta llegando a la vez, a tirones (Bruno, 24-sep-2026). No vale
+    /// `isActive`: también es cierto con AssistiveTouch encendido y sin ratón,
+    /// y entonces un dedo de verdad arrastraría en vez de mover el cursor.
+    private var isMouseSession: Bool {
+        services.assistiveTouch.pointerEverWorked
     }
 
     /// Cuánto se mueve el cursor del monitor por cada punto del iPhone: lo mismo
@@ -148,7 +164,7 @@ final class TrackpadUIView: UIView {
         // mueve el cursor: lo que llega no es un dedo de verdad, es el toque
         // que AssistiveTouch genera bajo el puntero. Moverlo aquí además lo
         // desplazaría el doble.
-        if isFullScreen, services.assistiveTouch.isPointerWorking, all.count < 2 {
+        if isFullScreen, isMouseSession, all.count < 2 {
             return
         }
 
