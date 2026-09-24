@@ -34,6 +34,8 @@ final class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
         // otra app (ver `ExternalSceneDelegate.reattachIfNeeded`).
         ExternalSceneDelegate.reattachAll()
         AppServices.shared.assistiveTouch.refresh()
+        // Una nota cambiada desde la app Archivos, al volver.
+        AppServices.shared.notes.refreshFromDisk()
         // Tailscale ha podido cambiar desde Atajos o desde su app.
         AppServices.shared.tailscale.refresh()
         // Con monitor conectado la pantalla del iPhone no se puede apagar: si la

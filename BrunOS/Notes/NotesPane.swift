@@ -78,7 +78,12 @@ final class NotesPane: UIView, Pane {
         textView.isUserInteractionEnabled = false
         textView.backgroundColor = Tokens.Color.background
         textView.textColor = Tokens.Color.text
-        textView.font = Tokens.sans(15)
+        textView.font = NoteStyle.baseFont
+        // Los enlaces, en el ámbar de la marca y subrayados.
+        textView.linkTextAttributes = [
+            .foregroundColor: Tokens.Color.accent,
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+        ]
         textView.textContainerInset = UIEdgeInsets(top: 18, left: 20, bottom: 40, right: 20)
         textView.showsVerticalScrollIndicator = false
         addSubview(textView)
@@ -114,9 +119,11 @@ final class NotesPane: UIView, Pane {
     private func loadCurrent() {
         switch mode {
         case .notes:
-            textView.text = noteID.flatMap { services.notes.note($0)?.text } ?? ""
+            textView.attributedText = Self.displayed(noteID.map { services.notes.content($0) }
+                ?? NSAttributedString(string: ""))
         case .clipboard:
-            textView.text = clipID.flatMap { id in clips.first { $0.id == id }?.text } ?? ""
+            let text = clipID.flatMap { id in clips.first { $0.id == id }?.text } ?? ""
+            textView.attributedText = Self.displayed(NSAttributedString(string: text, attributes: NoteStyle.baseAttributes))
         }
         let length = (string as NSString).length
         selection = NSRange(location: length, length: 0)
@@ -133,7 +140,7 @@ final class NotesPane: UIView, Pane {
         if mode == .notes, let noteID {
             if let note = services.notes.note(noteID) {
                 if note.text != textView.text {
-                    textView.text = note.text
+                    textView.attributedText = Self.displayed(services.notes.content(noteID))
                     clampSelection()
                     refreshCaret()
                 }
@@ -439,6 +446,7 @@ final class NotesPane: UIView, Pane {
 
     /// Mueve el cursor. Con `extend`, la selección va del ancla hasta ahí.
     private func setCursor(_ offset: Int, extend: Bool) {
+        typingStyle = nil
         let offset = max(0, min(offset, length))
         if extend {
             selection = NSRange(location: min(anchor, offset), length: abs(offset - anchor))
@@ -496,16 +504,174 @@ final class NotesPane: UIView, Pane {
 
     // MARK: - Editar
 
+    // MARK: - Texto enriquecido
+
+    /// El contenido guardado, listo para enseñar: el color lo pone el modo
+    /// claro u oscuro, porque en el fichero no se guarda.
+    private static func displayed(_ content: NSAttributedString) -> NSAttributedString {
+        let copy = NSMutableAttributedString(attributedString: content)
+        let whole = NSRange(location: 0, length: copy.length)
+        copy.addAttribute(.foregroundColor, value: Tokens.Color.text, range: whole)
+        copy.enumerateAttribute(.font, in: whole) { value, range, _ in
+            if value == nil { copy.addAttribute(.font, value: NoteStyle.baseFont, range: range) }
+        }
+        return copy
+    }
+
+    /// El formato que se aplicará a lo que se escriba, si se ha cambiado con
+    /// Cmd+B, Cmd+I o Cmd+U sin nada seleccionado. Se olvida al mover el
+    /// cursor, como en cualquier editor.
+    private var typingStyle: [NSAttributedString.Key: Any]?
+
+    /// Con qué formato sale lo que se escribe: el de lo que hay justo antes
+    /// del cursor (sin su enlace), o el pedido con los atajos.
+    private var typingAttributes: [NSAttributedString.Key: Any] {
+        if let typingStyle { return typingStyle }
+        let storage = textView.textStorage
+        guard storage.length > 0 else {
+            var base = NoteStyle.baseAttributes
+            base[.foregroundColor] = Tokens.Color.text
+            return base
+        }
+        let index = max(0, min(selection.location - 1, storage.length - 1))
+        var attributes = storage.attributes(at: index, effectiveRange: nil)
+        attributes[.link] = nil
+        attributes[.foregroundColor] = Tokens.Color.text
+        return attributes
+    }
+
     /// Cambia lo seleccionado por `text` y lo guarda.
     private func replaceSelection(with text: String) {
-        guard editingNote, let noteID else { return }
-        let current = string as NSString
-        let updated = current.replacingCharacters(in: selection, with: text)
-        textView.text = updated
-        let cursor = selection.location + (text as NSString).length
-        services.notes.update(noteID, text: updated)
+        guard editingNote else { return }
+        let attributes = typingAttributes
+        let start = selection.location
+        textView.textStorage.replaceCharacters(in: selection, with: NSAttributedString(string: text, attributes: attributes))
+        let inserted = NSRange(location: start, length: (text as NSString).length)
+        linkify(around: inserted)
+        let cursor = NSMaxRange(inserted)
+        let style = typingStyle
+        saveContent()
         setCursor(cursor, extend: false)
+        // Escribiendo, el formato pedido se mantiene aunque el cursor avance.
+        typingStyle = style
         services.desktop.notifyTitleChange()
+    }
+
+    private func saveContent() {
+        guard let noteID else { return }
+        services.notes.update(noteID, content: textView.attributedText)
+    }
+
+    /// **Las direcciones se vuelven enlaces solas**, en el párrafo que se está
+    /// escribiendo. Los enlaces puestos a mano (Cmd+K, con otro texto) se
+    /// respetan; los automáticos se rehacen, por si se ha editado la
+    /// dirección.
+    private func linkify(around range: NSRange) {
+        let storage = textView.textStorage
+        let nsString = storage.string as NSString
+        guard nsString.length > 0 else { return }
+        let paragraph = nsString.paragraphRange(for: NSRange(location: min(range.location, nsString.length - 1), length: range.length))
+        storage.enumerateAttribute(.link, in: paragraph) { value, linkRange, _ in
+            guard let value else { return }
+            let target = (value as? URL)?.absoluteString ?? (value as? String) ?? ""
+            let text = nsString.substring(with: linkRange)
+            // Automático es el que enseña su propia dirección.
+            if target == text || target == "http://" + text || target == "https://" + text {
+                storage.removeAttribute(.link, range: linkRange)
+            }
+        }
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return }
+        for match in detector.matches(in: storage.string, range: paragraph) {
+            guard let url = match.url, storage.attribute(.link, at: match.range.location, effectiveRange: nil) == nil
+            else { continue }
+            storage.addAttribute(.link, value: url, range: match.range)
+        }
+    }
+
+    /// Cmd+B y Cmd+I: sobre lo seleccionado, o para lo que se escriba.
+    private func toggle(_ trait: UIFontDescriptor.SymbolicTraits) {
+        guard editingNote else { return }
+        func toggled(_ font: UIFont, on: Bool) -> UIFont {
+            var traits = font.fontDescriptor.symbolicTraits
+            if on { traits.insert(trait) } else { traits.remove(trait) }
+            guard let descriptor = font.fontDescriptor.withSymbolicTraits(traits) else { return font }
+            return UIFont(descriptor: descriptor, size: font.pointSize)
+        }
+        if selection.length == 0 {
+            var attributes = typingAttributes
+            let font = attributes[.font] as? UIFont ?? NoteStyle.baseFont
+            attributes[.font] = toggled(font, on: !font.fontDescriptor.symbolicTraits.contains(trait))
+            typingStyle = attributes
+            return
+        }
+        let storage = textView.textStorage
+        var allHave = true
+        storage.enumerateAttribute(.font, in: selection) { value, _, _ in
+            let font = value as? UIFont ?? NoteStyle.baseFont
+            if !font.fontDescriptor.symbolicTraits.contains(trait) { allHave = false }
+        }
+        storage.beginEditing()
+        storage.enumerateAttribute(.font, in: selection) { value, range, _ in
+            storage.addAttribute(.font, value: toggled(value as? UIFont ?? NoteStyle.baseFont, on: !allHave), range: range)
+        }
+        storage.endEditing()
+        saveContent()
+        refreshCaret()
+    }
+
+    /// Cmd+U.
+    private func toggleUnderline() {
+        guard editingNote else { return }
+        if selection.length == 0 {
+            var attributes = typingAttributes
+            attributes[.underlineStyle] = attributes[.underlineStyle] == nil ? NSUnderlineStyle.single.rawValue : nil
+            typingStyle = attributes
+            return
+        }
+        let storage = textView.textStorage
+        var allHave = true
+        storage.enumerateAttribute(.underlineStyle, in: selection) { value, _, _ in
+            if value == nil { allHave = false }
+        }
+        if allHave {
+            storage.removeAttribute(.underlineStyle, range: selection)
+        } else {
+            storage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: selection)
+        }
+        saveContent()
+    }
+
+    /// Cmd+K: un enlace en lo seleccionado, o la dirección escrita como enlace.
+    private func addLink() {
+        guard editingNote else { return }
+        let range = selection
+        services.desktopViewController?.presentPrompt(title: "Dirección del enlace", value: "https://") {
+            [weak self] address in
+            guard let self, var address = address?.trimmingCharacters(in: .whitespaces), !address.isEmpty else { return }
+            if !address.contains("://") { address = "https://" + address }
+            guard let url = URL(string: address) else { return }
+            self.selection = range
+            if range.length == 0 {
+                let start = range.location
+                self.replaceSelection(with: address)
+                self.textView.textStorage.addAttribute(.link, value: url, range: NSRange(location: start, length: (address as NSString).length))
+            } else {
+                self.textView.textStorage.addAttribute(.link, value: url, range: range)
+            }
+            self.saveContent()
+        }
+    }
+
+    /// El enlace bajo un punto del panel, si lo hay: un clic lo abre en el
+    /// navegador.
+    private func link(at location: CGPoint) -> URL? {
+        guard editingNote, textView.frame.contains(location) else { return nil }
+        let point = convert(location, to: textView)
+        guard let range = textView.characterRange(at: point) else { return nil }
+        let index = offset(range.start)
+        guard index < textView.textStorage.length else { return nil }
+        let value = textView.textStorage.attribute(.link, at: index, effectiveRange: nil)
+        return value as? URL ?? (value as? String).flatMap(URL.init(string:))
     }
 
     private func deleteBackward() {
@@ -600,6 +766,10 @@ final class NotesPane: UIView, Pane {
                 anchor = 0
                 setCursor(length, extend: true)
             case .keyboardX: cut()
+            case .keyboardB: toggle(.traitBold)
+            case .keyboardI: toggle(.traitItalic)
+            case .keyboardU: toggleUnderline()
+            case .keyboardK: addLink()
             case .keyboardLeftArrow: setCursor(lineBoundary(from: head, forward: false), extend: extend)
             case .keyboardRightArrow: setCursor(lineBoundary(from: head, forward: true), extend: extend)
             case .keyboardUpArrow: setCursor(0, extend: extend)
@@ -743,6 +913,12 @@ final class NotesPane: UIView, Pane {
                 selectRow(row)
                 return
             }
+            // Un clic en un enlace lo abre, como en Notas de macOS. Con
+            // Mayús, no: así se puede seleccionar sin abrirlo.
+            if !event.modifiers.contains(.shift), let url = link(at: location) {
+                services.desktopViewController?.openInBrowser(url)
+                return
+            }
             if editingNote, let offset = textOffset(at: location) {
                 let now = Date()
                 let isDouble = lastClick.map {
@@ -849,6 +1025,18 @@ final class NotesPane: UIView, Pane {
             })
             entries.append(ContextMenu.Entry(title: "Pegar", symbol: "doc.on.clipboard") { [weak self] in
                 self?.paste()
+            })
+            entries.append(ContextMenu.Entry(title: "Negrita · Cmd B", symbol: "bold") { [weak self] in
+                self?.toggle(.traitBold)
+            })
+            entries.append(ContextMenu.Entry(title: "Cursiva · Cmd I", symbol: "italic") { [weak self] in
+                self?.toggle(.traitItalic)
+            })
+            entries.append(ContextMenu.Entry(title: "Subrayado · Cmd U", symbol: "underline") { [weak self] in
+                self?.toggleUnderline()
+            })
+            entries.append(ContextMenu.Entry(title: "Añadir enlace… · Cmd K", symbol: "link") { [weak self] in
+                self?.addLink()
             })
         }
         entries.append(ContextMenu.Entry(title: "Nota nueva", symbol: "square.and.pencil") { [weak self] in

@@ -39,9 +39,11 @@ final class Dock: UIView {
 
     /// Tamaño normal de un icono y cuánto crece el que está bajo el cursor.
     private static let itemSize: CGFloat = 44
-    private static let maxScale: CGFloat = 1.6
+    /// **Sutil**: Bruno no lo quería enorme (24-sep-2026); la primera versión
+    /// llegaba a ×1,6.
+    private static let maxScale: CGFloat = 1.25
     /// Hasta dónde llega el efecto a cada lado, en iconos.
-    private static let reach: CGFloat = 2.6
+    private static let reach: CGFloat = 2
     private static let spacing: CGFloat = 10
     private static let padding: CGFloat = 10
     private static let separatorGap: CGFloat = 10
@@ -241,7 +243,7 @@ final class Dock: UIView {
 
         // El nombre, encima del icono más grande.
         if hoverX != nil, let (index, _) = scales.enumerated().max(by: { $0.element < $1.element }),
-           scales[index] > 1.3 {
+           scales[index] > 1.12 {
             let icon = icons[index]
             tooltip.text = index < items.count ? PaneKind.dockOrder[index].title : "Ajustes"
             let size = tooltip.sizeThatFits(CGSize(width: 200, height: 30))
@@ -350,7 +352,7 @@ private final class DockItem: UIView {
         let key = "\(kind?.rawValue ?? "settings")|\(isSettings)|\(DesktopTheme.style.rawValue)"
         guard key != renderedKey else { return }
         renderedKey = key
-        let side: CGFloat = 44 * 1.6
+        let side: CGFloat = 44 * 1.25
         iconView.image = isSettings
             ? DockIcon.settingsImage(size: side)
             : kind.map { DockIcon.image(for: $0, size: side) }

@@ -151,7 +151,10 @@ monitor sólo se puede comprobar en el iPhone.
 - **Reddit con la letra normal** (sin el autoajuste de texto de iOS), y que el resto de webs no
   cambie para mal.
 - **El zoom de los visores por debajo de 100 %** (25, 50, 75 %).
-- **El dock**: transparencia, agrandamiento con el cursor, el nombre encima y el rebote al abrir.
+- **El dock**: transparencia, agrandamiento sutil (×1,25) con el cursor, el nombre encima y el
+  rebote al abrir.
+- **Notas en RTF** en `Documentos/Notas` (las de antes, migradas), negrita, cursiva, subrayado y
+  enlaces (ver `BrunOS/Notes/CLAUDE.md`).
 
 ## Pruebas: cerradas (24-sep-2026, con la 2609241916)
 
@@ -268,7 +271,7 @@ Cmd+Intro sigue maximizando dentro del mosaico.
 **Transparencia, agrandamiento y rebote** (24-sep-2026, noche, lo pidió Bruno para pulir la
 interfaz): el fondo es un desenfoque del sistema (`UIVisualEffectView`, `.systemThinMaterial`)
 con un tinte suave; `applyContentsScale` no entra en él. Los iconos crecen con el cursor encima
-hasta ×1,6, con caída en coseno² hasta 2,6 iconos a cada lado, **medida desde las posiciones sin
+hasta ×1,25 (**sutil**: Bruno no lo quería enorme; empezó en ×1,6), con caída en coseno² hasta 2 iconos a cada lado, **medida desde las posiciones sin
 agrandar** (si no, el efecto tiembla); crecen hacia arriba desde su base, los vecinos se apartan y
 la barra se ensancha. Encima del más grande sale su nombre. Cada icono se dibuja una vez a tamaño
 máximo y sólo se escala. Al abrir una app cerrada, el icono rebota. Los clics los decide
