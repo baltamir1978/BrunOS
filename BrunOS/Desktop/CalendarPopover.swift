@@ -108,10 +108,20 @@ final class CalendarPopover: UIView {
         // Los días de la semana, de lunes a domingo.
         let letters = ["L", "M", "X", "J", "V", "S", "D"]
         let gridX = (Self.width - 7 * Self.cell) / 2
+
+        // **El fin de semana, distinto** (Bruno, 24-sep-2026): una franja de
+        // fondo en sábado y domingo, y los números en rojo, como en un
+        // calendario de papel. Sólo el gris de antes apenas se notaba.
+        let band = CGRect(x: gridX + 5 * Self.cell, y: 46, width: 2 * Self.cell,
+                          height: Self.gridTop - 46 + 6 * Self.cell)
+        context.setFillColor(Tokens.Color.danger.withAlphaComponent(0.08).desktopCGColor)
+        context.addPath(UIBezierPath(roundedRect: band, cornerRadius: 8).cgPath)
+        context.fillPath()
+
         for (index, letter) in letters.enumerated() {
             let frame = CGRect(x: gridX + CGFloat(index) * Self.cell, y: 50, width: Self.cell, height: 18)
             drawCentered(letter, in: frame, font: Tokens.sans(11, weight: .semibold),
-                         color: index >= 5 ? Tokens.Color.textSecondary.withAlphaComponent(0.7) : Tokens.Color.textSecondary)
+                         color: index >= 5 ? Tokens.Color.danger : Tokens.Color.textSecondary)
         }
 
         // Los días: el hueco antes del 1 según en qué día de la semana cae.
@@ -137,7 +147,7 @@ final class CalendarPopover: UIView {
             drawCentered(
                 "\(day)", in: frame,
                 font: Tokens.sans(13, weight: isToday ? .semibold : .regular),
-                color: isToday ? .white : (isWeekend ? Tokens.Color.textSecondary : Tokens.Color.text)
+                color: isToday ? .white : (isWeekend ? Tokens.Color.danger : Tokens.Color.text)
             )
         }
     }

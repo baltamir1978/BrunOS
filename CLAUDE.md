@@ -453,6 +453,7 @@ un fallo posible aunque no fuera éste.
   un botón para probar el de Tailscale. `SettingsPages.shortcutsPageIndex` es su posición; el
   «Cómo crear el atajo…» del menú de Tailscale lleva ahí.
 - **Calendario** (`CalendarPopover`) al pulsar la hora: el mes, de lunes a domingo, hoy marcado,
+  el fin de semana con franja y en rojo (Bruno lo pidió distinto),
   flechas, la rueda y ← → para pasar de mes. No lee el calendario del iPhone: el permiso saldría
   en la pantalla del teléfono.
 - **El desplegable del tiempo** lleva ahora los colores de la interfaz y sigue el modo: el cielo

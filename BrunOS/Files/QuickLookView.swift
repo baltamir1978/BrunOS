@@ -89,7 +89,23 @@ final class QuickLookView: UIView {
 
     // MARK: - Carga
 
+    /// Mientras se ve un vídeo del servidor por trozos. Se guarda aquí: el
+    /// asset sólo lo retiene débil.
+    private var streamer: MediaStreamer?
+
     private func load() {
+        // Un vídeo o un audio por SFTP o SMB se ve mientras llega, sin
+        // esperar a tenerlo entero (ver `MediaStreamer`).
+        if item.kind == .media, item.size > 0, let remote = provider as? any RangeReadableProvider {
+            let streamer = MediaStreamer(provider: remote, item: item)
+            if let asset = streamer.makeAsset(fileName: item.name) {
+                self.streamer = streamer
+                statusLabel.text = "Conectando con el servidor…"
+                presentMedia(AVPlayerItem(asset: asset))
+                return
+            }
+        }
+
         // Lo que está en una nube o en un servidor hay que bajarlo antes: que
         // se vea qué se está esperando, y cuánto, en vez de una pantalla vacía.
         if let external = provider as? ExternalFolderProvider, external.needsDownload(item.path) {
@@ -180,7 +196,11 @@ final class QuickLookView: UIView {
     }
 
     private func presentMedia(_ url: URL) {
-        let player = AVPlayer(url: url)
+        presentMedia(AVPlayerItem(url: url))
+    }
+
+    private func presentMedia(_ playerItem: AVPlayerItem) {
+        let player = AVPlayer(playerItem: playerItem)
         self.player = player
 
         let layer = AVPlayerLayer(player: player)
@@ -271,6 +291,7 @@ final class QuickLookView: UIView {
 
     private func dismiss() {
         player?.pause()
+        streamer?.cancelAll()
         player = nil
         animationTask?.cancel()
         onDismiss?()

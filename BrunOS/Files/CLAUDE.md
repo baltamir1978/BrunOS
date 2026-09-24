@@ -169,8 +169,22 @@ coordinada no lo da. **Sin probar en el iPhone.**
 
 **Ver un vídeo sin bajarlo entero no se puede en iCloud** con API pública: la única forma de
 tener una dirección que AVFoundation pueda ir leyendo es `url(forPublishingUbiquitousItemAt:)`,
-que **publica** un enlace que cualquiera con la dirección puede abrir. Por SFTP y SMB sí sería
-posible, con un `AVAssetResourceLoaderDelegate` que pida trozos al servidor: está por hacer.
+que **publica** un enlace que cualquiera con la dirección puede abrir. Por SFTP y SMB, sí: ver abajo.
+
+### Vídeo por SFTP y SMB sin bajarlo entero (24-sep-2026)
+
+`MediaStreamer` es un `AVAssetResourceLoaderDelegate`: el asset lleva una dirección
+`brunos-stream://` que AVFoundation no conoce, así que le pregunta por cada rango de bytes y se lo
+pide al servidor en trozos de 512 KB (`RangeReadableProvider.read(_:offset:length:)`: SFTP con
+`file.read(from:length:)` de Citadel, SMB con `contents(atPath:range:)` de AMSMB2). Si el
+reproductor cancela un rango (al saltar), se corta su tarea.
+
+- **El asset sólo retiene al delegado débil**: `QuickLookView.streamer` lo guarda mientras se ve.
+- **Comprobado en macOS** con un origen falso que sirve trozos de un fichero local con 20 ms de
+  retraso: un vídeo de 91 MB empieza a los 0,5 s (11 MB leídos), el salto al minuto 1:30 tarda
+  0,14 s y en total se leyeron 33 MB. **Sin probar contra un servidor de verdad ni en el iPhone.**
+- En SFTP cada trozo abre y cierra el fichero: más idas y vueltas, pero sin estado que se quede
+  colgado. Si va lento en la red de verdad, lo primero es mantenerlo abierto.
 
 ### Renombrar una ubicación
 

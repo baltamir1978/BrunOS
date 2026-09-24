@@ -8,7 +8,7 @@ import Foundation
 /// `2026/a.jpg` dentro de la compartida `Fotos`. Si el servidor se dio de alta
 /// sin compartida, la raíz (`/`) lista todas las del servidor; si se dio con
 /// una, la raíz es esa (`/Fotos`) y no se sube más arriba.
-final class SMBProvider: FileProvider, @unchecked Sendable {
+final class SMBProvider: RangeReadableProvider, @unchecked Sendable {
 
     let server: SMBServer
     var name: String { server.displayName }
@@ -218,6 +218,13 @@ final class SMBProvider: FileProvider, @unchecked Sendable {
     func read(_ path: String) async throws -> Data {
         try await perform(path) { manager, inner in
             try await manager.contents(atPath: inner)
+        }
+    }
+
+    /// Un trozo suelto, para ver un vídeo mientras llega (`MediaStreamer`).
+    func read(_ path: String, offset: UInt64, length: Int) async throws -> Data {
+        try await perform(path) { manager, inner in
+            try await manager.contents(atPath: inner, range: offset..<(offset + UInt64(length)))
         }
     }
 

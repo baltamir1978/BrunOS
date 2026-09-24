@@ -11,7 +11,7 @@ import Foundation
 /// **La conexión es perezosa y se reaprovecha.** Abrir una sesión SSH por cada
 /// listado sería lentísimo, así que se mantiene una viva y se reconecta sola si
 /// se cae. Se cierra al soltar el proveedor.
-final class SFTPProvider: FileProvider, @unchecked Sendable {
+final class SFTPProvider: RangeReadableProvider, @unchecked Sendable {
 
     let host: SSHHost
     var name: String { host.displayName }
@@ -143,6 +143,19 @@ final class SFTPProvider: FileProvider, @unchecked Sendable {
         do {
             return try await sftp.withFile(filePath: path, flags: .read) { file in
                 let buffer = try await file.readAll()
+                return Data(buffer.readableBytesView)
+            }
+        } catch {
+            throw FileError.failed(error.localizedDescription)
+        }
+    }
+
+    /// Un trozo suelto, para ver un vídeo mientras llega (`MediaStreamer`).
+    func read(_ path: String, offset: UInt64, length: Int) async throws -> Data {
+        let sftp = try await session()
+        do {
+            return try await sftp.withFile(filePath: path, flags: .read) { file in
+                let buffer = try await file.read(from: offset, length: UInt32(length))
                 return Data(buffer.readableBytesView)
             }
         } catch {
