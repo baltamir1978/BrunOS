@@ -32,7 +32,12 @@ del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, e
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
-**Última build subida: 2609241652 (24-sep-2026, tarde)**: todo lo de `main` a las 16:50. Lo
+**Última build subida: 2609241727 (24-sep-2026, tarde)**: el ratón (el toque de AssistiveTouch
+ya no se toma por un dedo; preferencia de fuentes como en la 2609241352), RedGifs dentro de
+Reddit, el PDF dibujado por BrunOS, los bordes a píxeles enteros, la vista previa con la densidad
+del lienzo y el scroll del terminal. **Sin probar en el iPhone.**
+
+**Anterior: 2609241652 (24-sep-2026, tarde)**: todo lo de `main` a las 16:50. Lo
 nuevo: la rama de la nube (bloqueador de uBlock, avisos de cookies, Fotos, pantalla completa de
 vídeo), el ratón que se atascaba (manda el puntero indirecto), fuera las contraseñas, la selección
 del terminal, el PDF, el tercer encaje, el hueco de 4 pt, el botón de historial y el «125 %».
@@ -132,7 +137,7 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
-## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241652)
+## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241727)
 
 Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está escrito» con
 «funciona». **Esta es la lista buena**: las marcas «sin probar» repartidas por los CLAUDE.md
