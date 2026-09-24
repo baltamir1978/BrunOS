@@ -196,7 +196,9 @@ final class DesktopViewController: UIViewController {
         // Dentro de un `WKWebView` no hay nada nuestro: WebKit decide su
         // densidad (y la página ya va a 1:1, ver `BrowserTab.place`). Además,
         // su árbol de capas es enorme y esto se recorre en cada maquetación.
-        guard !(view is WKWebView), !(view is PDFView) else { return }
+        // Tampoco en un desenfoque (el dock): el sistema compone sus capas a
+        // su manera, y el filtro sin suavizado lo estropearía.
+        guard !(view is WKWebView), !(view is PDFView), !(view is UIVisualEffectView) else { return }
         // Las instantáneas de Exposé se encogen: con `.nearest` saldrían a
         // trozos. Ver `OverviewThumbnail`.
         guard !(view is OverviewThumbnail) else { return }
@@ -416,7 +418,9 @@ final class DesktopViewController: UIViewController {
         view.setNeedsDisplay()
         // Dentro de un `WKWebView` no hay nada nuestro, y la página ya se
         // entera sola del modo por `prefers-color-scheme`.
-        guard !(view is WKWebView), !(view is PDFView) else { return }
+        // Tampoco en un desenfoque (el dock): el sistema compone sus capas a
+        // su manera, y el filtro sin suavizado lo estropearía.
+        guard !(view is WKWebView), !(view is PDFView), !(view is UIVisualEffectView) else { return }
         for subview in view.subviews {
             redraw(subview)
         }
@@ -960,6 +964,8 @@ final class DesktopViewController: UIViewController {
         } else if let id = workspace.panes(of: kind).first {
             workspace.setFocus(id)
         } else {
+            // Estaba cerrada: el icono rebota al abrirla, como en macOS.
+            dock.bounce(kind)
             addPane(kind: kind)
         }
         services.desktop.notifyChange()
@@ -1397,6 +1403,12 @@ final class DesktopViewController: UIViewController {
         // Plex está justo abajo, donde saldría el dock.
         if case .moved = kind, dockAutoHidden, videoFullScreen == nil {
             updateFullScreenReveal(at: position)
+        }
+        // El agrandamiento del dock, con el cursor encima (y a ninguno si se
+        // está arrastrando una ventana o el dock está escondido).
+        if case .moved = kind {
+            let visible = (!dockAutoHidden || dockRevealed) && windowDrag == nil && fileDrag == nil
+            dock.hover(at: visible ? CGPoint(x: position.x - dock.frame.minX, y: position.y - dock.frame.minY) : nil)
         }
         if !dockAutoHidden || dockRevealed, handleDock(kind, at: position) { return }
         if !services.desktop.isFullScreen || topBarRevealed, handleTopBar(kind, at: position) { return }
@@ -2277,7 +2289,9 @@ final class DesktopViewController: UIViewController {
     /// Clics en el dock. Devuelve `true` si consumió el evento.
     private func handleDock(_ kind: PointerEvent.Kind, at position: CGPoint) -> Bool {
         let pointInDock = CGPoint(x: position.x - dock.frame.minX, y: position.y - dock.frame.minY)
-        guard dock.frame.contains(position), dock.contains(point: pointInDock) else { return false }
+        // Lo decide el dock, no su marco: los iconos agrandados sobresalen por
+        // arriba, y un clic en esa parte se iba a la ventana de detrás.
+        guard dock.contains(point: pointInDock) else { return false }
         guard case .down(let button) = kind else { return true }
 
         if button == .right, let kind = dock.kind(at: pointInDock) {

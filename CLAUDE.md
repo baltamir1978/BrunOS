@@ -151,6 +151,7 @@ monitor sólo se puede comprobar en el iPhone.
 - **Reddit con la letra normal** (sin el autoajuste de texto de iOS), y que el resto de webs no
   cambie para mal.
 - **El zoom de los visores por debajo de 100 %** (25, 50, 75 %).
+- **El dock**: transparencia, agrandamiento con el cursor, el nombre encima y el rebote al abrir.
 
 ## Pruebas: cerradas (24-sep-2026, con la 2609241916)
 
@@ -263,6 +264,16 @@ Cada panel lleva las **tres bolitas de macOS** (`WindowControls`), con lo que Br
 pensando ya en las ventanas flotantes: **rojo cierra, amarillo al dock, verde maximiza** (a
 pantalla completa). Lo minimizado sale del mosaico pero sigue vivo —la sesión SSH no se corta—.
 Cmd+Intro sigue maximizando dentro del mosaico.
+
+**Transparencia, agrandamiento y rebote** (24-sep-2026, noche, lo pidió Bruno para pulir la
+interfaz): el fondo es un desenfoque del sistema (`UIVisualEffectView`, `.systemThinMaterial`)
+con un tinte suave; `applyContentsScale` no entra en él. Los iconos crecen con el cursor encima
+hasta ×1,6, con caída en coseno² hasta 2,6 iconos a cada lado, **medida desde las posiciones sin
+agrandar** (si no, el efecto tiembla); crecen hacia arriba desde su base, los vecinos se apartan y
+la barra se ensancha. Encima del más grande sale su nombre. Cada icono se dibuja una vez a tamaño
+máximo y sólo se escala. Al abrir una app cerrada, el icono rebota. Los clics los decide
+`Dock.contains(point:)`, que cuenta lo que sobresale por arriba. **Visto en el simulador** con el
+dock de verdad sobre un fondo de colores; sin probar en el monitor.
 
 **El dock es el de macOS** (lo pidió Bruno): un icono por app, siempre a color, con un **punto
 debajo si está abierta** —ámbar la que se ve, gris las demás—, y lo minimizado cuenta como

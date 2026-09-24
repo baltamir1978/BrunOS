@@ -27,30 +27,68 @@ final class Dock: UIView {
     private var settingsItem: DockItem?
     private let separator = UIView()
     private let background = UIView()
+    /// **Transparencia de verdad**, como el Dock de macOS: lo de detrás se ve
+    /// desenfocado. Encima, un tinte suave del color de los paneles para que
+    /// los iconos no se pierdan sobre un fondo claro (Bruno, 24-sep-2026).
+    private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
+    private let tint = UIView()
+    /// El nombre de la app bajo el cursor, encima de su icono, como en macOS.
+    private let tooltip = UILabel()
+
+    // MARK: - Agrandamiento
+
+    /// Tamaño normal de un icono y cuánto crece el que está bajo el cursor.
+    private static let itemSize: CGFloat = 44
+    private static let maxScale: CGFloat = 1.6
+    /// Hasta dónde llega el efecto a cada lado, en iconos.
+    private static let reach: CGFloat = 2.6
+    private static let spacing: CGFloat = 10
+    private static let padding: CGFloat = 10
+    private static let separatorGap: CGFloat = 10
+
+    /// Dónde está el cursor, en x del dock, si está encima.
+    private var hoverX: CGFloat?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        // Los iconos agrandados salen por encima de la barra.
+        clipsToBounds = false
 
-        background.backgroundColor = Tokens.Color.panelElevated.withAlphaComponent(0.72)
         background.layer.cornerRadius = 16
         background.layer.borderWidth = 1
-        background.setThemedBorder(Tokens.Color.border.withAlphaComponent(0.8))
+        background.setThemedBorder(Tokens.Color.border.withAlphaComponent(0.6))
         background.layer.shadowColor = UIColor.black.cgColor
-        background.layer.shadowOpacity = 0.35
-        background.layer.shadowRadius = 12
+        background.layer.shadowOpacity = 0.3
+        background.layer.shadowRadius = 14
         background.layer.shadowOffset = CGSize(width: 0, height: 4)
         addSubview(background)
 
+        blur.layer.cornerRadius = 16
+        blur.clipsToBounds = true
+        background.addSubview(blur)
+        tint.backgroundColor = Tokens.Color.panelElevated.withAlphaComponent(0.35)
+        tint.layer.cornerRadius = 16
+        background.addSubview(tint)
+
         separator.backgroundColor = Tokens.Color.border
-        background.addSubview(separator)
+        addSubview(separator)
 
         // Los ajustes también desde el monitor: con el trackpad a pantalla
         // completa, ir a buscarlos al iPhone es incómodo, y a veces ni siquiera
         // se está mirando el teléfono.
         let settings = DockItem()
         settings.updateAsSettings()
-        background.addSubview(settings)
+        addSubview(settings)
         settingsItem = settings
+
+        tooltip.font = Tokens.sans(12.5, weight: .medium)
+        tooltip.textColor = Tokens.Color.text
+        tooltip.textAlignment = .center
+        tooltip.backgroundColor = Tokens.Color.panelElevated.withAlphaComponent(0.92)
+        tooltip.layer.cornerRadius = 7
+        tooltip.layer.masksToBounds = true
+        tooltip.alpha = 0
+        addSubview(tooltip)
     }
 
     @available(*, unavailable)
@@ -60,7 +98,7 @@ final class Dock: UIView {
 
     /// Vuelve a pintar el borde, que es un `CGColor` y no cambia solo de modo.
     func applyTheme() {
-        background.setThemedBorder(Tokens.Color.border.withAlphaComponent(0.8))
+        background.setThemedBorder(Tokens.Color.border.withAlphaComponent(0.6))
     }
 
     // MARK: - Contenido
@@ -71,7 +109,7 @@ final class Dock: UIView {
             items.forEach { $0.removeFromSuperview() }
             items = kinds.map { _ in
                 let item = DockItem()
-                background.addSubview(item)
+                insertSubview(item, belowSubview: tooltip)
                 return item
             }
         }
@@ -88,55 +126,137 @@ final class Dock: UIView {
         setNeedsLayout()
     }
 
+    /// Todos los iconos en orden, el de ajustes el último.
+    private var allItems: [DockItem] {
+        items + (settingsItem.map { [$0] } ?? [])
+    }
+
+    /// El cursor se mueve por el dock (o sale de él, con `nil`). Los iconos
+    /// crecen según lo cerca que les pase, como en macOS.
+    func hover(at point: CGPoint?) {
+        // Sólo dentro de la barra, y un poco por encima, donde quedan los
+        // iconos agrandados.
+        let inside = point.map { point in
+            let bar = baseBarFrame
+            return point.x >= bar.minX - 4 && point.x <= bar.maxX + 4
+                && point.y >= -Self.itemSize * (Self.maxScale - 1) && point.y <= bounds.height
+        } ?? false
+        let next = inside ? point?.x : nil
+        guard next != hoverX else { return }
+        let entering = (hoverX == nil) != (next == nil)
+        hoverX = next
+        if entering {
+            // Al entrar y al salir, con animación; mientras se mueve, al
+            // momento, que si no va por detrás del cursor.
+            UIView.animate(withDuration: 0.16, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
+                self.layoutIcons()
+            }
+        } else {
+            layoutIcons()
+        }
+    }
+
+    /// El rebote del icono al abrir una app que estaba cerrada, como en macOS.
+    func bounce(_ kind: PaneKind) {
+        guard let index = PaneKind.dockOrder.firstIndex(of: kind), items.indices.contains(index) else { return }
+        let item = items[index]
+        let up = CGAffineTransform(translationX: 0, y: -14)
+        UIView.animateKeyframes(withDuration: 0.7, delay: 0, options: []) {
+            UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.25) { item.transform = up }
+            UIView.addKeyframe(withRelativeStartTime: 0.25, relativeDuration: 0.25) { item.transform = .identity }
+            UIView.addKeyframe(withRelativeStartTime: 0.5, relativeDuration: 0.25) {
+                item.transform = CGAffineTransform(translationX: 0, y: -7)
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.75, relativeDuration: 0.25) { item.transform = .identity }
+        }
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
-        guard !items.isEmpty else { return }
+        layoutIcons()
+    }
 
-        let itemSize: CGFloat = 44
-        let spacing: CGFloat = 10
-        let padding: CGFloat = 10
-        let separatorWidth: CGFloat = 1
-        let separatorGap: CGFloat = 10
+    /// El ancho de la barra sin agrandar nada.
+    private var baseWidth: CGFloat {
+        let count = CGFloat(allItems.count)
+        return count * Self.itemSize + (count - 1) * Self.spacing
+            + 2 * (Self.separatorGap - Self.spacing) + 1 + 2 * Self.padding
+    }
 
-        let count = CGFloat(items.count)
-        let contentWidth = count * itemSize + (count - 1) * spacing
-            + separatorGap * 2 + separatorWidth + itemSize
-        let width = contentWidth + padding * 2
+    private var baseBarFrame: CGRect {
+        CGRect(x: (bounds.width - baseWidth) / 2, y: 0, width: baseWidth, height: Self.height)
+    }
 
-        background.frame = CGRect(
-            x: (bounds.width - width) / 2,
-            y: 0,
-            width: width,
-            height: Self.height
-        )
+    /// El centro de cada icono sin agrandar: desde ahí se mide la distancia al
+    /// cursor, para que el efecto no tiemble al moverse los iconos.
+    private var baseCenters: [CGFloat] {
+        var x = baseBarFrame.minX + Self.padding
+        var centers: [CGFloat] = []
+        for index in allItems.indices {
+            if index == items.count { x += Self.separatorGap - Self.spacing + 1 + Self.separatorGap }
+            centers.append(x + Self.itemSize / 2)
+            x += Self.itemSize + Self.spacing
+        }
+        return centers
+    }
 
-        var x = padding
-        for item in items {
-            item.frame = CGRect(
-                x: x, y: (Self.height - itemSize) / 2,
-                width: itemSize, height: itemSize
-            )
-            x += itemSize + spacing
+    private func layoutIcons() {
+        let icons = allItems
+        guard !icons.isEmpty else { return }
+
+        // Cuánto crece cada uno: el máximo justo debajo del cursor, y va
+        // bajando con una curva suave hasta `reach` iconos a cada lado.
+        let centers = baseCenters
+        let scales: [CGFloat] = centers.map { center in
+            guard let hoverX else { return 1 }
+            let distance = abs(hoverX - center) / (Self.itemSize + Self.spacing)
+            guard distance < Self.reach else { return 1 }
+            let falloff = cos(distance / Self.reach * .pi / 2)
+            return 1 + (Self.maxScale - 1) * falloff * falloff
+        }
+        let sizes = scales.map { Self.itemSize * $0 }
+
+        // La barra se ensancha con ellos, desde el centro.
+        let extra = sizes.reduce(0, +) - Self.itemSize * CGFloat(icons.count)
+        let width = baseWidth + extra
+        let bar = CGRect(x: (bounds.width - width) / 2, y: 0, width: width, height: Self.height)
+        background.frame = bar
+        blur.frame = background.bounds
+        tint.frame = background.bounds
+
+        let bottom = Self.height - (Self.height - Self.itemSize) / 2
+        var x = bar.minX + Self.padding
+        for (index, icon) in icons.enumerated() {
+            if index == items.count {
+                x += Self.separatorGap - Self.spacing
+                separator.frame = CGRect(x: x, y: (Self.height - Self.itemSize) / 2 + 6, width: 1, height: Self.itemSize - 12)
+                x += 1 + Self.separatorGap
+            }
+            let size = sizes[index]
+            // Crecen hacia arriba, desde su base, como en macOS.
+            icon.bounds = CGRect(x: 0, y: 0, width: size, height: size)
+            icon.center = CGPoint(x: x + size / 2, y: bottom - size / 2)
+            x += size + Self.spacing
         }
 
-        x += separatorGap - spacing
-        separator.frame = CGRect(
-            x: x, y: (Self.height - itemSize) / 2 + 6,
-            width: separatorWidth, height: itemSize - 12
-        )
-        x += separatorWidth + separatorGap
-
-        settingsItem?.frame = CGRect(
-            x: x, y: (Self.height - itemSize) / 2,
-            width: itemSize, height: itemSize
-        )
+        // El nombre, encima del icono más grande.
+        if hoverX != nil, let (index, _) = scales.enumerated().max(by: { $0.element < $1.element }),
+           scales[index] > 1.3 {
+            let icon = icons[index]
+            tooltip.text = index < items.count ? PaneKind.dockOrder[index].title : "Ajustes"
+            let size = tooltip.sizeThatFits(CGSize(width: 200, height: 30))
+            tooltip.bounds = CGRect(x: 0, y: 0, width: size.width + 16, height: size.height + 8)
+            tooltip.center = CGPoint(x: icon.center.x, y: icon.frame.minY - tooltip.bounds.height / 2 - 6)
+            tooltip.alpha = 1
+        } else {
+            tooltip.alpha = 0
+        }
     }
 
     /// Qué app hay bajo un punto en coordenadas del dock.
     func kind(at point: CGPoint) -> PaneKind? {
         for (kind, item) in zip(PaneKind.dockOrder, items) {
-            let frame = item.convert(item.bounds, to: self)
-            if frame.insetBy(dx: -4, dy: -4).contains(point) {
+            if item.frame.insetBy(dx: -4, dy: -4).contains(point) {
                 return kind
             }
         }
@@ -146,17 +266,18 @@ final class Dock: UIView {
     /// Si el punto cae en el icono de ajustes.
     func hitsSettings(_ point: CGPoint) -> Bool {
         guard let settingsItem else { return false }
-        let frame = settingsItem.convert(settingsItem.bounds, to: self)
-        return frame.insetBy(dx: -4, dy: -4).contains(point)
+        return settingsItem.frame.insetBy(dx: -4, dy: -4).contains(point)
     }
 
-    /// Si el punto cae en el dock, para que el escritorio se trague el evento.
+    /// Si el punto cae en el dock, para que el escritorio se trague el evento:
+    /// la barra, y los iconos agrandados que sobresalen por arriba.
     func contains(point: CGPoint) -> Bool {
-        background.frame.contains(point)
+        background.frame.contains(point) || allItems.contains { $0.frame.contains(point) }
     }
 
-    /// Lo que ocupa la barra del dock, que no es todo el ancho del escritorio.
-    var barWidth: CGFloat { background.frame.width }
+    /// Lo que ocupa la barra del dock sin agrandar, que no es todo el ancho
+    /// del escritorio.
+    var barWidth: CGFloat { baseWidth }
 }
 
 /// Un icono del dock.
@@ -218,8 +339,18 @@ private final class DockItem: UIView {
         refreshIcon()
     }
 
+    /// El icono se dibuja **una vez, al tamaño máximo** del agrandamiento, y
+    /// al crecer y encoger sólo se escala: redibujarlo en cada movimiento del
+    /// cursor sería caro.
+    private var renderedKey: String?
+
     private func refreshIcon() {
-        let side = max(bounds.width, 44)
+        // Sólo si ha cambiado lo que se pinta: esto se llama en cada
+        // maquetación del escritorio.
+        let key = "\(kind?.rawValue ?? "settings")|\(isSettings)|\(DesktopTheme.style.rawValue)"
+        guard key != renderedKey else { return }
+        renderedKey = key
+        let side: CGFloat = 44 * 1.6
         iconView.image = isSettings
             ? DockIcon.settingsImage(size: side)
             : kind.map { DockIcon.image(for: $0, size: side) }
@@ -231,7 +362,9 @@ private final class DockItem: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         iconView.frame = bounds
-        indicator.frame = CGRect(x: bounds.midX - 2.5, y: bounds.maxY + 3, width: 5, height: 5)
-        refreshIcon()
+        // Entre el icono y el borde de la barra, sin pisarlo.
+        indicator.frame = CGRect(x: bounds.midX - 2, y: bounds.maxY + 1.5, width: 4, height: 4)
+        indicator.layer.cornerRadius = 2
+        layer.cornerRadius = bounds.width / 4
     }
 }
