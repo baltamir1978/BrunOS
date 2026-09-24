@@ -135,9 +135,24 @@ final class DesktopViewController: UIViewController {
         // densidad, así que el texto se rasteriza ya a resolución nativa y el
         // escalado no le quita un píxel de definición.
         contentsScale = screen.scale * max(factor, 1)
+        if canvasFactor != factor {
+            canvasFactor = factor
+            // Las páginas deshacen este estirado por su cuenta: hay que
+            // recolocarlas aunque su hueco no haya cambiado de tamaño.
+            for pane in services.desktop.active.panes.values {
+                pane.view.setNeedsLayout()
+            }
+            for entry in services.desktop.active.minimized {
+                entry.pane.view.setNeedsLayout()
+            }
+        }
 
         layoutCanvas()
     }
+
+    /// Cuánto estira el lienzo: puntos de UIKit por punto lógico. Lo necesita
+    /// el navegador, que lo deshace (ver `BrowserTab.place`).
+    private(set) var canvasFactor: CGFloat = 1
 
     /// Densidad a la que se rasteriza el lienzo. Se propaga a mano porque
     /// `contentsScale` no se hereda: cada capa nueva nace con la de la pantalla.
@@ -154,6 +169,10 @@ final class DesktopViewController: UIViewController {
     /// baja densidad, hasta que algo la obligara a repintarse. La barra del
     /// terminal, que casi nunca cambia, salía borrosa por eso.
     private func applyContentsScale(to view: UIView) {
+        // Dentro de un `WKWebView` no hay nada nuestro: WebKit decide su
+        // densidad (y la página ya va a 1:1, ver `BrowserTab.place`). Además,
+        // su árbol de capas es enorme y esto se recorre en cada maquetación.
+        guard !(view is WKWebView) else { return }
         if view.layer.contentsScale != contentsScale {
             view.layer.contentsScale = contentsScale
             view.setNeedsDisplay()

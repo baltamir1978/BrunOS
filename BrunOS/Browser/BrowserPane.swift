@@ -175,8 +175,9 @@ final class BrowserPane: UIView, Pane {
             width: bounds.width,
             height: max(0, bounds.height - top)
         )
+        let factor = AppServices.shared.desktopViewController?.canvasFactor ?? 1
         for tab in tabs {
-            tab.webView.frame = content.bounds
+            tab.place(in: content.bounds, factor: factor)
         }
         suggestions.frame = bounds
         layoutDownloadToast()

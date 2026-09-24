@@ -86,7 +86,8 @@ volver a pulsar el dock abre otra ventana; barras de ventana más altas y con le
 ubicaciones de Ficheros (botón derecho en la barra lateral y en Ajustes, y «quitar las que no
 responden»); una copia propia de las cookies (`CookieVault`) por el aviso de Google en cada
 arranque; «Descargar vídeo» sobre los vídeos de RedGifs, tapados por capas; y la velocidad del
-scroll en los ajustes del monitor. **Nada probado en el iPhone.**
+scroll en los ajustes del monitor. Y las webs **borrosas a escalas mayores de 1×** (ver
+`BrunOS/Browser/CLAUDE.md`). **Nada probado en el iPhone.**
 
 ## Cómo se cierra cada bloque de trabajo
 
@@ -415,8 +416,6 @@ movimiento más incómodo que hay.
 - **Una ronda completa de optimización** (lo pidió Bruno el 23-sep-2026): medir y quitar lo que
   frena —repintados de más, trabajo en el hilo principal, memoria— y **proponerle cambios** que
   mejoren la respuesta y el manejo de la app. Proponer antes de hacer: es él quien decide.
-- **Google sale a veces con una resolución rara** él solo (23-sep-2026). Bruno iba a poner todo
-  el zoom al 100 % para ver si cambia; preguntarle qué vio antes de tocar nada.
 - **Navegador, para parecerse más a Safari**: navegación privada, silenciar una pestaña, zoom por
   sitio, fijar pestañas y buscadores propios.
 - **YouTube**: sólo saldría lanzando yt-dlp en una máquina del tailnet por SSH. HLS ya se baja

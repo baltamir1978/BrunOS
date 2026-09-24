@@ -53,6 +53,23 @@ google.com: `window.innerWidth` pasa de 980 a 1690.
 
 Con el viewport bien, el zoom por defecto vuelve a 1: ya no hay nada que compensar.
 
+### Borroso a 1,5×: WebKit no hace caso de `contentsScale` (24-sep-2026)
+
+Bruno: Google se ve bien a 1× y borroso a 1,5×, con el zoom al 100 %. El lienzo del escritorio va
+estirado con un `CGAffineTransform` y lo nuestro sale nítido porque cada capa se dibuja a más
+densidad, pero **WebKit dibuja la página a la densidad de la pantalla** y el lienzo la estiraba
+después. Ahora `BrowserTab.place(in:factor:)` le da a la vista la escala contraria (bounds ×
+factor, `transform` 1/factor), con lo que en pantalla va 1:1, y `webView.pageZoom` = zoom de
+Bruno × factor. `DesktopViewController.canvasFactor` da el factor, y `applyContentsScale` ya no
+entra en los `WKWebView`.
+
+**Comprobado en el simulador de iOS 27** con dos vistas, una normal y otra a 1,5×, sobre una
+página con `width=device-width, initial-scale=1` (el viewport que pone BrunOS). Las dos dan el
+mismo `innerWidth` y el mismo tamaño en pantalla, `devicePixelRatio` pasa de 3 a 4,5, y
+`elementFromPoint` da lo mismo en las mismas coordenadas, así que el inyector no cambia. **Trampa**:
+sin `initial-scale=1`, un `pageZoom` que desborda la vista hace que iOS encoja la página para
+que quepa (`visualViewport.scale` 0,5) y el zoom no se ve.
+
 ### Intro no buscaba en Google: los eventos sintéticos no hacen nada solos (22-sep-2026)
 
 Un evento creado con `dispatchEvent` **no es de confianza, y el navegador no ejecuta su acción

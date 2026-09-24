@@ -43,8 +43,33 @@ final class BrowserTab: NSObject {
     /// Zoom de la página. Cmd + / − / 0.
     var pageZoom: CGFloat = BrowserZoom.default {
         didSet {
-            webView.pageZoom = pageZoom
+            webView.pageZoom = pageZoom * displayFactor
             BrowserZoom.remember(pageZoom)
+        }
+    }
+
+    /// Cuánto estira el lienzo del escritorio, que la vista deshace.
+    private var displayFactor: CGFloat = 1
+
+    /// Coloca la página en su hueco **sin que el lienzo la estire**.
+    ///
+    /// El escritorio se ve nítido a 1,5× porque cada capa se dibuja a más
+    /// densidad (`contentsScale`), pero **WebKit no hace caso de eso**: pinta
+    /// la página a la densidad de la pantalla, y después el lienzo la
+    /// estiraba ×1,5. Bruno lo vio: Google borroso a 1,5× y bien a 1×. Aquí la
+    /// vista lleva la escala contraria, así que en pantalla va a 1:1 y WebKit
+    /// dibuja a píxel nativo; el zoom de la página multiplica por lo mismo y
+    /// todo sale del mismo tamaño que antes. Las coordenadas que recibe el
+    /// inyector no cambian: un punto lógico sigue siendo un píxel CSS.
+    func place(in rect: CGRect, factor: CGFloat) {
+        let factor = factor > 0 ? factor : 1
+        webView.transform = .identity
+        webView.bounds = CGRect(x: 0, y: 0, width: rect.width * factor, height: rect.height * factor)
+        webView.center = CGPoint(x: rect.midX, y: rect.midY)
+        webView.transform = factor == 1 ? .identity : CGAffineTransform(scaleX: 1 / factor, y: 1 / factor)
+        if displayFactor != factor {
+            displayFactor = factor
+            webView.pageZoom = pageZoom * factor
         }
     }
 
@@ -113,7 +138,7 @@ final class BrowserTab: NSObject {
             host: nil
         )
 
-        webView.pageZoom = pageZoom
+        webView.pageZoom = pageZoom * displayFactor
         observeProperties()
         installInjector()
     }
