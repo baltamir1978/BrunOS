@@ -147,6 +147,11 @@ final class QuickLookView: UIView {
             statusLabel.text = "No hay vista previa para este tipo de fichero.\n"
                 + "Se puede abrir desde la app Archivos del iPhone."
         }
+        // Lo que se enseña llega cuando termina de bajar, después de que el
+        // escritorio ajuste la densidad de la ventana: sin esto, la imagen, el
+        // texto o las páginas del PDF nacerían con la de la pantalla y se
+        // verían a la resolución equivocada.
+        AppServices.shared.desktopViewController?.matchCanvasDensity(content)
     }
 
     private func presentImage(_ url: URL) {

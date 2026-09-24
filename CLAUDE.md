@@ -479,9 +479,9 @@ Además, también sin subir:
 - La preferencia de `MouseRouter` vuelve a la de la 2609241352 (GCMouse primero): con la que el
   ratón iba bien según Bruno. El cambio de la 2609241652 fue a ciegas. «Fuente activa» se calcula
   al momento.
-- Una posición del indirecto con el botón «pulsado» es que el soltar se perdió: se suelta (con
-  AssistiveTouch, mientras se pulsa no llegan posiciones). Antes se ignoraban todas y el cursor
-  se quedaba quieto.
+- ~~Una posición del indirecto con el botón «pulsado» lo suelta~~: **quitado en la revisión**.
+  El puntero indirecto también manda posiciones durante un arrastre (`handlePan`), así que
+  habría soltado el botón a medias. Se vuelve a ignorar la posición mientras se pulsa.
 - El refresco del cursor ya no se pausa entre fotograma y fotograma: sólo tras medio segundo
   quieto. Pausar y reanudar a cada movimiento podía dar los tirones.
 - **Ajustes › Ratón y teclado › Diagnóstico**: fuente activa, eventos por segundo de cada fuente y
@@ -588,6 +588,20 @@ los tres segundos son porque el hover también termina un instante con cada clic
 activo usa otro dato, `pointerEverWorked`, que no se baja: desconectar el ratón no lo apaga. Y
 `notePointerEvent()` sólo asigna lo observado si cambia: se llama en cada movimiento, y asignar
 aunque fuera el mismo valor repintaba la interfaz del iPhone a cada fotograma.
+
+### Los bordes, a píxeles enteros (24-sep-2026)
+
+Bruno veía los marcos de las ventanas raros en las esquinas, **como una línea doble**. El borde es
+de 1,5 puntos, que a 1,5× son 2,25 píxeles: uno entero, otro casi y un cuarto suavizado. Visto en
+el simulador ampliando una esquina, sale como dos bandas de tono distinto, más en la curva, con
+filtro de nitidez o sin él. `applyContentsScale` redondea ahora **todo borde del escritorio a
+píxeles enteros** del monitor (a 1,5×, 2 píxeles justos). Redondear otra vez da lo mismo, así que
+puede pasar en cada maquetación.
+
+**Y lo que llega tarde, con la densidad del lienzo**: `matchCanvasDensity(_:)` para lo que se
+añade después de maquetar. La vista previa lo usa al enseñar el fichero (imagen, texto o PDF
+llegan al terminar de bajar); sin eso nacían con la densidad de la pantalla y se veían a la
+resolución equivocada hasta la siguiente maquetación, que un scroll no provoca.
 
 ### Las esquinas de las ventanas: el fondo lo pinta `CardView`
 

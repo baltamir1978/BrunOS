@@ -111,9 +111,8 @@ final class TrackpadUIView: UIView {
     /// Si el toque que llega es el del ratón de AssistiveTouch y no un dedo.
     ///
     /// **Con `pointerEverWorked`, que no se apaga solo**, y no con
-    /// `isPointerWorking`,
-    /// que se baja a los 3 s sin movimiento del puntero (y el puntero se calla
-    /// con cada clic y durante un arrastre). En cuanto se bajaba, el toque de
+    /// `isPointerWorking`, que se baja a los 3 s sin movimiento del puntero (y
+    /// el puntero se calla con cada clic y durante un arrastre). En cuanto se bajaba, el toque de
     /// AssistiveTouch se tomaba por un dedo y movía el cursor por
     /// desplazamientos, que se paran en el borde del iPhone: **el cursor
     /// volvía a chocar con el límite del teléfono**, y con la posición

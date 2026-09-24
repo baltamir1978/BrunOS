@@ -213,6 +213,15 @@ final class DesktopViewController: UIViewController {
             view.layer.magnificationFilter = .nearest
             view.layer.minificationFilter = .nearest
         }
+        // **Los bordes, a píxeles enteros.** El de las ventanas es de 1,5
+        // puntos, que a 1,5× son 2,25 píxeles: uno entero, otro casi y un
+        // cuarto suavizado, y se veía como una línea doble, sobre todo en la
+        // curva de las esquinas (Bruno, 24-sep-2026). Redondear es estable:
+        // pasar otra vez deja el mismo valor.
+        if view.layer.borderWidth > 0 {
+            let pixels = max(1, (view.layer.borderWidth * contentsScale).rounded())
+            view.layer.borderWidth = pixels / contentsScale
+        }
         view.layer.rasterizationScale = contentsScale
         for layer in view.layer.sublayers ?? [] {
             applyContentsScale(to: layer)
@@ -220,6 +229,14 @@ final class DesktopViewController: UIViewController {
         for subview in view.subviews {
             applyContentsScale(to: subview)
         }
+    }
+
+    /// Para lo que se añade al escritorio **después** de maquetar (una vista
+    /// que llega cuando termina de bajar un fichero): sin esto nacería con la
+    /// densidad de la pantalla y no con la del lienzo hasta la siguiente
+    /// maquetación, y se vería a la resolución equivocada.
+    func matchCanvasDensity(_ view: UIView) {
+        applyContentsScale(to: view)
     }
 
     private func applyContentsScale(to layer: CALayer) {

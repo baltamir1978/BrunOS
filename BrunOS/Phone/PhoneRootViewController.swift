@@ -173,17 +173,12 @@ extension PhoneRootViewController: MouseSourceDelegate {
 
     func mouseSource(_ source: any MouseSource, didMove delta: MouseDelta) {
         if let position = delta.position {
-            // Una posición del puntero sin contacto es que **no** hay botón
-            // pulsado: con AssistiveTouch, pulsar es un toque y mientras dura
-            // no llegan. Si BrunOS lo creía pulsado, el soltar se perdió (un
-            // clic que se fue a otra app, un toque cortado), y antes se
-            // ignoraban todas las posiciones: el cursor se quedaba muerto.
-            // Ahora se da por suelto y se sigue.
-            if services.pointer.isHoldingButton {
-                services.pointer.isHoldingButton = false
-                EventLog.note("Ratón: el botón seguía «pulsado»; se suelta")
-                services.desktopViewController?.deliverPointer(.up(button: .left), modifiers: [])
-            }
+            // Con el botón pulsado, el cursor lo mueve el trackpad por lo que
+            // se desplaza el toque (ver `TrackpadUIView`). Se probó a tomar una
+            // posición aquí como «el botón ya se soltó», pero el puntero
+            // indirecto también manda posiciones durante un arrastre y habría
+            // soltado a medias: no se hace.
+            guard !services.pointer.isHoldingButton else { return }
             services.pointer.move(toNormalized: position)
             services.desktopViewController?.deliverPointer(.moved, modifiers: [])
         } else if delta.translation != .zero {

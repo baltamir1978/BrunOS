@@ -90,7 +90,6 @@ final class MouseRouter: MouseSourceDelegate {
         return nil
     }
 
-
     private func isActive(_ source: any MouseSource) -> Bool {
         preferred === source
     }

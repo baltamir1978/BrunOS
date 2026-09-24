@@ -688,8 +688,7 @@ final class BrowserTab: NSObject {
         await mediaList(from: "window.__brunos.media();")
     }
 
-    /// El medio que hay bajo el cursor, para el clic derecho.
-    /// El vídeo o el audio bajo el cursor. Si cae en un iframe, se le
+    /// El vídeo o el audio bajo el cursor, para el clic derecho. Si cae en un iframe, se le
     /// pregunta al inyector de ese iframe con sus coordenadas, y así hasta
     /// seis niveles, como con los clics (`send`).
     func media(at point: CGPoint) async -> Media? {
