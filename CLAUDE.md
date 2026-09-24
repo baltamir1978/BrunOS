@@ -245,6 +245,12 @@ barras y de las ventanas modales**, que se vuelven a traer delante en cada maque
   quedaban el movimiento.
 - Ajustes › General › Ventanas: si los paneles nuevos salen flotando o en mosaico.
 
+- **Encajar** (24-sep-2026): soltar una ventana con el cursor en un borde la deja a media
+  pantalla (lados), a un cuarto (esquinas, con 80 puntos de margen a lo largo del borde) o
+  entera (arriba). Mientras se arrastra se ve el hueco (`snapPreview`, detrás de la ventana). El
+  marco anterior se guarda en `zoomRestore`, el mismo del botón verde: al arrastrarla otra vez
+  (más de 8 puntos) recupera su tamaño bajo el cursor. Bruno pidió mitades y cuartos.
+
 **Sin probar en el iPhone.** Sobre un borde de una flotante o un divisor del mosaico, el cursor
 pasa a la doble flecha de redimensionar (`PointerController.Shape`), y la mantiene mientras se
 arrastra.

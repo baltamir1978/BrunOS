@@ -1200,7 +1200,9 @@ final class DesktopViewController: UIViewController {
         /// ha movido lo bastante como para soltarlo: así un clic en la barra
         /// no lo saca del mosaico sin querer.
         case pending(id: PaneID, start: CGPoint, frame: CGRect)
-        case moving(id: PaneID, offset: CGPoint)
+        /// `start` es dónde se pulsó: una ventana encajada no recupera su
+        /// tamaño hasta que el cursor se ha movido de verdad.
+        case moving(id: PaneID, offset: CGPoint, start: CGPoint)
         case resizing(id: PaneID, edges: Edges, start: CGPoint, frame: CGRect)
     }
 
@@ -1247,7 +1249,11 @@ final class DesktopViewController: UIViewController {
 
             focusPane(hit.key)
             windowDrag = workspace.isFloating(hit.key)
-                ? .moving(id: hit.key, offset: CGPoint(x: position.x - hit.value.minX, y: position.y - hit.value.minY))
+                ? .moving(
+                    id: hit.key,
+                    offset: CGPoint(x: position.x - hit.value.minX, y: position.y - hit.value.minY),
+                    start: position
+                )
                 : .pending(id: hit.key, start: position, frame: hit.value)
             return true
 
@@ -1270,15 +1276,25 @@ final class DesktopViewController: UIViewController {
                 )
                 let origin = CGPoint(x: position.x - grab.x, y: position.y - grab.y)
                 workspace.float(id, frame: clampWindow(CGRect(origin: origin, size: size)))
-                windowDrag = .moving(id: id, offset: grab)
+                windowDrag = .moving(id: id, offset: grab, start: start)
                 lastBarClick = nil
                 layoutWithoutAnimation()
 
-            case .moving(let id, let offset):
-                guard let frame = workspace.floating[id] else { windowDrag = nil; return true }
+            case .moving(let id, var offset, let start):
+                guard var frame = workspace.floating[id] else { windowDrag = nil; return true }
+                // Una ventana encajada o maximizada que se arrastra vuelve a
+                // su tamaño, bajo el cursor y por el mismo punto de la barra.
+                if let previous = zoomRestore[id],
+                   hypot(position.x - start.x, position.y - start.y) > 8 {
+                    zoomRestore[id] = nil
+                    offset.x *= previous.width / max(frame.width, 1)
+                    frame.size = previous.size
+                    windowDrag = .moving(id: id, offset: offset, start: start)
+                }
                 let origin = CGPoint(x: position.x - offset.x, y: position.y - offset.y)
                 workspace.setFloatingFrame(id, clampWindow(CGRect(origin: origin, size: frame.size)))
                 lastBarClick = nil
+                updateSnapPreview(snapTarget(at: position), below: workspace.pane(id)?.view)
                 layoutWithoutAnimation()
 
             case .resizing(let id, let edges, let start, let frame):
@@ -1304,8 +1320,16 @@ final class DesktopViewController: UIViewController {
             return true
 
         case .up:
-            guard windowDrag != nil else { return false }
+            guard let drag = windowDrag else { return false }
             windowDrag = nil
+            if case .moving(let id, _, _) = drag, let snap = snapTarget(at: position),
+               let frame = workspace.floating[id] {
+                // Se recuerda dónde estaba para devolverla al arrastrarla
+                // otra vez, o con el botón verde.
+                if zoomRestore[id] == nil { zoomRestore[id] = frame }
+                workspace.setFloatingFrame(id, snapFrame(snap))
+            }
+            updateSnapPreview(nil, below: nil)
             services.desktop.notifyChange()
             return true
 
@@ -1442,6 +1466,100 @@ final class DesktopViewController: UIViewController {
             width: size.width,
             height: size.height
         ))
+    }
+
+    // MARK: - Encajar ventanas
+
+    /// Adónde va una ventana soltada en un borde, como en macOS y Windows:
+    /// a media pantalla en los lados, a un cuarto en las esquinas y a toda
+    /// arriba. Bruno pidió mitades y cuartos (24-sep-2026).
+    private enum Snap {
+        case left, right, full
+        case topLeft, topRight, bottomLeft, bottomRight
+    }
+
+    private var snapPreview: UIView?
+
+    /// El cursor no sale del escritorio, así que «en el borde» es tocarlo.
+    ///
+    /// Las esquinas son generosas (80 puntos a lo largo del borde): acertar
+    /// el píxel exacto de una esquina con un ratón es imposible.
+    private func snapTarget(at position: CGPoint) -> Snap? {
+        let edge: CGFloat = 3
+        let corner: CGFloat = 80
+        let atLeft = position.x <= edge
+        let atRight = position.x >= logicalSize.width - 1 - edge
+        let atTop = position.y <= edge
+        let atBottom = position.y >= logicalSize.height - 1 - edge
+        let nearTop = position.y <= corner
+        let nearBottom = position.y >= logicalSize.height - corner
+        let nearLeft = position.x <= corner
+        let nearRight = position.x >= logicalSize.width - corner
+
+        if (atLeft && nearTop) || (atTop && nearLeft) { return .topLeft }
+        if (atRight && nearTop) || (atTop && nearRight) { return .topRight }
+        if (atLeft && nearBottom) || (atBottom && nearLeft) { return .bottomLeft }
+        if (atRight && nearBottom) || (atBottom && nearRight) { return .bottomRight }
+        if atLeft { return .left }
+        if atRight { return .right }
+        if atTop { return .full }
+        return nil
+    }
+
+    private func snapFrame(_ snap: Snap) -> CGRect {
+        let area = tileArea
+        let gap = Tokens.Metric.tileGap
+        let half = (area.width - gap) / 2
+        let halfHeight = (area.height - gap) / 2
+        let left = area.minX
+        let right = area.maxX - half
+        let top = area.minY
+        let bottom = area.maxY - halfHeight
+        return switch snap {
+        case .left: CGRect(x: left, y: top, width: half, height: area.height)
+        case .right: CGRect(x: right, y: top, width: half, height: area.height)
+        case .full: area
+        case .topLeft: CGRect(x: left, y: top, width: half, height: halfHeight)
+        case .topRight: CGRect(x: right, y: top, width: half, height: halfHeight)
+        case .bottomLeft: CGRect(x: left, y: bottom, width: half, height: halfHeight)
+        case .bottomRight: CGRect(x: right, y: bottom, width: half, height: halfHeight)
+        }
+    }
+
+    /// El hueco donde va a quedar, detrás de la ventana que se arrastra.
+    private func updateSnapPreview(_ snap: Snap?, below window: UIView?) {
+        guard let snap else {
+            if let preview = snapPreview {
+                snapPreview = nil
+                UIView.animate(withDuration: 0.12, animations: { preview.alpha = 0 }) { _ in
+                    preview.removeFromSuperview()
+                }
+            }
+            return
+        }
+        let frame = snapFrame(snap)
+        if let preview = snapPreview {
+            guard preview.frame != frame else { return }
+            UIView.animate(withDuration: 0.15) { preview.frame = frame }
+            return
+        }
+        let preview = UIView(frame: frame.insetBy(dx: frame.width * 0.05, dy: frame.height * 0.05))
+        preview.backgroundColor = Tokens.Color.accent.withAlphaComponent(0.14)
+        preview.layer.cornerRadius = Tokens.Metric.paneCornerRadius
+        preview.layer.borderWidth = 1.5
+        preview.setThemedBorder(Tokens.Color.accent.withAlphaComponent(0.6))
+        preview.isUserInteractionEnabled = false
+        preview.alpha = 0
+        if let window, window.superview === canvas {
+            canvas.insertSubview(preview, belowSubview: window)
+        } else {
+            canvas.addSubview(preview)
+        }
+        snapPreview = preview
+        UIView.animate(withDuration: 0.15) {
+            preview.alpha = 1
+            preview.frame = frame
+        }
     }
 
     /// Dónde estaba cada flotante antes de maximizarla, para devolverla.

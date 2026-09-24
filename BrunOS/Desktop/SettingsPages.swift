@@ -58,7 +58,10 @@ enum SettingsPages {
                     footer: "Cualquier panel se suelta del mosaico arrastrándolo por la parte vacía de "
                         + "su barra, y se redimensiona por los bordes. Doble clic en la barra, o "
                         + "Cmd + Mayús + Espacio, lo pasa de flotante a mosaico y al revés. "
-                        + "Rojo cierra, amarillo lo manda al dock y verde maximiza.",
+                        + "Rojo cierra, amarillo lo manda al dock y verde maximiza.\n"
+                        + "Para encajar una ventana, llévala arrastrando hasta un borde: a un lado ocupa "
+                        + "media pantalla, a una esquina un cuarto y arriba la pantalla entera. Al "
+                        + "arrastrarla otra vez recupera su tamaño.",
                     rows: [
                         SettingsRow("Paneles nuevos", .choice(
                             ["En mosaico", "Flotantes"],
