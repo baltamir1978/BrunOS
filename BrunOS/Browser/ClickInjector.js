@@ -346,31 +346,107 @@ function mediaItems() {
     return found;
 }
 
-/// El medio que hay bajo el cursor, para «Descargar vídeo» del clic derecho.
-function mediaAt(x, y) {
+/// El `<video>` o `<audio>` que hay bajo el cursor.
+///
+/// **No basta con subir desde lo que hay debajo.** RedGifs, y casi cualquier
+/// reproductor, pone capas encima del vídeo (los controles, una zona que
+/// recoge los clics), así que el elemento bajo el cursor es un hermano del
+/// vídeo, no algo que lo contenga. Se mira también por capas y, al final,
+/// por geometría.
+function mediaElementAt(x, y) {
+    function isMedia(node) {
+        const tag = node && node.tagName ? node.tagName.toLowerCase() : '';
+        return tag === 'video' || tag === 'audio';
+    }
+
     let node = deepElementFromPoint(x, y);
     let guard = 0;
     while (node && guard++ < 10) {
-        const tag = node.tagName ? node.tagName.toLowerCase() : '';
-        if (tag === 'video' || tag === 'audio') {
-            const items = mediaItems();
-            const own = new Set();
-            if (node.currentSrc) own.add(node.currentSrc);
-            for (const item of items) {
-                if (!own.has(item.url)) continue;
-                // Si lo que suena es un `blob:`, vale más su lista HLS, que sí
-                // se puede guardar.
-                if (item.url.startsWith('blob:')) {
-                    const hls = items.find(function (other) { return other.hls; });
-                    if (hls) return hls;
-                }
-                return item;
-            }
-            return items.length > 0 ? items[0] : null;
-        }
+        if (isMedia(node)) return node;
         node = node.parentElement || (node.getRootNode() || {}).host;
     }
-    return null;
+
+    for (const layer of document.elementsFromPoint(x, y)) {
+        if (isMedia(layer)) return layer;
+    }
+
+    let best = null;
+    let bestArea = 0;
+    for (const video of document.querySelectorAll('video')) {
+        const rect = video.getBoundingClientRect();
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) continue;
+        const area = rect.width * rect.height;
+        if (area > bestArea) {
+            best = video;
+            bestArea = area;
+        }
+    }
+    return best;
+}
+
+/// La lista `.m3u8` de un vídeo montado con Media Source Extensions.
+///
+/// En un feed (RedGifs) hay muchas en el registro de peticiones, una por
+/// vídeo, y la primera casi nunca es la del que está bajo el cursor. Se busca
+/// la que lleve el nombre del cartel del vídeo: en RedGifs el cartel es
+/// `media.redgifs.com/NombreDelGif-poster.jpg` y la lista
+/// `api.redgifs.com/v2/gifs/nombredelgif/hd.m3u8`. Si no casa ninguna, la
+/// última pedida, que suele ser la del vídeo que se acaba de poner.
+function hlsListFor(element) {
+    const lists = performance.getEntriesByType('resource')
+        .map(function (entry) { return entry.name; })
+        .filter(function (name) { return /\.m3u8(\?|#|$)/i.test(name); });
+    if (lists.length === 0) return null;
+
+    const poster = element.getAttribute('poster') || '';
+    const file = poster.split('?')[0].split('/').pop() || '';
+    const stem = file.split(/[-.]/)[0].toLowerCase();
+    if (stem.length >= 6) {
+        const match = lists.find(function (name) { return name.toLowerCase().indexOf(stem) >= 0; });
+        if (match) return match;
+    }
+    return lists[lists.length - 1];
+}
+
+/// El medio que hay bajo el cursor, para «Descargar vídeo» del clic derecho.
+function mediaAt(x, y) {
+    const element = mediaElementAt(x, y);
+    if (!element) return null;
+
+    const items = mediaItems();
+    const own = new Set();
+    if (element.currentSrc) own.add(new URL(element.currentSrc, location.href).href);
+    const src = element.getAttribute('src');
+    if (src) {
+        try { own.add(new URL(src, location.href).href); } catch (error) {}
+    }
+    for (const source of element.querySelectorAll('source')) {
+        try { own.add(new URL(source.getAttribute('src'), location.href).href); } catch (error) {}
+    }
+
+    const mine = items.filter(function (item) { return own.has(item.url); });
+    const direct = mine.find(function (item) { return !item.stream; });
+    if (direct) return direct;
+
+    // Lo que suena es un `blob:` (o nada todavía): vale más su lista HLS,
+    // que sí se puede guardar.
+    const list = hlsListFor(element);
+    if (list) {
+        const kind = element.tagName.toLowerCase() === 'audio' ? 'audio' : 'video';
+        return {
+            url: list,
+            kind: kind,
+            extension: 'm3u8',
+            stream: true,
+            hls: true,
+            width: element.videoWidth || 0,
+            height: element.videoHeight || 0,
+            duration: isFinite(element.duration) ? Math.round(element.duration) : 0,
+            title: document.title || '',
+        };
+    }
+    if (mine.length > 0) return mine[0];
+    return items.length > 0 ? items[0] : null;
 }
 
 /// Extrae el artículo de la página, para el modo lectura.

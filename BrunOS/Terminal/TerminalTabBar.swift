@@ -12,7 +12,7 @@ import UIKit
 @MainActor
 final class TerminalTabBar: UIView {
 
-    static let height: CGFloat = 30
+    static let height: CGFloat = 36
 
     enum Target: Equatable {
         case tab(Int)
@@ -114,7 +114,7 @@ final class TerminalTabBar: UIView {
         WindowControls.draw(in: context, x: Self.controlsX, midY: bounds.height / 2,
                             hovering: hoveringControls, scale: layer.contentsScale)
 
-        let font = Tokens.mono(11)
+        let font = Tokens.mono(12.5)
         for (index, frame) in itemFrames.enumerated() {
             let isHome = index >= titles.count
             let isActive = isHome ? showsHome : (index == activeIndex && !showsHome)

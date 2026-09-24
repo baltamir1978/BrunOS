@@ -22,7 +22,7 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 
 | | Estado |
 | --- | --- |
-| **Pantalla externa** a resolución nativa, con escalas 1×–3×, overscan y perfiles por monitor | ✅ |
+| **Pantalla externa** a resolución nativa, con escalas de 1× a 3× (de cuarto en cuarto entre 1× y 2,5×), overscan y perfiles por monitor | ✅ |
 | **Ratón y teclado** Bluetooth, cursor propio que no se atasca en los bordes, atajos | ✅ |
 | **Escritorio** con ventanas flotantes o en mosaico estilo i3, las tres apps a la vez, dock con varias ventanas por app y pantalla completa | 🚧 flotantes sin rodaje |
 | **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él | ✅ |
@@ -38,7 +38,8 @@ de verdad. El modo claro también. Lo más reciente —ventanas flotantes, arras
 SMB propio, el historial— está escrito y compilado, pero sin rodaje.
 
 El dock funciona como el de macOS: un icono por app, que la trae al escritorio junto a las demás;
-botón derecho para abrir otra ventana o ir a una concreta. Cmd+1, 2 y 3 abren el navegador, el
+si ya está delante, volver a pulsarlo abre otra ventana, y con el botón derecho se abre otra o se
+va a una concreta. Cmd+1, 2 y 3 abren el navegador, el
 terminal y Ficheros.
 
 Cada panel lleva los tres botones de macOS: **rojo** cierra, **amarillo** lo manda al dock y
@@ -100,8 +101,6 @@ Son de iOS, no del programa, y no hay intención de pelearse con ellas:
 - **No se pueden mostrar otras apps de iOS** en la pantalla externa. Sólo BrunOS.
 - **En segundo plano, iOS vuelve a duplicar la pantalla.** La app tiene que quedarse delante.
 - **El círculo del puntero de AssistiveTouch no se puede ocultar.**
-- **Los clics sintéticos no entran en iframes de otro dominio** (avisos de cookies, pasarelas de
-  pago, logins de terceros): la política del mismo origen impide llegar a ellos.
 - **Las contraseñas de Safari se eligen tocando el iPhone**: iOS sólo las ofrece en su teclado,
   sobre un campo nativo. Al pinchar un campo de acceso en una web, sale en el teléfono.
 - **El contenido con DRM puede salir en negro** en la salida externa.

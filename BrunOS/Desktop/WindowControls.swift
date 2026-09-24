@@ -23,7 +23,7 @@ enum WindowControls {
         case fullScreen
     }
 
-    static let diameter: CGFloat = 12
+    static let diameter: CGFloat = 13
     static let spacing: CGFloat = 8
     static var width: CGFloat { diameter * 3 + spacing * 2 }
 
@@ -69,7 +69,7 @@ enum WindowControls {
             context.strokeEllipse(in: frame.insetBy(dx: 0.4, dy: 0.4))
 
             guard hovering else { continue }
-            let configuration = UIImage.SymbolConfiguration(pointSize: 6.5, weight: .black)
+            let configuration = UIImage.SymbolConfiguration(pointSize: 7, weight: .black)
             guard let image = UIImage.crispSymbol(symbol, configuration: configuration, scale: scale)?
                 .withTintColor(UIColor.black.withAlphaComponent(0.55), renderingMode: .alwaysOriginal)
             else { continue }

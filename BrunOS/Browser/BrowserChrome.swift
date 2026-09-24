@@ -13,8 +13,8 @@ import UIKit
 @MainActor
 final class BrowserChrome: UIView {
 
-    static let height: CGFloat = 38
-    private static let buttonSize: CGFloat = 28
+    static let height: CGFloat = 42
+    private static let buttonSize: CGFloat = 30
 
     /// Lo que hay bajo un punto.
     enum Target: Equatable {
@@ -303,7 +303,7 @@ final class BrowserChrome: UIView {
     }
 
     private func drawTabs(in context: CGContext) {
-        let font = Tokens.sans(11)
+        let font = Tokens.sans(12)
         for (index, frame) in tabFrames.enumerated() {
             let isActive = index == activeIndex
 
@@ -348,8 +348,8 @@ final class BrowserChrome: UIView {
             }
             (tabItems[index].title as NSString).draw(
                 in: CGRect(
-                    x: textX, y: frame.midY - 7,
-                    width: max(0, frame.maxX - 20 - textX), height: 14
+                    x: textX, y: frame.midY - 8,
+                    width: max(0, frame.maxX - 20 - textX), height: 16
                 ),
                 withAttributes: attributes
             )
@@ -398,7 +398,7 @@ final class BrowserChrome: UIView {
         let isPlaceholder = address.isEmpty && !isEditing
         let shown = isPlaceholder ? "Busca o escribe una dirección" : address
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: Tokens.sans(12),
+            .font: Tokens.sans(13),
             .foregroundColor: isPlaceholder ? Tokens.Color.textSecondary : Tokens.Color.text,
         ]
         let text = (isEditing && !isSelected ? shown + "|" : shown) as NSString

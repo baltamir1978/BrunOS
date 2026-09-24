@@ -36,5 +36,7 @@ final class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneDidEnterBackground(_ scene: UIScene) {
         UIApplication.shared.isIdleTimerDisabled = false
+        // Si iOS cierra la app en segundo plano, que no se lleve las cookies.
+        CookieVault.shared.saveNow()
     }
 }

@@ -253,7 +253,7 @@ struct SettingsView: View {
             VStack(alignment: .leading) {
                 Text("Velocidad del scroll: \(pointer.scrollSpeed, format: .number.precision(.fractionLength(1)))×")
                     .font(.brunosSans(14))
-                Slider(value: $pointer.scrollSpeed, in: 0.4...3, step: 0.1)
+                Slider(value: $pointer.scrollSpeed, in: 0.4...5, step: 0.1)
                     .accessibilityLabel("Velocidad del scroll")
             }
 

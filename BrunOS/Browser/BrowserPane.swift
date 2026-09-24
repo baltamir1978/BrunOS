@@ -521,11 +521,17 @@ final class BrowserPane: UIView, Pane {
         activate(tabs.count - 1)
 
         if let url {
-            tab.load(url)
+            // Las cookies guardadas, antes de la primera petición: si no, la
+            // primera página de cada arranque volvería a pedir el aviso.
+            Task { [weak tab] in
+                await CookieVault.shared.restore()
+                tab?.load(url)
+            }
         } else {
             // Página de inicio propia: una en blanco no dice ni dónde estás ni
             // qué puedes hacer.
             tab.loadStartPage()
+            Task { await CookieVault.shared.restore() }
         }
         setNeedsLayout()
         return tab

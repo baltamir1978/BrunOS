@@ -111,6 +111,14 @@ al marcador (`ExternalFolder`), el proveedor se crea igual y es `list` quien exp
 la barra lateral sale en gris. Los marcadores caducados (`isStale`) se renuevan solos al primer
 acceso bueno, que es lo que evita tener que volver a añadir la carpeta tras un reinicio.
 
+**Quitar ubicaciones** (24-sep-2026: se quedaban para siempre las que ya no respondían): botón
+derecho en la barra lateral o Ajustes › Ubicaciones. Una carpeta se olvida (su marcador), un
+servidor SMB se borra con su contraseña y una máquina SSH **sólo se esconde de Ficheros**
+(`files.hiddenHosts`; sigue en el terminal y se vuelve a mostrar desde Ajustes). «Quitar las que no
+responden» limpia de golpe las carpetas apagadas. `rebuild()` crea los proveedores de nuevo, así
+que la ubicación que se está viendo se reconoce por `FileService.key(of:)`, no por el objeto ni
+por el índice, que cambia al quitar una de más arriba.
+
 El tipo se deduce de la ruta, que es lo único que da iOS: `smbclientd` → servidor,
 `Mobile Documents` → iCloud, `/Volumes` → disco.
 

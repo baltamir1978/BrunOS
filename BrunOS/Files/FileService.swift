@@ -48,7 +48,7 @@ final class FileService {
 
         // Las máquinas SSH salen solas: si ya están configuradas para el
         // terminal, no tiene sentido volver a darlas de alta aquí.
-        for host in AppServices.shared.hosts.hosts {
+        for host in AppServices.shared.hosts.hosts where !hiddenHosts.contains(host.id.uuidString) {
             providers.append(SFTPProvider(host: host))
         }
 
@@ -56,8 +56,77 @@ final class FileService {
             providers.append(SMBProvider(server: server))
         }
 
+        // Se sigue en la misma ubicación aunque cambie de puesto: al quitar
+        // una de más arriba, el índice solo apuntaría a otra.
+        let current = Self.key(of: currentProvider)
         self.providers = providers
-        currentIndex = min(currentIndex, providers.count - 1)
+        currentIndex = providers.firstIndex { Self.key(of: $0) == current } ?? 0
+    }
+
+    /// Qué ubicación es, más allá del objeto: `rebuild()` los crea de nuevo.
+    static func key(of provider: any FileProvider) -> String {
+        switch provider {
+        case let external as ExternalFolderProvider: "folder:\(external.folder.id)"
+        case let sftp as SFTPProvider: "sftp:\(sftp.host.id)"
+        case let smb as SMBProvider: "smb:\(smb.server.id)"
+        default: "local"
+        }
+    }
+
+    // MARK: - Quitar ubicaciones
+
+    /// Las máquinas SSH que no se quieren ver en Ficheros. Siguen en el
+    /// terminal: quitarlas de aquí no borra la máquina.
+    private static let hiddenHostsKey = "files.hiddenHosts"
+
+    private(set) var hiddenHosts: Set<String> = Set(
+        UserDefaults.standard.stringArray(forKey: FileService.hiddenHostsKey) ?? []
+    )
+
+    /// Si una ubicación se puede quitar. El iPhone no: es la carpeta de la app.
+    func canRemove(_ provider: any FileProvider) -> Bool {
+        !(provider is LocalProvider)
+    }
+
+    /// Quita una ubicación de la barra lateral. Una carpeta añadida con el
+    /// selector se olvida (el marcador), un servidor SMB se borra con su
+    /// contraseña y una máquina SSH sólo se esconde de aquí.
+    func remove(_ provider: any FileProvider) {
+        switch provider {
+        case let external as ExternalFolderProvider:
+            externalFolders.remove(id: external.folder.id)
+        case let smb as SMBProvider:
+            // Avisa con su notificación, que vuelve a llamar a `rebuild()`.
+            AppServices.shared.smbServers.remove(smb.server)
+        case let sftp as SFTPProvider:
+            setHidden(true, host: sftp.host.id)
+        default:
+            return
+        }
+        rebuild()
+    }
+
+    /// Las carpetas añadidas que ya no responden: servidores desmontados,
+    /// USB desenchufados, carpetas borradas.
+    var unavailableFolders: [ExternalFolderProvider] {
+        providers.compactMap { $0 as? ExternalFolderProvider }.filter { !$0.isAvailable }
+    }
+
+    func removeUnavailable() {
+        for provider in unavailableFolders {
+            externalFolders.remove(id: provider.folder.id)
+        }
+        rebuild()
+    }
+
+    func setHidden(_ hidden: Bool, host id: UUID) {
+        if hidden {
+            hiddenHosts.insert(id.uuidString)
+        } else {
+            hiddenHosts.remove(id.uuidString)
+        }
+        UserDefaults.standard.set(Array(hiddenHosts), forKey: Self.hiddenHostsKey)
+        rebuild()
     }
 
     func select(_ index: Int) {

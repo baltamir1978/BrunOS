@@ -120,14 +120,22 @@ enum SettingsPages {
             let pointer = services.pointer.settings
             let steps: [Double] = [0.6, 0.8, 1.0, 1.3, 1.6, 2.0, 2.5]
             let current = steps.enumerated().min { abs($0.element - pointer.sensitivity) < abs($1.element - pointer.sensitivity) }?.offset ?? 2
+            let scrollSteps: [Double] = [1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
+            let scrollCurrent = scrollSteps.enumerated()
+                .min { abs($0.element - pointer.scrollSpeed) < abs($1.element - pointer.scrollSpeed) }?.offset ?? 0
 
             return [
                 SettingsGroup(
                     "Rueda",
                     footer: "Natural es la de Apple: el contenido sigue al dedo, y al girar la rueda "
                         + "hacia ti la página sube. Inversa es la de Windows y la de siempre: la "
-                        + "página baja.",
+                        + "página baja. La velocidad multiplica lo que avanza cada paso de la rueda "
+                        + "o del trackpad, en las tres apps.",
                     rows: [
+                        SettingsRow("Velocidad del scroll", .choice(
+                            scrollSteps.map { String(format: "%g×", $0).replacingOccurrences(of: ".", with: ",") },
+                            selected: scrollCurrent
+                        ) { index in update { $0.scrollSpeed = scrollSteps[index] } }),
                         SettingsRow("Dirección del scroll", .choice(
                             ["Natural", "Inversa"],
                             selected: pointer.naturalScrolling ? 0 : 1
@@ -657,9 +665,29 @@ enum SettingsPages {
                     rows.append(SettingsRow(provider.name, subtitle: "SMB · se gestiona abajo",
                                             symbol: provider.symbol))
                 default:
-                    rows.append(SettingsRow(provider.name, subtitle: "SFTP · se gestiona en Terminal › Máquinas",
-                                            symbol: provider.symbol))
+                    rows.append(SettingsRow(provider.name, subtitle: "SFTP · la máquina se edita en Terminal › Máquinas",
+                                            symbol: provider.symbol,
+                                            .buttons([
+                                                SettingsButton("Quitar") { files.remove(provider) },
+                                            ])))
                 }
+            }
+            // Las máquinas escondidas, para poder traerlas de vuelta.
+            for host in services.hosts.hosts where files.hiddenHosts.contains(host.id.uuidString) {
+                rows.append(SettingsRow(host.displayName, subtitle: "SFTP · oculta en Ficheros",
+                                        symbol: "eye.slash", .buttons([
+                                            SettingsButton("Mostrar") { files.setHidden(false, host: host.id) },
+                                        ])))
+            }
+            let unavailable = files.unavailableFolders.count
+            if unavailable > 0 {
+                rows.append(SettingsRow(
+                    unavailable == 1 ? "1 ubicación no responde" : "\(unavailable) ubicaciones no responden",
+                    subtitle: "Servidores desmontados, discos desenchufados o carpetas borradas",
+                    .buttons([
+                        SettingsButton("Quitarlas", style: .destructive) { files.removeUnavailable() },
+                    ])
+                ))
             }
             rows.append(SettingsRow("Otra carpeta", subtitle: "iCloud Drive, En mi iPhone, un USB…", .buttons([
                 SettingsButton("Añadir…") {
@@ -675,7 +703,8 @@ enum SettingsPages {
                         + "ahí queda a mano. Vale cualquier carpeta que se vea en la app Archivos, "
                         + "incluidas las de otras apps, los discos USB y los servidores de red. El "
                         + "selector sale en la pantalla del iPhone, que es la única donde iOS lo deja "
-                        + "aparecer.",
+                        + "aparecer.\nTambién se quitan con el botón derecho en la barra lateral de "
+                        + "Ficheros. Quitar una máquina SSH sólo la esconde de aquí: sigue en el terminal.",
                     rows: rows
                 ),
                 SettingsGroup(
@@ -702,6 +731,7 @@ enum SettingsPages {
                 symbol: "externaldrive.connected.to.line.below",
                 .buttons([
                     SettingsButton("Editar") { desktop?.presentSMBEditor(for: server) },
+                    SettingsButton("Borrar", style: .destructive) { services.smbServers.remove(server) },
                 ])
             )
         }

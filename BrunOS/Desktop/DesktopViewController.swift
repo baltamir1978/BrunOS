@@ -650,7 +650,8 @@ final class DesktopViewController: UIViewController {
 
     /// Pulsar un icono del dock, como en macOS: vuelven las ventanas
     /// minimizadas de la app; si no hay, pasa delante la de más delante; y si
-    /// no tiene ninguna, se abre una.
+    /// no tiene ninguna, se abre una. Si la app ya estaba delante, volver a
+    /// pulsar abre otra ventana: lo pidió Bruno, y era lo que esperaba.
     private func openFromDock(_ kind: PaneKind) {
         let workspace = services.desktop.active
         let minimized = workspace.minimized.filter { PaneKind.of($0.pane) == kind }
@@ -659,6 +660,8 @@ final class DesktopViewController: UIViewController {
             for entry in minimized {
                 restoreMinimized(entry.id)
             }
+        } else if let pane = workspace.focusedPane, PaneKind.of(pane) == kind {
+            addPane(kind: kind)
         } else if let id = workspace.panes(of: kind).first {
             workspace.setFocus(id)
         } else {

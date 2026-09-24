@@ -102,6 +102,15 @@ marco menos borde y relleno), y `BrowserTab.send` se lo manda al inyector de ese
 **Cookies y sesiones**: no se configura `websiteDataStore`, así que es el `default()`, que guarda
 en disco. Las sesiones iniciadas se mantienen entre arranques y todas las pestañas las comparten.
 
+**Aun así, Google pedía el aviso de cookies en cada arranque** (24-sep-2026). No se ha podido
+reproducir (el aviso sólo sale en la UE); la hipótesis es que WebKit escribe las cookies a disco
+cuando le parece, desde su proceso de red, y si iOS cierra la app antes se pierde lo último, que
+es justo aceptar el aviso sin navegar después. `CookieVault` guarda aparte las cookies **con
+caducidad** (las de sesión no) dos segundos después de cada cambio (`WKHTTPCookieStoreObserver`)
+y al irse a segundo plano, en `cookies.plist` de Application Support, fuera de la copia de
+iCloud; al arrancar repone las que falten **antes de la primera carga**. **Si algún día se añade
+«borrar datos de sitios», hay que borrar también ese fichero**, o las volvería a poner.
+
 ### Descargas, pestañas y el botón derecho del navegador
 
 - **Las descargas no funcionaban** por dos cosas: faltaba
@@ -214,6 +223,13 @@ trozos cifrados con AES y MPEG-TS, y unir `.ts` da un fichero que el iPhone no r
   Comprobado con la lista real de RedGifs (`api.redgifs.com/v2/gifs/<id>/hd.m3u8` → un `.m4s`
   con vídeo y audio). No se usa si hay cifrado o **audio en pista aparte** (`TYPE=AUDIO` en la
   maestra): el ejemplo fMP4 de Apple habría salido mudo.
+- **El botón derecho no veía los vídeos de RedGifs** (24-sep-2026): encima del `<video>` hay
+  capas (controles, la zona que recoge los clics) y `mediaAt` sólo subía por los antepasados del
+  elemento bajo el cursor. Ahora `mediaElementAt` mira también `elementsFromPoint` y, al final,
+  qué `<video>` contiene el punto. Y en un feed, la `.m3u8` es la del vídeo de debajo
+  (`hlsListFor`: la que lleva el nombre de su cartel, `NombreDelGif-poster.jpg` ↔
+  `/gifs/nombredelgif/hd.m3u8`), no la primera del registro. Comprobado en un `WKWebView` de
+  macOS con un vídeo tapado por un `div`; lo del cartel, sin probar contra RedGifs.
 - El inyector sube el registro de peticiones a 5000 (`setResourceTimingBufferSize`): con 250, en
   el feed de RedGifs las miniaturas lo llenaban y la `.m3u8` del vídeo no quedaba apuntada.
 

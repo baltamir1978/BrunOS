@@ -10,7 +10,7 @@ import UIKit
 final class FilesPane: UIView, Pane {
 
     private static let sidebarWidth: CGFloat = 150
-    private static let headerHeight: CGFloat = 30
+    private static let headerHeight: CGFloat = 36
     private static let rowHeight: CGFloat = 26
 
     private let services = AppServices.shared
@@ -131,7 +131,7 @@ final class FilesPane: UIView, Pane {
     private var settingsFrame: CGRect = .zero
     private var hoveringControls = false
     private static let controlsX: CGFloat = 13
-    private static let controlsMidY: CGFloat = 15
+    private static var controlsMidY: CGFloat { headerHeight / 2 }
     /// Casillas por fila en las vistas de iconos. Lo usan las flechas.
     private var columns = 1
 
@@ -305,28 +305,28 @@ final class FilesPane: UIView, Pane {
     private func recomputeFrames() {
         sidebarFrames = services.files.providers.indices.map { index in
             CGRect(
-                x: 6, y: 56 + CGFloat(index) * 28,
+                x: 6, y: 62 + CGFloat(index) * 28,
                 width: Self.sidebarWidth - 12, height: 26
             )
         }
 
         let listX = Self.sidebarWidth
         let listWidth = bounds.width - listX
-        upFrame = CGRect(x: listX + 6, y: 4, width: 22, height: 22)
+        upFrame = CGRect(x: listX + 6, y: (Self.headerHeight - 24) / 2, width: 24, height: 24)
         // «Nombre» ya no va en la cabecera: ahí va el nombre de la carpeta,
         // que es lo que se busca al mirar arriba. Se ordena por nombre al
         // volver a pulsar Tamaño o Fecha cuando ya están elegidos.
         sortFrames = [
-            .size: CGRect(x: bounds.width - Self.sizeColumnInset, y: 6, width: 70, height: 18),
-            .date: CGRect(x: bounds.width - Self.dateColumnInset, y: 6, width: 110, height: 18),
+            .size: CGRect(x: bounds.width - Self.sizeColumnInset, y: (Self.headerHeight - 18) / 2, width: 70, height: 18),
+            .date: CGRect(x: bounds.width - Self.dateColumnInset, y: (Self.headerHeight - 18) / 2, width: 110, height: 18),
         ]
 
-        settingsFrame = CGRect(x: bounds.width - 30, y: 4, width: 24, height: 22)
+        settingsFrame = CGRect(x: bounds.width - 32, y: (Self.headerHeight - 24) / 2, width: 26, height: 24)
         modeFrames = [:]
         for (index, mode) in ViewMode.allCases.enumerated() {
             modeFrames[mode] = CGRect(
                 x: bounds.width - 118 + CGFloat(index) * 27,
-                y: 4, width: 24, height: 22
+                y: (Self.headerHeight - 24) / 2, width: 24, height: 24
             )
         }
 
@@ -405,9 +405,9 @@ final class FilesPane: UIView, Pane {
                             hovering: hoveringControls, scale: layer.contentsScale)
 
         ("UBICACIONES" as NSString).draw(
-            at: CGPoint(x: 12, y: 36),
+            at: CGPoint(x: 12, y: 44),
             withAttributes: [
-                .font: Tokens.sans(9, weight: .semibold),
+                .font: Tokens.sans(10, weight: .semibold),
                 .foregroundColor: Tokens.Color.textSecondary,
             ]
         )
@@ -480,11 +480,11 @@ final class FilesPane: UIView, Pane {
             : (path as NSString).lastPathComponent
         (folder as NSString).draw(
             in: CGRect(
-                x: upFrame.maxX + 8, y: 6,
-                width: max(0, bounds.width - Self.sizeColumnInset - upFrame.maxX - 20), height: 18
+                x: upFrame.maxX + 8, y: (Self.headerHeight - 20) / 2,
+                width: max(0, bounds.width - Self.sizeColumnInset - upFrame.maxX - 20), height: 20
             ),
             withAttributes: [
-                .font: Tokens.sans(13, weight: .semibold),
+                .font: Tokens.sans(14, weight: .semibold),
                 .foregroundColor: Tokens.Color.text,
                 .paragraphStyle: {
                     let paragraph = NSMutableParagraphStyle()
@@ -499,7 +499,7 @@ final class FilesPane: UIView, Pane {
             (kind.label as NSString).draw(
                 at: CGPoint(x: frame.minX, y: frame.minY),
                 withAttributes: [
-                    .font: Tokens.sans(11, weight: isActive ? .semibold : .regular),
+                    .font: Tokens.sans(12, weight: isActive ? .semibold : .regular),
                     .foregroundColor: isActive ? Tokens.Color.accent : Tokens.Color.textSecondary,
                 ]
             )
@@ -849,6 +849,9 @@ final class FilesPane: UIView, Pane {
 
     /// Menú del clic derecho.
     func contextMenuEntries(at location: CGPoint) -> [ContextMenu.Entry] {
+        if location.x < Self.sidebarWidth {
+            return sidebarMenuEntries(at: location)
+        }
         let index = itemIndex(at: location)
         if let index { selectedIndex = index; setNeedsDisplay() }
         let item = index.flatMap { items.indices.contains($0) ? items[$0] : nil }
@@ -939,6 +942,70 @@ final class FilesPane: UIView, Pane {
         })
 
         return entries
+    }
+
+    /// Botón derecho sobre una ubicación de la barra lateral: quitarla, que
+    /// antes sólo se podía desde Ajustes y las que ya no respondían se
+    /// quedaban para siempre.
+    private func sidebarMenuEntries(at location: CGPoint) -> [ContextMenu.Entry] {
+        let files = services.files
+        var entries: [ContextMenu.Entry] = []
+
+        if let index = sidebarFrames.firstIndex(where: { $0.contains(location) }),
+           files.providers.indices.contains(index) {
+            let provider = files.providers[index]
+            entries.append(ContextMenu.Entry(title: "Abrir", symbol: "folder") { [weak self] in
+                self?.showProvider(at: index)
+            })
+            if let smb = provider as? SMBProvider {
+                entries.append(ContextMenu.Entry(title: "Editar servidor…", symbol: "pencil") { [weak self] in
+                    self?.services.desktopViewController?.presentSMBEditor(for: smb.server)
+                })
+            }
+            if files.canRemove(provider) {
+                let title = switch provider {
+                case is SFTPProvider: "Quitar de Ficheros"
+                case is SMBProvider: "Borrar servidor"
+                default: "Quitar de la barra lateral"
+                }
+                entries.append(ContextMenu.Entry(title: title, symbol: "minus.circle", isDestructive: true) {
+                    [weak self] in self?.removeLocation(provider)
+                })
+            }
+        }
+
+        if !files.unavailableFolders.isEmpty {
+            entries.append(ContextMenu.Entry(
+                title: "Quitar las que no responden",
+                symbol: "xmark.circle",
+                isDestructive: true
+            ) { [weak self] in
+                guard let self else { return }
+                let before = self.services.files.currentProvider
+                self.services.files.removeUnavailable()
+                self.afterLocationsChanged(previous: before)
+            })
+        }
+        entries.append(ContextMenu.Entry(title: "Añadir ubicación…", symbol: "folder.badge.plus") {
+            NotificationCenter.default.post(name: .brunosPickFolder, object: nil)
+        })
+        return entries
+    }
+
+    private func removeLocation(_ provider: any FileProvider) {
+        let before = services.files.currentProvider
+        services.files.remove(provider)
+        afterLocationsChanged(previous: before)
+    }
+
+    /// Si la ubicación que se estaba viendo ya no está, se vuelve al iPhone.
+    private func afterLocationsChanged(previous: any FileProvider) {
+        if FileService.key(of: services.files.currentProvider) != FileService.key(of: previous) {
+            showProvider(at: services.files.currentIndex)
+        }
+        setNeedsLayout()
+        setNeedsDisplay()
+        services.desktop.notifyChange()
     }
 
     // MARK: - Operaciones

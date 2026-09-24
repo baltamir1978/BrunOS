@@ -80,6 +80,14 @@ conviene no confundir "está escrito" con "funciona":
 - **Si el espacio lógico sale nítido** a todas las escalas: el lienzo se escala con un
   `CGAffineTransform` y, si el factor estuviera mal, se vería borroso o cortado.
 
+**24-sep-2026 (mañana), sin subir**: Bruno pidió seis cosas y están escritas y compiladas:
+volver a pulsar el dock abre otra ventana; barras de ventana más altas y con letra algo mayor
+(terminal y Ficheros 36, navegador 42) y escalas intermedias (1,25×, 1,75×, 2,25×); quitar
+ubicaciones de Ficheros (botón derecho en la barra lateral y en Ajustes, y «quitar las que no
+responden»); una copia propia de las cookies (`CookieVault`) por el aviso de Google en cada
+arranque; «Descargar vídeo» sobre los vídeos de RedGifs, tapados por capas; y la velocidad del
+scroll en los ajustes del monitor. **Nada probado en el iPhone.**
+
 ## Cómo se cierra cada bloque de trabajo
 
 Lo pidió Bruno el 22-sep-2026: **cada bloque que compile sin errores termina en commit, `git push`
@@ -176,7 +184,8 @@ defecto**. Abrir algo desde otro sitio (historial, «Mostrar en Ficheros», el l
 **Varias ventanas de la misma app** (23-sep-2026): botón derecho sobre su icono del dock ›
 «Nueva ventana», y debajo la lista de las que tiene abiertas, minimizadas incluidas, para ir
 directo a una. También Cmd+N (de la app que está delante) y «Nuevo terminal /
-navegador / gestor de ficheros» en el lanzador. El clic normal sigue sin abrir otra si ya hay una.
+navegador / gestor de ficheros» en el lanzador. **El clic normal trae la app delante y, si ya lo
+estaba, abre otra ventana** (24-sep-2026: Bruno volvía a pulsar el icono esperando una segunda).
 
 ### El lanzador (Cmd+P)
 

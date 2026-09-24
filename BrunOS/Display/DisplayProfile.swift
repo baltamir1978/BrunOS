@@ -14,16 +14,22 @@ struct DisplayProfile: Codable, Equatable, Sendable {
     /// se maqueta en ese espacio y se renderiza nítido a resolución nativa.
     enum Scale: Double, Codable, CaseIterable, Sendable {
         case x1 = 1.0
+        case x1_25 = 1.25
         case x1_5 = 1.5
+        case x1_75 = 1.75
         case x2 = 2.0
+        case x2_25 = 2.25
         case x2_5 = 2.5
         case x3 = 3.0
 
         var label: String {
             switch self {
             case .x1: "1×"
+            case .x1_25: "1,25×"
             case .x1_5: "1,5×"
+            case .x1_75: "1,75×"
             case .x2: "2×"
+            case .x2_25: "2,25×"
             case .x2_5: "2,5×"
             case .x3: "3×"
             }
