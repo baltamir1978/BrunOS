@@ -14,6 +14,9 @@ struct SettingsPage {
     var symbol: String
     var tint: UIColor
     var build: @MainActor () -> [SettingsGroup]
+    /// Si enseña datos que cambian solos (el rendimiento): mientras está
+    /// abierta se vuelve a pedir cada segundo y se mide.
+    var isLive = false
 }
 
 @MainActor
@@ -173,10 +176,35 @@ final class SettingsWindow: UIView {
 
     isolated deinit {
         observers.forEach(NotificationCenter.default.removeObserver)
+        liveTimer?.invalidate()
+        if liveTimer != nil { PerformanceMonitor.shared.stop() }
+    }
+
+    private var liveTimer: Timer?
+
+    /// Una sección en vivo se refresca cada segundo, y sólo mientras se ve.
+    private func updateLiveRefresh() {
+        let live = pages.indices.contains(pageIndex) && pages[pageIndex].isLive && window != nil
+        if live, liveTimer == nil {
+            PerformanceMonitor.shared.start(on: window?.windowScene)
+            liveTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refresh() }
+            }
+        } else if !live, liveTimer != nil {
+            liveTimer?.invalidate()
+            liveTimer = nil
+            PerformanceMonitor.shared.stop()
+        }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        updateLiveRefresh()
     }
 
     /// Vuelve a pedir el contenido de la sección y lo repinta.
     func refresh() {
+        updateLiveRefresh()
         guard pages.indices.contains(pageIndex) else { return }
         groups = pages[pageIndex].build()
         // El borde es un `CGColor` y no se entera solo del cambio de modo.

@@ -54,6 +54,9 @@ final class BookmarksBar: UIView {
     }
 
     func update(pages: [BrowserHistory.Page]) {
+        // Se llama con cada cambio de la barra de direcciones, también con
+        // cada paso de la barra de carga: sin cambios, no se repinta.
+        guard pages != self.pages else { return }
         self.pages = pages
         recomputeFrames()
         setNeedsDisplay()

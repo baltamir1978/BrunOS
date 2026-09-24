@@ -47,6 +47,28 @@ final class BrowserHistory {
         visits.removeAll { $0.url == address }
         visits.insert(Page(url: address, title: Self.clean(title, url: url), visited: Date()), at: 0)
         if visits.count > Self.limit { visits.removeLast(visits.count - Self.limit) }
+        scheduleSave()
+    }
+
+    /// Las visitas se guardan **un momento después**, todas juntas: una web
+    /// con redirecciones apunta tres o cuatro seguidas, y cada una reescribía
+    /// el fichero entero en el hilo principal. Los favoritos y los borrados,
+    /// que se hacen a mano, siguen guardándose al instante.
+    private var pendingSave: Task<Void, Never>?
+
+    private func scheduleSave() {
+        pendingSave?.cancel()
+        pendingSave = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            self?.save()
+        }
+    }
+
+    /// Para cuando la app se va a segundo plano: que no se pierda lo último.
+    func flush() {
+        guard pendingSave != nil else { return }
+        pendingSave?.cancel()
         save()
     }
 
@@ -124,6 +146,7 @@ final class BrowserHistory {
     }
 
     private func save() {
+        pendingSave = nil
         let stored = Stored(visits: visits, bookmarks: bookmarks)
         guard let data = try? JSONEncoder().encode(stored) else { return }
         try? data.write(to: fileURL, options: .atomic)

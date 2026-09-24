@@ -58,10 +58,18 @@ final class DesktopViewController: UIViewController {
             name: ExternalDisplayManager.didChangeNotification,
             object: nil
         )
+        // Un cambio del escritorio (foco, una ventana nueva) no toca la
+        // pantalla: basta con maquetar, sin volver a colocar el lienzo.
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(refreshLayout),
+            selector: #selector(desktopChanged),
             name: DesktopModel.didChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(titleChanged),
+            name: DesktopModel.titleDidChangeNotification,
             object: nil
         )
         NotificationCenter.default.addObserver(
@@ -204,6 +212,7 @@ final class DesktopViewController: UIViewController {
         guard !isLayingOut else { return }
         isLayingOut = true
         defer { isLayingOut = false }
+        PerformanceMonitor.shared.noteLayout()
 
         let fullScreen = services.desktop.isFullScreen
         topBar.frame = CGRect(
@@ -280,6 +289,30 @@ final class DesktopViewController: UIViewController {
     @objc private func refreshLayout() {
         applyDisplayProfile()
     }
+
+    @objc private func desktopChanged() {
+        layoutCanvas()
+    }
+
+    @objc private func titleChanged() {
+        topBar.update(
+            desktop: services.desktop,
+            profile: services.externalDisplay.currentProfile,
+            blockedCount: nil
+        )
+        // Lo que cambia de título a veces trae vistas nuevas (una pestaña de
+        // terminal), que nacen con la densidad de la pantalla. Se les pone la
+        // del lienzo una vez por vuelta, no con cada aviso.
+        guard !contentsScalePending else { return }
+        contentsScalePending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.contentsScalePending = false
+            self.applyContentsScale(to: self.canvas)
+        }
+    }
+
+    private var contentsScalePending = false
 
     @objc private func themeChanged() {
         applyTheme()

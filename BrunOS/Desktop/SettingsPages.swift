@@ -18,7 +18,7 @@ enum SettingsPages {
 
     static func window(for scope: SettingsScope) -> (title: String, symbol: String, pages: [SettingsPage]) {
         switch scope {
-        case .global: ("Ajustes", "gearshape.fill", [general, display, mouse, about])
+        case .global: ("Ajustes", "gearshape.fill", [general, display, mouse, about, performance])
         case .browser: ("Navegador", "safari.fill", [browserGeneral, bookmarks, blocking, downloads])
         case .terminal: ("Terminal", "terminal.fill", [machines, sshKey, terminalLook, knownHosts])
         case .files: ("Ficheros", "folder.fill", [filesView, locations])
@@ -197,6 +197,45 @@ enum SettingsPages {
                 ),
             ]
         }
+    }
+
+    private static var performance: SettingsPage {
+        var page = SettingsPage(title: "Rendimiento", symbol: "gauge.with.dots.needle.67percent", tint: gray) {
+            let monitor = PerformanceMonitor.shared
+            let footprint = PerformanceMonitor.footprint
+            let available = PerformanceMonitor.available
+            let tabs = BrowserPane.tabCounts
+            return [
+                SettingsGroup(
+                    "Fluidez",
+                    footer: "Se mide sólo mientras esta página está abierta. Los fotogramas son los del "
+                        + "monitor: si algo bloquea la app, bajan. El más lento es lo que se nota como "
+                        + "un tirón aunque la media sea buena; con 60 Hz, lo normal son unos 17 ms. Mueve "
+                        + "el ratón, carga una web o escribe en el terminal y mira cómo cambia.",
+                    rows: [
+                        SettingsRow("Fotogramas por segundo", .value(monitor.isRunning ? "\(monitor.framesPerSecond)" : "—")),
+                        SettingsRow("Fotograma más lento", .value(monitor.isRunning
+                            ? String(format: "%.0f ms", monitor.worstFrame) : "—")),
+                        SettingsRow("Maquetaciones del escritorio", subtitle: "Por segundo",
+                                    .value(monitor.isRunning ? "\(monitor.layoutsPerSecond)" : "—")),
+                    ]
+                ),
+                SettingsGroup(
+                    "Memoria",
+                    footer: "Lo que gasta BrunOS es la cifra con la que iOS decide cuándo cerrarla; lo que "
+                        + "queda, cuánto le falta para eso. Cada pestaña despierta es un proceso de WebKit "
+                        + "aparte y su memoria no cuenta aquí, pero sí para iOS: por eso se duermen las que "
+                        + "pasan de cinco o llevan diez minutos sin verse.",
+                    rows: [
+                        SettingsRow("Gasta BrunOS", .value(PerformanceMonitor.megabytes(footprint))),
+                        SettingsRow("Le queda", .value(available > 0 ? PerformanceMonitor.megabytes(available) : "—")),
+                        SettingsRow("Pestañas despiertas", .value("\(tabs.live) de \(tabs.total)")),
+                    ]
+                ),
+            ]
+        }
+        page.isLive = true
+        return page
     }
 
     // MARK: - Navegador

@@ -39,6 +39,7 @@ final class BrowserTab: NSObject {
 
     /// Para no ahogar la página con `mousemove` a cada fotograma.
     private var lastHoverTime: Date = .distantPast
+    private var lastHoverPoint = CGPoint(x: -1, y: -1)
 
     /// Zoom de la página. Cmd + / − / 0.
     var pageZoom: CGFloat = BrowserZoom.default {
@@ -382,6 +383,12 @@ final class BrowserTab: NSObject {
         webView.loadHTMLString("", baseURL: nil)
     }
 
+    /// Apunta que se acaba de usar: al dejar de verla, el rato sin mirarla
+    /// cuenta desde aquí y no desde que se abrió.
+    func markUsed() {
+        lastUsed = Date()
+    }
+
     func resumeIfNeeded() {
         lastUsed = Date()
         guard isSuspended, let url = suspendedURL else { return }
@@ -407,7 +414,11 @@ final class BrowserTab: NSObject {
     func hover(at point: CGPoint) {
         let now = Date()
         guard now.timeIntervalSince(lastHoverTime) > 0.033 else { return }
+        // Medio punto no cambia lo que hay debajo, y cada aviso es una
+        // búsqueda en la página entera.
+        guard abs(point.x - lastHoverPoint.x) >= 1 || abs(point.y - lastHoverPoint.y) >= 1 else { return }
         lastHoverTime = now
+        lastHoverPoint = point
         send("hover", [point.x, point.y])
     }
 
@@ -804,6 +815,16 @@ final class BrowserTab: NSObject {
         // de BrunOS: la página no lo ve. Con un intermediario débil, porque el
         // controlador retiene lo que se le da y la pestaña no se liberaría.
         controller.add(FrameRegistrar(tab: self), contentWorld: world, name: "brunosFrame")
+        // Aviso de la página cuando aparece o arranca un vídeo. Antes el
+        // panel lo preguntaba cada 3 segundos, se viera o no.
+        controller.add(MediaHintRelay(tab: self), contentWorld: world, name: "brunosMedia")
+    }
+
+    /// La página tiene un vídeo nuevo, o ha cambiado lo que reproduce.
+    var onMediaHint: (@MainActor () -> Void)?
+
+    fileprivate func mediaHint() {
+        onMediaHint?()
     }
 
     // MARK: - Iframes
@@ -902,6 +923,8 @@ extension BrowserTab: WKNavigationDelegate {
         }
         reportIcon()
         refresh()
+        // Lo que declara la página (`og:video`) ya está al terminar de cargar.
+        mediaHint()
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
@@ -1176,6 +1199,22 @@ enum BrowserZoom {
 
     static func reset() {
         UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
+/// Recibe los avisos de vídeo de la página, con referencia débil por lo
+/// mismo que `FrameRegistrar`.
+@MainActor
+private final class MediaHintRelay: NSObject, WKScriptMessageHandler {
+    weak var tab: BrowserTab?
+
+    init(tab: BrowserTab) {
+        self.tab = tab
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame else { return }
+        tab?.mediaHint()
     }
 }
 

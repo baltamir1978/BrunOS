@@ -201,4 +201,16 @@ final class DesktopModel {
     func notifyChange() {
         NotificationCenter.default.post(name: Self.didChangeNotification, object: nil)
     }
+
+    static let titleDidChangeNotification = Notification.Name("BrunOSDesktopTitleDidChange")
+
+    /// Sólo ha cambiado un título o un estado: la barra de carga de una web,
+    /// el título que pone tmux. **No mueve nada**, así que no hace falta
+    /// recolocar el escritorio: basta con la barra superior.
+    ///
+    /// Antes todo pasaba por `notifyChange()`, y cargar una página recolocaba
+    /// el escritorio entero —lienzo, capas, dock— decenas de veces.
+    func notifyTitleChange() {
+        NotificationCenter.default.post(name: Self.titleDidChangeNotification, object: nil)
+    }
 }

@@ -9,12 +9,24 @@ import WebKit
 @MainActor
 final class BrowserPane: UIView, Pane {
 
-    /// Cuántas pestañas se mantienen cargadas a la vez.
+    /// Cuántas pestañas se mantienen cargadas a la vez, **entre todos los
+    /// navegadores**.
     ///
     /// Cada `WKWebView` vivo es un proceso de WebKit con su memoria. Pasado un
     /// punto, iOS mata la app entera sin avisar. Las que llevan más tiempo sin
     /// usarse se descargan guardando URL y scroll, y vuelven al mirarlas.
-    private static let maxLiveTabs = 8
+    ///
+    /// Antes eran 8 **por ventana**: con tres navegadores, hasta 24. Y desde
+    /// que la página se dibuja a píxel nativo (`BrowserTab.place`), a 1,5×
+    /// cada una gasta más memoria gráfica.
+    private static let maxLiveTabs = 5
+    /// Una pestaña que no se ve se duerme pasado este rato, aunque no se haya
+    /// llegado al tope.
+    private static let idleLimit: TimeInterval = 10 * 60
+
+    /// Todos los navegadores abiertos, para repartir el tope entre ellos.
+    private static let all = NSHashTable<BrowserPane>.weakObjects()
+    private static var idleTimer: Timer?
 
     private let chrome = BrowserChrome()
     private let bookmarksBar = BookmarksBar()
@@ -22,11 +34,11 @@ final class BrowserPane: UIView, Pane {
 
     /// Los medios de la página, para el botón de descargar vídeo.
     ///
-    /// Se vuelven a pedir cada pocos segundos y no sólo al cargar: casi ningún
-    /// reproductor tiene el `<video>` puesto cuando la página termina; aparece
-    /// después, al pulsar el play o al cargar el guion del reproductor.
+    /// Se vuelven a pedir al cargar **y cuando la página avisa** de que ha
+    /// aparecido o arrancado un vídeo (`brunosMedia`): casi ningún reproductor
+    /// tiene el `<video>` puesto cuando la página termina. Antes se preguntaba
+    /// cada 3 segundos en todos los navegadores, se vieran o no.
     private var media: [BrowserTab.Media] = []
-    private var mediaTimer: Timer?
 
     /// Las últimas pestañas cerradas, para Cmd+Mayús+T. Sólo la dirección: no
     /// tiene sentido mantener vivo un `WKWebView` por si acaso.
@@ -71,6 +83,12 @@ final class BrowserPane: UIView, Pane {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        Self.all.add(self)
+        if Self.idleTimer == nil {
+            Self.idleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+                MainActor.assumeIsolated { BrowserPane.reclaimMemory() }
+            }
+        }
 
         backgroundColor = .white
         layer.cornerRadius = Tokens.Metric.paneCornerRadius
@@ -135,15 +153,6 @@ final class BrowserPane: UIView, Pane {
             object: nil
         )
 
-        mediaTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshMedia() }
-        }
-    }
-
-    /// El `Timer` guarda una referencia fuerte hasta que se invalida, y sin
-    /// esto el panel cerrado seguiría preguntándole a una pestaña muerta.
-    isolated deinit {
-        mediaTimer?.invalidate()
     }
 
     @available(*, unavailable)
@@ -429,6 +438,19 @@ final class BrowserPane: UIView, Pane {
     // MARK: - Medios
 
     /// Vuelve a mirar qué vídeos hay en la página.
+    /// Al volver del dock: lo que la página avisó mientras estaba escondida
+    /// no se atendió.
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            // Puede haberse dormido mientras estaba en el dock.
+            activeTab?.resumeIfNeeded()
+            refreshMedia()
+        } else {
+            activeTab?.markUsed()
+        }
+    }
+
     private func refreshMedia() {
         guard window != nil, !isHidden, let tab = activeTab, !tab.isSuspended else { return }
         Task { [weak self] in
@@ -509,10 +531,14 @@ final class BrowserPane: UIView, Pane {
         let tab = BrowserTab(configuration: Self.makeConfiguration())
         tab.onChange = { [weak self] in
             self?.refreshChrome()
-            AppServices.shared.desktop.notifyChange()
+            AppServices.shared.desktop.notifyTitleChange()
         }
         tab.onOpenInNewTab = { [weak self] url in
             self?.newTab(url: url.absoluteString)
+        }
+        tab.onMediaHint = { [weak self, weak tab] in
+            guard let self, self.activeTab === tab else { return }
+            self.refreshMedia()
         }
         tab.onDownloadChange = { [weak self] name, state in
             self?.showDownload(name, state)
@@ -608,26 +634,52 @@ final class BrowserPane: UIView, Pane {
 
     private func activate(_ index: Int) {
         if isFinding { hideFind() }
+        // La que se deja de ver empieza a contar desde ahora.
+        activeTab?.markUsed()
         activeIndex = max(0, min(index, tabs.count - 1))
         for (position, tab) in tabs.enumerated() {
             tab.webView.isHidden = position != activeIndex
         }
         activeTab?.resumeIfNeeded()
-        reclaimMemoryIfNeeded()
+        Self.reclaimMemory()
+        // Otra pestaña, otros vídeos.
+        media = []
+        refreshMedia()
         refreshChrome()
-        AppServices.shared.desktop.notifyChange()
+        AppServices.shared.desktop.notifyTitleChange()
     }
 
-    /// Descarga las pestañas que llevan más tiempo sin mirarse.
-    private func reclaimMemoryIfNeeded() {
-        let live = tabs.filter { !$0.isSuspended }
-        guard live.count > Self.maxLiveTabs else { return }
+    /// Duerme las pestañas que llevan más tiempo sin mirarse, entre todos los
+    /// navegadores: las que pasan de `idleLimit` sin verse, y las más viejas
+    /// si hay más de `maxLiveTabs` despiertas. **Nunca la que se está
+    /// viendo**: la activa de un navegador que está en el escritorio.
+    /// Cuántas pestañas hay y cuántas despiertas, para Ajustes › Rendimiento.
+    static var tabCounts: (live: Int, total: Int) {
+        let tabs = all.allObjects.flatMap(\.tabs)
+        return (tabs.filter { !$0.isSuspended }.count, tabs.count)
+    }
 
-        let victims = live
-            .sorted { $0.lastUsed < $1.lastUsed }
-            .prefix(live.count - Self.maxLiveTabs)
-        for victim in victims where victim !== activeTab {
-            victim.suspend()
+    static func reclaimMemory() {
+        let now = Date()
+        var candidates: [BrowserTab] = []
+        var live = 0
+        for pane in all.allObjects {
+            for tab in pane.tabs where !tab.isSuspended {
+                live += 1
+                let visible = pane.window != nil && tab === pane.activeTab
+                if !visible { candidates.append(tab) }
+            }
+        }
+        candidates.sort { $0.lastUsed < $1.lastUsed }
+
+        var excess = max(0, live - maxLiveTabs)
+        for tab in candidates {
+            if excess > 0 {
+                tab.suspend()
+                excess -= 1
+            } else if now.timeIntervalSince(tab.lastUsed) > idleLimit {
+                tab.suspend()
+            }
         }
     }
 

@@ -205,7 +205,7 @@ final class FilesPane: UIView, Pane {
                 self.scrollOffset = 0
                 self.setNeedsLayout()
                 self.setNeedsDisplay()
-                AppServices.shared.desktop.notifyChange()
+                AppServices.shared.desktop.notifyTitleChange()
             } catch {
                 self?.items = []
                 self?.allItems = []
@@ -692,9 +692,24 @@ final class FilesPane: UIView, Pane {
                 .byPreparingThumbnail(ofSize: CGSize(width: side, height: side))
             guard let self, let image, self.pendingThumbnails.contains(path) else { return }
             self.thumbnails[path] = image
-            self.setNeedsDisplay()
+            self.scheduleThumbnailRedraw()
         }
         return nil
+    }
+
+    /// Una carpeta de fotos trae decenas de miniaturas casi a la vez: se
+    /// repinta el panel una vez por tanda, no una por foto.
+    private var thumbnailRedrawPending = false
+
+    private func scheduleThumbnailRedraw() {
+        guard !thumbnailRedrawPending else { return }
+        thumbnailRedrawPending = true
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard let self else { return }
+            self.thumbnailRedrawPending = false
+            self.setNeedsDisplay()
+        }
     }
 
     private func symbol(for item: FileItem) -> String {
@@ -817,7 +832,7 @@ final class FilesPane: UIView, Pane {
                 press = (index, event.location)
                 selectedIndex = index
                 setNeedsDisplay()
-                AppServices.shared.desktop.notifyChange()
+                AppServices.shared.desktop.notifyTitleChange()
             } else if upFrame.contains(event.location) {
                 goUp()
             }
@@ -1005,7 +1020,7 @@ final class FilesPane: UIView, Pane {
         }
         setNeedsLayout()
         setNeedsDisplay()
-        services.desktop.notifyChange()
+        services.desktop.notifyTitleChange()
     }
 
     // MARK: - Operaciones
@@ -1239,7 +1254,7 @@ final class FilesPane: UIView, Pane {
         reveal(next)
         setNeedsLayout()
         setNeedsDisplay()
-        AppServices.shared.desktop.notifyChange()
+        AppServices.shared.desktop.notifyTitleChange()
     }
 
     /// Que la selección no se vaya fuera de la vista al moverse con flechas.

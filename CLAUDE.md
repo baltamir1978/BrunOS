@@ -188,6 +188,29 @@ directo a una. También Cmd+N (de la app que está delante) y «Nuevo terminal /
 navegador / gestor de ficheros» en el lanzador. **El clic normal trae la app delante y, si ya lo
 estaba, abre otra ventana** (24-sep-2026: Bruno volvía a pulsar el icono esperando una segunda).
 
+### Rendimiento (24-sep-2026)
+
+La ronda de optimización que pidió Bruno. **Nada medido en el iPhone todavía**: para eso está
+Ajustes › Rendimiento (`PerformanceMonitor`), con fotogramas por segundo, el fotograma más lento,
+maquetaciones por segundo, memoria (`phys_footprint` y `os_proc_available_memory`) y pestañas
+despiertas. Sólo mide mientras esa página está abierta (`SettingsPage.isLive`).
+
+- **Dos avisos distintos**: `notifyChange()` es para lo que mueve ventanas y recoloca el
+  escritorio; **`notifyTitleChange()` sólo repinta la barra superior**. Antes todo recolocaba
+  el lienzo, recorría todas las capas y repintaba el dock, también con cada paso de la barra de
+  carga de una web y cada título de tmux. **Un cambio de título, de pestaña o de selección va por
+  el segundo.** El recorrido de densidad (`applyContentsScale`) se programa una vez por vuelta
+  en ese caso, para las vistas nuevas (una pestaña de terminal).
+- `DesktopModel.didChange` ya no pasa por `applyDisplayProfile()`: sólo maqueta. La pantalla
+  se vuelve a colocar con sus propios avisos.
+- El cursor pausa su `CADisplayLink` cuando no hay nada que pintar.
+- Los vídeos de una web se miran al cargar y cuando la página avisa (`brunosMedia`, en captura
+  de `loadedmetadata`/`play`/`emptied`), no cada 3 segundos en todos los navegadores.
+- Pestañas: **5 despiertas entre todos los navegadores** (antes 8 por ventana) y se duermen las
+  que llevan 10 minutos sin verse. Nunca la que se está viendo.
+- El historial guarda las visitas a los 3 segundos, juntas (y al irse a segundo plano); las
+  miniaturas de Ficheros se repintan por tandas; el hover del navegador ignora el medio punto.
+
 ### El lanzador (Cmd+P)
 
 Busca en todo a la vez: máquinas SSH, ubicaciones de Ficheros, marcadores, historial del navegador

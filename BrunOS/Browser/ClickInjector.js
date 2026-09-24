@@ -957,6 +957,25 @@ if (window.top !== window) {
     } catch (error) {}
 }
 
+// Avisa a Swift cuando aparece o arranca un vídeo, para el botón de medios.
+// `loadedmetadata` y `play` no burbujean: se escuchan en la fase de captura.
+// Un feed dispara decenas seguidas: se junta en un aviso cada medio segundo.
+if (window.top === window) {
+    let pendingMediaHint = null;
+    const hint = function () {
+        if (pendingMediaHint) return;
+        pendingMediaHint = setTimeout(function () {
+            pendingMediaHint = null;
+            try {
+                window.webkit.messageHandlers.brunosMedia.postMessage(1);
+            } catch (error) {}
+        }, 500);
+    };
+    for (const name of ['loadedmetadata', 'play', 'emptied']) {
+        document.addEventListener(name, hint, true);
+    }
+}
+
 // Lo que Swift puede llamar.
 window.__brunos = {
     /// La entrada de los eventos que pueden acabar en un iframe: devuelve

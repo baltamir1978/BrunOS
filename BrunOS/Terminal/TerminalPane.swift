@@ -130,7 +130,7 @@ final class TerminalPane: UIView, Pane {
         let tab = TerminalTab(host: host)
         tab.onTitleChange = { [weak self] in
             self?.refreshBar()
-            AppServices.shared.desktop.notifyChange()
+            AppServices.shared.desktop.notifyTitleChange()
         }
         // Al salir con `exit`, fuera la pestaña y de vuelta a la lista, para
         // elegir la misma máquina u otra.
@@ -191,7 +191,7 @@ final class TerminalPane: UIView, Pane {
         home.reload()
         updateVisibility()
         refreshBar()
-        AppServices.shared.desktop.notifyChange()
+        AppServices.shared.desktop.notifyTitleChange()
     }
 
     func closeTab(at index: Int) {
@@ -205,7 +205,7 @@ final class TerminalPane: UIView, Pane {
             activate(min(index, tabs.count - 1))
         }
         setNeedsLayout()
-        AppServices.shared.desktop.notifyChange()
+        AppServices.shared.desktop.notifyTitleChange()
     }
 
     /// Cierra la pestaña activa. Lo llama Cmd+W. Con la lista de conexiones
@@ -225,7 +225,7 @@ final class TerminalPane: UIView, Pane {
         isShowingHome = tabs.isEmpty
         updateVisibility()
         refreshBar()
-        AppServices.shared.desktop.notifyChange()
+        AppServices.shared.desktop.notifyTitleChange()
     }
 
     private func updateVisibility() {

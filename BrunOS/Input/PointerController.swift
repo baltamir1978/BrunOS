@@ -151,7 +151,12 @@ final class PointerController {
     private let layer = CALayer()
     private let shapeLayer = CAShapeLayer()
     private var displayLink: CADisplayLink?
-    private var pendingPosition: CGPoint?
+    /// La posición que falta por pintar. **El refresco sólo corre mientras
+    /// hay una**: antes iba a 60 o 120 fotogramas por segundo también con el
+    /// ratón quieto, y eso es batería y calor para nada.
+    private var pendingPosition: CGPoint? {
+        didSet { displayLink?.isPaused = pendingPosition == nil }
+    }
     private weak var hostLayer: CALayer?
 
     init() {
@@ -179,6 +184,7 @@ final class PointerController {
         displayLink?.invalidate()
         displayLink = scene?.displayLink(target: self, selector: #selector(step))
         displayLink?.add(to: .main, forMode: .common)
+        displayLink?.isPaused = pendingPosition == nil
     }
 
     func detach() {
