@@ -32,7 +32,13 @@ del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, e
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
-**Última build subida: 2609241450 (24-sep-2026, tarde)**: todo lo de la tarde (modo mando
+**Última build subida: 2609241652 (24-sep-2026, tarde)**: todo lo de `main` a las 16:50. Lo
+nuevo: la rama de la nube (bloqueador de uBlock, avisos de cookies, Fotos, pantalla completa de
+vídeo), el ratón que se atascaba (manda el puntero indirecto), fuera las contraseñas, la selección
+del terminal, el PDF, el tercer encaje, el hueco de 4 pt, el botón de historial y el «125 %».
+**Nada de eso probado en el iPhone.**
+
+**Anterior: 2609241450 (24-sep-2026, tarde)**: todo lo de la tarde (modo mando
 negro, tiempo con colores de la interfaz, avisos de «mira el iPhone», Ajustes › Atajos, calendario,
 iCloud y vídeo por SFTP/SMB). Lo que falta por probar está en «Pendiente de probar en el iPhone».
 
@@ -126,7 +132,7 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
-## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241450)
+## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241652)
 
 Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está escrito» con
 «funciona». **Esta es la lista buena**: las marcas «sin probar» repartidas por los CLAUDE.md
@@ -144,7 +150,7 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 - Plex.
 - **Pantalla completa de vídeo** en YouTube y Plex (24-sep; compila): el botón y la F de
   YouTube, Esc para salir, y que la barra del vídeo no saque el dock.
-- Sin subir: el botón de historial en la barra y el indicador de zoom («125 %» un segundo).
+- El botón de historial en la barra y el indicador de zoom («125 %» un segundo).
 
 **Fotos** (24-sep, escrito en Linux; compila)
 - La app entera: rejilla, miniaturas (también por SFTP/SMB), visor, vídeo con su barra, pase de
@@ -153,19 +159,19 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 **Terminal**
 - tmux y vim con ratón.
 - Seleccionar arrastrando: **marcaba lejísimos del cursor** (filas visibles frente a filas del
-  historial); arreglado sin subir.
+  historial); arreglado en la 2609241652.
 - `known_hosts` ante una clave que cambie, y la reconexión tras una caída real.
 - Entrar con clave ed25519, e importar una clave cifrada.
 
 **Ficheros**
 - SMB propio contra un servidor de verdad, y el vídeo por SFTP/SMB mientras llega.
-- La vista previa de PDF: **salía mal** (sin ajustarse, una página, borrosa); rehecha sin subir.
+- La vista previa de PDF: **salía mal** (sin ajustarse, una página, borrosa); rehecha en la 2609241652.
 
 **Escritorio y entrada**
 - **El ratón iba peor y se atascaba antes del borde** (Bruno, 24-sep, en la 2609241450): mandaba
-  `GCMouse` en vez del puntero indirecto (ver «El ratón se atascaba en el borde»); sin subir.
+  `GCMouse` en vez del puntero indirecto (ver «El ratón se atascaba en el borde»); en la 2609241652.
 - El hueco entre ventanas, de 8 a 4 puntos, y el tercer encaje en una esquina que hace sitio;
-  sin subir.
+  en la 2609241652.
 - El dictado, el teclado en pantalla y el overscan.
 - Las escalas nuevas: 1,25×, 1,75× y 2,25×.
 
