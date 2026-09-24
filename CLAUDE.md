@@ -12,7 +12,11 @@ emergencia, teclado, dictado y ajustes.
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
-**Última build subida: 2609241352 (24-sep-2026, tarde)**: lo de la 2609241157 más lo que iba
+**Última build subida: 2609241450 (24-sep-2026, tarde)**: todo lo de la tarde (modo mando
+negro, tiempo con colores de la interfaz, avisos de «mira el iPhone», Ajustes › Atajos, calendario,
+iCloud y vídeo por SFTP/SMB). Lo que falta por probar está en «Pendiente de probar en el iPhone».
+
+**Anterior: 2609241352 (24-sep-2026, tarde)**: lo de la 2609241157 más lo que iba
 «sin subir» justo debajo. **Lo nuevo de esta, sin probar en el iPhone.**
 
 **Anterior: 2609241157 (24-sep-2026, mediodía)**, con lo de la nube (abajo) y los arreglos de
@@ -102,50 +106,58 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
-**Escrito y sin probar en el dispositivo.** Bruno prefiere acumular y probarlo todo junto;
-conviene no confundir "está escrito" con "funciona":
+## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241450)
 
-- **Lo del navegador y Ficheros del 22-sep (tarde)**: la barra de favoritos y sus iconos, las
-  sugerencias de la barra de direcciones, el modo lectura, la descarga de vídeos de la página, el
-  gestor de descargas (⤓), guardar como PDF, el menú de pestañas con Cmd+Mayús+T, y las
-  ubicaciones de red (SMB por la app Archivos) que ya no desaparecen al desmontarse.
-- **Lo del 22-sep** (el modo claro ya lo confirmó Bruno el 23-sep): los fondos claros, el
-  terminal claro, las ventanas que salían vacías, los ajustes nuevos, la lista de conexiones del
-  terminal, la pantalla completa, el menú del botón derecho y las descargas del navegador, las
-  vistas de iconos y el cierre de los ajustes del iPhone al conectar. Intro, Retroceso y las
-  descargas **sí** se comprobaron en un `WKWebView` de macOS, pero no en el iPhone.
-- Terminal: tmux y vim con ratón, selección con arrastre, `known_hosts` ante una clave que cambie
-  y la reconexión tras una caída real.
-- Navegador: clics sintéticos, pestañas y descargas contra webs de verdad.
-- Ficheros: SFTP, carpetas externas (iCloud, USB) y copiar entre orígenes.
-- El dictado (la primera vez descarga el modelo de idioma y puede tardar), los atajos, los
-  divisores arrastrables y el teclado en pantalla.
-- **Si el espacio lógico sale nítido** a todas las escalas: el lienzo se escala con un
-  `CGAffineTransform` y, si el factor estuviera mal, se vería borroso o cortado.
+Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está escrito» con
+«funciona». **Esta es la lista buena**: las marcas «sin probar» repartidas por los CLAUDE.md
+pueden estar viejas. Al confirmar algo, se quita de aquí.
 
-**24-sep-2026 (tarde), escrito desde una sesión en Linux, SIN COMPILAR**: no había Xcode, sólo un
-análisis de sintaxis con tree-sitter. **Lo primero al volver al Mac es `./Tools/build.sh`** y
-arreglar lo que salga. Bruno eligió cuatro cosas de una lista de propuestas: fijar y silenciar
-pestañas (`BrunOS/Browser/CLAUDE.md`), copiar con progreso por bytes y arrastrar entre ventanas
-con selección múltiple (`BrunOS/Files/CLAUDE.md`), y Exposé con el conmutador de ventanas
-(«Exposé y Cmd+º», abajo). De paso salieron dos fallos: las ventanas de Ficheros compartían
-ubicación y **los clics nunca traían modificadores** (Cmd+clic no funcionaba en ningún sitio).
-**Después, en la misma sesión y también sin compilar**: la app de **Notas y portapapeles**
-(`BrunOS/Notes/CLAUDE.md`) y, en la barra superior, **Tailscale** y **el tiempo** («Tailscale y el
-tiempo en la barra», abajo).
+**Nuevo en la 2609241450**
+- El modo mando en negro con el iPhone en claro (antes salía blanco).
+- Tras Tailscale por Atajos: que el iPhone vuelva al modo mando y el ratón responda.
+- Ajustes › Atajos: el botón de probar Tailscale y «Abrir Atajos».
+- El aviso «mira el iPhone» en el monitor: carpeta, contraseña y Atajos.
+- El calendario de la hora: flechas, rueda, ← →, «Hoy» y el fin de semana.
+- El desplegable del tiempo con los colores de la interfaz, en claro y en oscuro.
+- Renombrar una ubicación desde Ajustes y que cambie la barra lateral.
+- La vista previa de iCloud (baja el fichero y avisa del tamaño).
+- Vídeo por SFTP y SMB mientras llega, y saltar a otro punto.
+- El icono de Tailscale al cambiar la VPN desde fuera (cada 10 s).
+- Ajustes › Rendimiento › «Lo último que ha pasado».
 
-**Última build subida: 2609240858 (24-sep-2026, mañana)**: lleva todo lo de abajo, la nitidez de
-las webs a 1,5×, la ronda de optimización (Ajustes › Rendimiento), encajar ventanas y recordar
-el escritorio al arrancar. **Nada de esto probado en el iPhone.**
+**Navegador**
+- Barra de favoritos e iconos, modo lectura, guardar como PDF, Cmd+Mayús+T.
+- Historial (Cmd+Y), descargas de vídeo de la página, el gestor ⤓ y los HLS.
+- «Descargar vídeo» con el botón derecho en RedGifs (el vídeo tapado por capas).
+- Contraseñas de iOS: que salga la llave en el iPhone y rellene la web.
+- Zoom con Cmd + / − (que la página crezca de verdad) y Plex.
 
-**24-sep-2026 (mañana)**: Bruno pidió seis cosas y están escritas y compiladas:
-volver a pulsar el dock abre otra ventana; barras de ventana más altas y con letra algo mayor
-(terminal y Ficheros 36, navegador 42) y escalas intermedias (1,25×, 1,75×, 2,25×); quitar
-ubicaciones de Ficheros (botón derecho en la barra lateral y en Ajustes, y «quitar las que no
-responden»); una copia propia de las cookies (`CookieVault`) por el aviso de Google en cada
-arranque; «Descargar vídeo» sobre los vídeos de RedGifs, tapados por capas; y la velocidad del
-scroll en los ajustes del monitor. Y las webs **borrosas a escalas mayores de 1×** (ver
-`BrunOS/Browser/CLAUDE.md`). **Nada probado en el iPhone.**
+**Terminal**
+- tmux y vim con ratón, y seleccionar arrastrando.
+- `known_hosts` ante una clave que cambie, y la reconexión tras una caída real.
+- Entrar con clave ed25519, e importar una clave cifrada.
+
+**Ficheros**
+- SFTP: listar, copiar en los dos sentidos y la vista previa.
+- SMB propio contra un servidor de verdad (alta, listar, copiar).
+- USB y otras carpetas de Archivos; copiar y arrastrar entre orígenes distintos.
+- El doble clic para abrir, y las vistas de iconos con miniaturas.
+
+**Escritorio y entrada**
+- Divisores del mosaico y el cursor de redimensionar.
+- El lanzador (Cmd+P), buscar (Cmd+F) y la pantalla completa (Ctrl+Cmd+F).
+- El dictado, el teclado en pantalla y el overscan.
+- Que el escritorio se vea nítido a todas las escalas, también 1,25×, 1,75× y 2,25×.
+
+**Abiertos, sin causa clara**
+- Google en oscuro con el escritorio en claro (en el simulador WebKit hereda bien el modo).
+- Una vez, el iPhone duplicado al arrancar hasta el primer clic: mirar «Lo último que ha pasado».
+
+**Confirmado por Bruno el 24-sep**: volver a pulsar el dock, barras, quitar ubicaciones, cookies
+de Google (parece), scroll, Notas, la barra superior, el tiempo, las sugerencias, la barra lateral
+de Ficheros, el fondo al reconectar, la nitidez, encajar ventanas y el dock que se aparta,
+redimensionar juntas, Ajustes como ventana, Exposé, el conmutador, fijar y silenciar pestañas,
+selección múltiple y progreso en Ficheros, y recordar el escritorio.
 
 ## Cómo se cierra cada bloque de trabajo
 
