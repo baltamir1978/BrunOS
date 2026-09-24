@@ -10,54 +10,25 @@ emergencia, teclado, dictado y ajustes.
 
 ---
 
-## ⚠ PARA COMPILAR EN EL MAC — rama `claude/bold-newton-nxodpq` (PR #2, 24-sep-2026, noche)
+## Rama `claude/bold-newton-nxodpq` (nube, 24-sep-2026, noche): compilada y en `main`
 
-Escrito en una sesión de Linux **sin Xcode ni compilador**. Nada de esto se ha compilado. Se
-probó fuera de Swift sólo lo que se podía (Python y Chromium, ver cada CLAUDE.md). Son cuatro
-bloques, un commit cada uno:
+Cuatro bloques escritos en Linux sin compilador: el **bloqueador con las listas de uBlock**, los
+**avisos de cookies** con las reglas de «I Still Don't Care About Cookies», **Fotos** (quinta app
+del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, en su CLAUDE.md.
 
-1. **Bloqueador con las listas de uBlock** (`FilterLists.swift`, `FilterListConverter.swift`,
-   `ContentBlocker.swift` reescrito, `BlockerCollapse.js`). Ver `BrunOS/Browser/CLAUDE.md` ›
-   «Bloqueador».
-2. **Avisos de cookies** con las reglas de «I Still Don't Care About Cookies»
-   (`CookieNoticeBlocker.swift`, la galleta de `BrowserChrome`). Mismo CLAUDE.md › «Avisos de
-   cookies».
-3. **Fotos**, la quinta app del dock, Cmd+5 (`BrunOS/Photos/PhotosPane.swift`,
-   `DockIcon.drawPhotos`, «Abrir en Fotos» en Ficheros). Ver `BrunOS/Photos/CLAUDE.md`.
-4. **Pantalla completa de vídeo** en el navegador (`FullscreenBridge.js`,
-   `BrowserPane.setVideoFullScreen`, `DesktopViewController.setVideoFullScreen`). Ver
-   `BrunOS/Browser/CLAUDE.md` › «Pantalla completa de vídeo».
-
-**Pasos:**
-
-1. `git pull` de la rama y `./Tools/build.sh`. Arreglar lo que no compile **sin cambiar el
-   diseño**. Mantener **cero warnings**.
-2. **Borrar `BrunOS/Resources/Blocklists/`** del Mac: ya no se usa (las listas se bajan en el
-   iPhone), y XcodeGen la metería en el bundle. `Tools/fetch-blocklists.sh` ya no existe, y
-   `testflight.sh` ya no pide las listas.
-3. Probar en el simulador lo que se pueda: que el bloqueador baje y compile las listas (Ajustes ›
-   Bloqueo de anuncios, la línea de estado); Fotos con una carpeta de imágenes y un vídeo; la
-   galleta; YouTube con F o su botón de pantalla completa, y Esc.
-4. **Avisar a Bruno antes de subir a TestFlight** (regla de siempre).
-
-**Lo más probable que no compile, o que falle** (mirar primero):
-
-- `ContentBlocker`: `store.getAvailableContentRuleListIdentifiers` con `withCheckedContinuation`;
-  el `Timer` de `scheduleSync` con `MainActor.assumeIsolated`; el `Task.detached` de `rebuild`
-  que devuelve `FilterListConverter.Output`.
-- `FilterListConverter`: es Swift puro sin UI. Si algo de Swift 6 protesta, los `static let` y las
-  tuplas `(raw:rule:)`.
-- `CookieNoticeBlocker`: `JSContext` para leer `rules.js` y `WKContentWorld.world(name:)`.
-- `PhotosPane`: `AVAssetImageGenerator.image(at:)` dentro de una función `nonisolated static`,
-  `isolated deinit`, el `NSCache` y los cierres de `AVPlayer` con `MainActor.assumeIsolated`.
-- `BrowserTab`: `evaluateJavaScript(_:in:in:)` con `in: .page` y los tres manejadores nuevos
-  (`CollapseRelay`, `CookieRelay`, `FullscreenRelay`), todos con el mismo patrón que
-  `MediaHintRelay`.
-- **WebKit puede rechazar una lista entera** (`WKErrorDomain`): el error sale en Ajustes y el
-  `userInfo` en el log. Lo más dudoso son los `resource-type` y `load-type` que genera el
-  conversor. La primera compilación son unas 160.000 reglas en 4 listas: puede tardar.
-- La pantalla completa de vídeo sólo se activa si la página la pide menos de 5 s después de un
-  clic o una tecla (`lastUserInput`). Si YouTube tarda más, ahí está el ajuste.
+- **Al compilar en el Mac sólo falló una cosa**: `CookieNoticeBlocker.source` se leía desde una
+  función `nonisolated`; ahora es `nonisolated static let`. Cero warnings.
+- **En el simulador**: el bloqueador bajó las listas y WebKit compiló las 4 sin rechazar ninguna,
+  **169.903 reglas**, en unos 10 s la primera vez. Las reglas de cookies también se bajaron. Fotos y
+  la pantalla completa de vídeo necesitan el monitor: **sin probar**.
+- `BrunOS/Resources/Blocklists/` se borró del Mac: las listas se bajan ahora en el iPhone, y como
+  `.gitignore` ya no las ignora, se habrían colado en un repositorio público.
+- **Riesgo aceptado por Bruno** (24-sep): los scripts de los avisos de cookies se bajan de la rama
+  `master` del repositorio de OhMyGuus y corren en todas las páginas, en su propio mundo de
+  contenido. Si alguien comprometiera ese repositorio, su código correría en todas las webs. Se
+  le explicó y dijo que lo acepta por el bloqueo de cookies. **No cambiarlo sin preguntarle.** Las
+  listas de anuncios, en cambio, son reglas declarativas y no ejecutan código (el conversor tira
+  los scriptlets `##+js`).
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
@@ -162,20 +133,20 @@ Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está esc
 pueden estar viejas. Al confirmar algo, se quita de aquí.
 
 **Navegador**
-- **Bloqueador con las listas de uBlock** (24-sep, escrito en Linux, **sin compilar**): que
-  compile, que baje y compile las listas en el iPhone, que desaparezcan los recuadros grises y
+- **Bloqueador con las listas de uBlock** (24-sep; compila y compila las listas en el
+  simulador): que baje y compile las listas en el iPhone, que desaparezcan los recuadros grises y
   cuánto tarda la primera vez. Ver `BrunOS/Browser/CLAUDE.md`.
 - **Avisos de cookies** con las reglas de «I Still Don't Care About Cookies» y la galleta de la
-  barra (24-sep, **sin compilar**).
+  barra (24-sep; compila).
 - Descargas de vídeo de la página, el gestor ⤓ y los HLS; «Descargar vídeo» en RedGifs.
 - El login de Reddit (y cualquier otro): sin la hoja de contraseñas, que tapaba el trackpad;
   la lógica de contraseñas está quitada entera (Bruno las escribe a mano).
 - Plex.
-- **Pantalla completa de vídeo** en YouTube y Plex (24-sep, **sin compilar**): el botón y la F de
+- **Pantalla completa de vídeo** en YouTube y Plex (24-sep; compila): el botón y la F de
   YouTube, Esc para salir, y que la barra del vídeo no saque el dock.
 - Sin subir: el botón de historial en la barra y el indicador de zoom («125 %» un segundo).
 
-**Fotos** (24-sep, escrito en Linux, **sin compilar**)
+**Fotos** (24-sep, escrito en Linux; compila)
 - La app entera: rejilla, miniaturas (también por SFTP/SMB), visor, vídeo con su barra, pase de
   diapositivas, «Abrir en Fotos» desde Ficheros, el icono y Cmd+5.
 

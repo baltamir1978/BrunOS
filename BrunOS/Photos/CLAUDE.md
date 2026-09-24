@@ -2,7 +2,7 @@
 
 La quinta app del dock (Cmd+5), pedida por Bruno el 24-sep-2026: **un visor de imágenes y un
 reproductor de vídeo basados en una carpeta**, con un icono parecido al de Fotos de macOS.
-**Escrita desde Linux, sin compilar ni probar en el iPhone.**
+**Escrita desde Linux; compila sin cambios en el Mac. Sin probar en el iPhone.**
 
 - **`PhotosPane`**: la rejilla de una carpeta de **cualquier ubicación de Ficheros** (iPhone,
   iCloud, USB, SFTP, SMB). Primero las subcarpetas, luego fotos y vídeos, por nombre. Doble clic o

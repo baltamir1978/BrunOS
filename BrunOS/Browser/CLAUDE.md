@@ -170,7 +170,7 @@ qué hay bajo el cursor se metía también en el shadow root **interno** de un `
 ### Bloqueador: las listas de uBlock Origin, bajadas en el iPhone (24-sep-2026)
 
 Bruno pidió todas las listas que trae uBlock y que desaparecieran los **recuadros grises** donde
-iba un anuncio. **Escrito desde Linux, sin compilar ni probar en el iPhone.**
+iba un anuncio. **Escrito desde Linux; compila, y en el simulador compila las listas (169.903 reglas). Sin probar en el iPhone.**
 
 - **`FilterList.catalog`**: el catálogo de uBlock (`assets/assets.json`), con sus direcciones y
   grupos. Encendidas de serie, las de uBlock (Anuncios, Privacidad, Malware, Arreglos, Arreglos

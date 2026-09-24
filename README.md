@@ -33,7 +33,7 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa, selección múltiple, copiar carpetas por trozos con progreso y arrastrar entre ventanas | 🚧 a falta de rodaje |
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | 🚧 a falta de rodaje |
 | **Notas** con historial del portapapeles, cuarta app del dock (Cmd+4) | ✅ |
-| **Fotos**: las fotos y los vídeos de una carpeta de cualquier ubicación, en rejilla, con visor, reproductor y pase de diapositivas (Cmd+5) | 🚧 sin compilar |
+| **Fotos**: las fotos y los vídeos de una carpeta de cualquier ubicación, en rejilla, con visor, reproductor y pase de diapositivas (Cmd+5) | 🚧 sin rodaje |
 | **Barra superior** con Tailscale (estado cada 10 s y conectar por Atajos) y el tiempo en un desplegable (Open-Meteo) | ✅ el desplegable del tiempo, sin probar |
 
 El escritorio, el ratón, el teclado, la conexión SSH y el navegador están probados con un monitor
@@ -43,8 +43,8 @@ recordar el escritorio, el SMB propio, el historial— está escrito y compilado
 
 El dock funciona como el de macOS: un icono por app, que la trae al escritorio junto a las demás;
 si ya está delante, volver a pulsarlo abre otra ventana, y con el botón derecho se abre otra o se
-va a una concreta. Cmd+1, 2, 3 y 4 abren el navegador, el
-terminal, Ficheros y Notas. **Cmd+º** (la tecla de debajo de Esc) cambia de ventana como Cmd+Tab, que iOS
+va a una concreta. Cmd+1 a 5 abren el navegador, el
+terminal, Ficheros, Notas y Fotos. **Cmd+º** (la tecla de debajo de Esc) cambia de ventana como Cmd+Tab, que iOS
 se reserva, y **Cmd+E** enseña todas las ventanas a la vez, como Exposé. Las ventanas se encajan en mitades o cuartos llevándolas a un borde, y al
 arrancar vuelven las de la última vez, con sus pestañas y sesiones (se puede apagar en Ajustes).
 

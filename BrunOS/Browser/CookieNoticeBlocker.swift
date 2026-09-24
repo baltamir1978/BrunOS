@@ -108,7 +108,7 @@ final class CookieNoticeBlocker {
     /// Nombre del script → su código.
     private var scripts: [String: String] = [:]
 
-    private static let source = "https://raw.githubusercontent.com/OhMyGuus/I-Still-Dont-Care-About-Cookies/master/src/data/"
+    private nonisolated static let source = "https://raw.githubusercontent.com/OhMyGuus/I-Still-Dont-Care-About-Cookies/master/src/data/"
     private static let scriptNames = [
         "0_defaultClickHandler", "2_sessionStorageHandler", "3_localStorageHandler",
         "5_clickHandler", "6_cookieHandler", "8_googleHandler", "embedsHandler",
