@@ -2196,7 +2196,7 @@ final class DesktopViewController: UIViewController {
             title: "Atajo «\(TailscaleMonitor.shortcutName)»",
             message: "iOS no deja que una app encienda la VPN de otra, pero la app de Tailscale trae "
                 + "acciones para Atajos. Crea en Atajos uno que se llame «\(TailscaleMonitor.shortcutName)» "
-                + "con la acción de Tailscale para conectar o desconectar (o alternar). BrunOS le pasa "
+                + "con la acción «Activar/Desactivar» de Tailscale; basta con esa. BrunOS le pasa "
                 + "«on» u «off» como entrada, por si quieres decidir con un «Si». Al lanzarlo, el "
                 + "iPhone pasa un momento por Atajos y vuelve solo.",
             destructive: "Abrir Atajos",
