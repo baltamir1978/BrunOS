@@ -90,6 +90,13 @@ final class QuickLookView: UIView {
     // MARK: - Carga
 
     private func load() {
+        // Lo que está en una nube o en un servidor hay que bajarlo antes: que
+        // se vea qué se está esperando, y cuánto, en vez de una pantalla vacía.
+        if let external = provider as? ExternalFolderProvider, external.needsDownload(item.path) {
+            statusLabel.text = "Bajando de \(external.name)…" + sizeNote
+        } else if !(provider is LocalProvider) {
+            statusLabel.text = "Bajando…" + sizeNote
+        }
         Task { [weak self] in
             guard let self else { return }
             do {
@@ -99,6 +106,12 @@ final class QuickLookView: UIView {
                 self.statusLabel.text = error.localizedDescription
             }
         }
+    }
+
+    private var sizeNote: String {
+        guard item.size > 0 else { return "" }
+        let size = ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file)
+        return item.size > 100_000_000 ? "\n\(size): puede tardar un rato." : " (\(size))"
     }
 
     private func present(_ url: URL) {

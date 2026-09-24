@@ -174,7 +174,39 @@ final class ExternalFolderProvider: FileProvider, @unchecked Sendable {
     }
 
     func read(_ path: String) async throws -> Data {
-        try withAccess { _ in try Data(contentsOf: URL(fileURLWithPath: path)) }
+        try withAccess { _ in
+            var data = Data()
+            try Self.coordinatedRead(URL(fileURLWithPath: path)) { data = try Data(contentsOf: $0) }
+            return data
+        }
+    }
+
+    /// Lee un fichero **como lo lee la app Archivos**, con `NSFileCoordinator`.
+    ///
+    /// En iCloud (y en Google Drive, OneDrive… añadidos desde Archivos) lo que
+    /// no está bajado al iPhone es un marcador sin contenido: copiarlo sin más
+    /// fallaba, y la vista previa no enseñaba nada (Bruno, 24-sep-2026). Una
+    /// lectura coordinada hace que el sistema lo baje antes y espera a que
+    /// esté. Bloquea el hilo mientras tanto, así que sólo se llama desde las
+    /// funciones `async` del proveedor, nunca desde el actor principal.
+    nonisolated static func coordinatedRead(_ url: URL, _ work: (URL) throws -> Void) throws {
+        var coordinationError: NSError?
+        var workError: Error?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readable in
+            do { try work(readable) } catch { workError = error }
+        }
+        if let coordinationError { throw FileError.failed(coordinationError.localizedDescription) }
+        if let workError { throw workError }
+    }
+
+    /// Si el fichero está en una nube y todavía no se ha bajado al iPhone.
+    func needsDownload(_ path: String) -> Bool {
+        (try? withAccess { _ in
+            let values = try URL(fileURLWithPath: path).resourceValues(forKeys: [
+                .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey,
+            ])
+            return values.isUbiquitousItem == true && values.ubiquitousItemDownloadingStatus != .current
+        }) ?? false
     }
 
     func write(_ data: Data, to path: String) async throws {
@@ -226,7 +258,9 @@ final class ExternalFolderProvider: FileProvider, @unchecked Sendable {
     }
 
     func download(_ path: String, to url: URL) async throws {
-        try withAccess { _ in try LocalProvider.copy(URL(fileURLWithPath: path), to: url) }
+        try withAccess { _ in
+            try Self.coordinatedRead(URL(fileURLWithPath: path)) { try LocalProvider.copy($0, to: url) }
+        }
     }
 
     func upload(from url: URL, to path: String) async throws {

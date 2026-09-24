@@ -156,3 +156,23 @@ renombrar y borrar; SCP sólo sabe copiar. Lo que faltaba era leer por trozos, y
 
 180 puntos de ancho (antes 150) y los nombres con «…» al final: sin ancho, uno largo se salía y
 quedaba cortado por el borde (Bruno, 24-sep-2026).
+
+### iCloud y las nubes de Archivos: leer coordinado (24-sep-2026)
+
+La vista previa de iCloud no funcionaba (Bruno): lo que no está bajado al iPhone es un marcador
+sin contenido y `copyItem` no lo baja. `ExternalFolderProvider.coordinatedRead` lee con
+`NSFileCoordinator`, como la app Archivos, y el sistema lo baja antes; lo usan `read` y
+`download`, así que vale para la vista previa y para copiar, y para Google Drive u OneDrive
+añadidos desde Archivos. Bloquea el hilo mientras baja: sólo desde las funciones `async`.
+La vista previa dice «Bajando de iCloud… (tamaño)» mientras espera. **Sin progreso**: la lectura
+coordinada no lo da. **Sin probar en el iPhone.**
+
+**Ver un vídeo sin bajarlo entero no se puede en iCloud** con API pública: la única forma de
+tener una dirección que AVFoundation pueda ir leyendo es `url(forPublishingUbiquitousItemAt:)`,
+que **publica** un enlace que cualquiera con la dirección puede abrir. Por SFTP y SMB sí sería
+posible, con un `AVAssetResourceLoaderDelegate` que pida trozos al servidor: está por hacer.
+
+### Renombrar una ubicación
+
+`FileService.rebuild()` avisa con `providersDidChange` y las barras laterales se repintan; antes
+renombrar desde Ajustes no se veía hasta que otra cosa las repintaba.

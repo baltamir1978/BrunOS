@@ -437,6 +437,29 @@ suponiendo que caía justo bajo el puntero. No es así —Bruno lo vio en el iPh
 saltar el cursor y el arrastre era imposible. **La posición del toque de AssistiveTouch no es
 fiable; su desplazamiento, sí.**
 
+### El modo mando salía blanco (24-sep-2026)
+
+**La causa de verdad del «iPhone en blanco»**, que parecía cosa de volver de Atajos: el trackpad
+a pantalla completa se pintaba con `Tokens.Color.background`, que sigue al iPhone, y **en modo
+claro es casi blanco** (`F6F4F0`), tapando el negro de `RemoteModeView`. Ahora es negro fijo y
+`RemoteModeView` va en oscuro siempre. Lo de volver a enganchar el monitor (abajo) se queda: es
+un fallo posible aunque no fuera éste.
+
+### Mira el iPhone, Atajos y el calendario (24-sep-2026)
+
+- **`PhoneNotice`**: aviso en el monitor cuando algo se hace en el iPhone (el selector de
+  carpetas, las contraseñas, el paso por Atajos). Se va solo a los 7 segundos.
+- **Ajustes › Atajos** junta AssistiveTouch y Tailscale, con cómo crear cada atajo, el estado y
+  un botón para probar el de Tailscale. `SettingsPages.shortcutsPageIndex` es su posición; el
+  «Cómo crear el atajo…» del menú de Tailscale lleva ahí.
+- **Calendario** (`CalendarPopover`) al pulsar la hora: el mes, de lunes a domingo, hoy marcado,
+  flechas, la rueda y ← → para pasar de mes. No lee el calendario del iPhone: el permiso saldría
+  en la pantalla del teléfono.
+- **El desplegable del tiempo** lleva ahora los colores de la interfaz y sigue el modo: el cielo
+  fijo del Golden Gate no le cuadraba a Bruno.
+- Las ventanas modales se traen delante en cada maquetación (`arrangeFloating`): faltaban el
+  tiempo y el aviso del iPhone.
+
 ### Al volver de Atajos, el iPhone en blanco y el ratón mal (24-sep-2026)
 
 Bruno lo vio tras encender y apagar Tailscale, que pasa por Atajos. **Sin reproducir**: esto es
