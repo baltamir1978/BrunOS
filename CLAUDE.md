@@ -144,6 +144,14 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
+## Pendiente de probar (desde la 2609241916, sin subir)
+
+- **ZIP** en Ficheros: comprimir uno y varios, descomprimir con doble clic y con el botón
+  derecho, en local y por SFTP/SMB, y Cancelar.
+- **Reddit con la letra normal** (sin el autoajuste de texto de iOS), y que el resto de webs no
+  cambie para mal.
+- **El zoom de los visores por debajo de 100 %** (25, 50, 75 %).
+
 ## Pruebas: cerradas (24-sep-2026, con la 2609241916)
 
 **Bruno dio por cerradas todas las pruebas**: «está todo funcionando». Lo que se añada a partir
@@ -712,8 +720,8 @@ movimiento más incómodo que hay.
 - **Una ronda completa de optimización** (lo pidió Bruno el 23-sep-2026): medir y quitar lo que
   frena —repintados de más, trabajo en el hilo principal, memoria— y **proponerle cambios** que
   mejoren la respuesta y el manejo de la app. Proponer antes de hacer: es él quien decide.
-- **Navegador, para parecerse más a Safari**: navegación privada, silenciar una pestaña, zoom por
-  sitio, fijar pestañas y buscadores propios.
+- ~~Navegador, para parecerse más a Safari~~: navegación privada, zoom por sitio y buscadores
+  propios, **descartados por Bruno** el 24-sep-2026 («lo demás paso»). Fijar y silenciar ya están.
 - ~~Más listas de bloqueo y quitar los recuadros grises~~: escrito el 24-sep, falta compilarlo.
 - **YouTube**: sólo saldría lanzando yt-dlp en una máquina del tailnet por SSH. HLS ya se baja
   (`HLSDownloader`, 23-sep-2026).

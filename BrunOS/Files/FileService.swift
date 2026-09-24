@@ -177,6 +177,8 @@ final class FileService {
         var current = ""
         /// Se mueve en vez de copiar: cambia el rótulo de la barra.
         var isMove = false
+        /// Otro rótulo para la barra («Comprimiendo», «Descomprimiendo»).
+        var label: String?
 
         var fraction: Double {
             if bytesTotal > 0 { return min(1, Double(bytesDone) / Double(bytesTotal)) }

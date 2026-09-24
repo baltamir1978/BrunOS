@@ -220,3 +220,23 @@ Los usan la vista previa de Ficheros (PDF, imagen y vídeo; el PDF con su propio
 se mueve a los lados) y el visor de Fotos. Cmd + / − / 0 hacen lo mismo: en la vista previa por
 `performOverModal`, en Fotos por `PhotosPane.zoomViewer`. Lo pidió Bruno. **Sin probar en el
 iPhone.**
+
+### ZIP (24-sep-2026, noche)
+
+Lo pidió Bruno. **Sin dependencias**: `ZipArchive` escribe y lee el formato a mano, con *deflate*
+del framework Compression (`.zlib` es *deflate* en crudo, RFC 1951) y un CRC-32 propio. Por
+trozos de 256 KB, sin cargar ningún fichero en memoria; al comprimir, el CRC y los tamaños se
+rellenan volviendo atrás en la cabecera local. iOS no tiene API pública para descomprimir, y la de
+comprimir (`NSFileCoordinator` con `.forUploading`) mete un solo fichero dentro de una carpeta.
+
+- **Fuera**: ZIP64 (más de 4 GB o 65.535 entradas) y ZIP cifrados: se dice en vez de fallar.
+- **Seguridad**: rutas con `..` o absolutas no se extraen (*zip slip*); tampoco `__MACOSX` ni
+  `.DS_Store`. Nombres en UTF-8 y en forma compuesta (NFC).
+- **En el panel**: botón derecho › Comprimir / Comprimir N elementos (uno se llama como él, varios
+  «Archivo.zip», sin pisar nada) y Descomprimir, también con doble clic, a una carpeta con su
+  nombre. Lo remoto se baja a un temporal, se trabaja allí y se sube con la copia de siempre. Va
+  con la barra de la copia (rótulo propio en `Progress.label`) y su Cancelar, que para también
+  el trabajo de fondo (`cancellable`, con `withTaskCancellationHandler`).
+- **Comprobado en macOS**: el ZIP que hace lo valida `unzip -t` e idéntico al descomprimir; uno de
+  `ditto` (lo que usa el Finder) sale idéntico, 20 MB incluidos; uno con `../malo.txt` no escribe
+  fuera. **Sin probar en el iPhone.**

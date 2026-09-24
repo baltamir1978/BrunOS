@@ -263,6 +263,9 @@ final class FilesPane: UIView, Pane {
         if item.isDirectory {
             path = item.path
             reload()
+        } else if Self.isZip(item) {
+            // Doble clic en un ZIP lo descomprime, como en el Finder.
+            extract(item)
         } else {
             preview(item)
         }
@@ -992,6 +995,9 @@ final class FilesPane: UIView, Pane {
             entries.append(ContextMenu.Entry(title: "Cortar \(count) elementos", symbol: "scissors") {
                 files.cut(chosen, from: provider)
             })
+            entries.append(ContextMenu.Entry(title: "Comprimir \(count) elementos", symbol: "archivebox") {
+                [weak self] in self?.compress(chosen)
+            })
             entries.append(ContextMenu.Entry(
                 title: "Borrar \(count) elementos",
                 symbol: "trash",
@@ -1039,6 +1045,14 @@ final class FilesPane: UIView, Pane {
             })
             entries.append(ContextMenu.Entry(title: "Renombrar", symbol: "pencil") { [weak self] in
                 self?.startRename(item)
+            })
+            if Self.isZip(item) {
+                entries.append(ContextMenu.Entry(title: "Descomprimir", symbol: "archivebox.fill") {
+                    [weak self] in self?.extract(item)
+                })
+            }
+            entries.append(ContextMenu.Entry(title: "Comprimir", symbol: "archivebox") { [weak self] in
+                self?.compress([item])
             })
             entries.append(ContextMenu.Entry(
                 title: "Borrar",
@@ -1256,7 +1270,7 @@ final class FilesPane: UIView, Pane {
             : progress.bytesTotal == 0
                 ? "\(progress.filesDone) de \(progress.filesTotal)"
                 : "\(progress.filesDone) de \(progress.filesTotal) · \(bytes(progress.bytesDone)) de \(bytes(progress.bytesTotal))"
-        let verb = progress.isMove ? "Moviendo" : "Copiando"
+        let verb = progress.label ?? (progress.isMove ? "Moviendo" : "Copiando")
         ("\(verb) \(progress.current.isEmpty ? "" : "«\(progress.current)»")" as NSString).draw(
             in: CGRect(x: panel.minX + 14, y: panel.minY + 8, width: panel.width - 130, height: 16),
             withAttributes: [.font: Tokens.sans(12, weight: .medium), .foregroundColor: Tokens.Color.text]
@@ -1524,6 +1538,158 @@ final class FilesPane: UIView, Pane {
             } catch is CancellationError {
                 self.finishPaste()
                 self.status = "Copia cancelada. Lo que ya se había copiado se queda."
+                self.reload()
+            } catch {
+                self.finishPaste()
+                self.show(error)
+            }
+        }
+    }
+
+    // MARK: - ZIP
+
+    private static func isZip(_ item: FileItem) -> Bool {
+        !item.isDirectory && (item.name as NSString).pathExtension.lowercased() == "zip"
+    }
+
+    /// Un nombre que no esté ya en la carpeta: «Fotos.zip», «Fotos 2.zip»…
+    private func freeName(_ name: String) -> String {
+        let taken = Set(allItems.map { $0.name.lowercased() })
+        guard taken.contains(name.lowercased()) else { return name }
+        let base = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
+        for number in 2... {
+            let candidate = ext.isEmpty ? "\(base) \(number)" : "\(base) \(number).\(ext)"
+            if !taken.contains(candidate.lowercased()) { return candidate }
+        }
+        return name
+    }
+
+    /// Comprime lo elegido en un ZIP en esta misma carpeta, como «Comprimir»
+    /// del Finder: uno solo se llama como él, varios «Archivo.zip». Lo remoto
+    /// se baja antes a un temporal y el ZIP se sube al terminar.
+    private func compress(_ chosen: [FileItem]) {
+        guard !chosen.isEmpty else { return }
+        let provider = self.provider
+        let directory = path
+        let first = chosen[0]
+        let base = chosen.count > 1 ? "Archivo" : (first.isDirectory ? first.name : (first.name as NSString).deletingPathExtension)
+        let zipName = freeName(base + ".zip")
+
+        runArchiveTask(label: "Comprimiendo") { work, report in
+            let sources: [URL]
+            if provider is LocalProvider {
+                sources = chosen.map { URL(fileURLWithPath: $0.path) }
+            } else {
+                let staging = work.appending(path: "origen", directoryHint: .isDirectory)
+                try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+                try await self.services.files.transfer(
+                    chosen, from: provider, to: LocalProvider(), into: staging.path, move: false
+                ) { progress in report(progress, "Bajando") }
+                sources = chosen.map { staging.appending(path: $0.name) }
+            }
+            let zip = work.appending(path: zipName)
+            try await Self.cancellable {
+                try ZipArchive.create(at: zip, from: sources) { name in
+                    Task { @MainActor in report(FileService.Progress(current: name), "Comprimiendo") }
+                }
+            }
+            let destination = (directory as NSString).appendingPathComponent(zipName)
+            if provider is LocalProvider {
+                try FileManager.default.moveItem(at: zip, to: URL(fileURLWithPath: destination))
+            } else {
+                report(FileService.Progress(current: zipName), "Subiendo")
+                try await provider.upload(from: zip, to: destination)
+            }
+        }
+    }
+
+    /// Descomprime un ZIP en una carpeta con su nombre, junto a él.
+    private func extract(_ item: FileItem) {
+        let provider = self.provider
+        let directory = path
+        let folderName = freeName((item.name as NSString).deletingPathExtension)
+
+        runArchiveTask(label: "Descomprimiendo") { work, report in
+            let zip: URL
+            if provider is LocalProvider {
+                zip = URL(fileURLWithPath: item.path)
+            } else {
+                report(FileService.Progress(current: item.name), "Bajando")
+                zip = work.appending(path: item.name)
+                try await provider.download(item.path, to: zip)
+            }
+            let local = provider is LocalProvider
+            let output = local
+                ? URL(fileURLWithPath: (directory as NSString).appendingPathComponent(folderName), isDirectory: true)
+                : work.appending(path: folderName, directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+            let total = try ZipArchive.entryCount(zip)
+            do {
+                try await Self.cancellable {
+                    var done = 0
+                    try ZipArchive.extract(zip, into: output) { name in
+                        let progress = FileService.Progress(filesDone: done, filesTotal: total, current: name)
+                        done += 1
+                        Task { @MainActor in report(progress, "Descomprimiendo") }
+                    }
+                }
+            } catch {
+                // Lo que se quedó a medias no sirve: fuera.
+                if local { try? FileManager.default.removeItem(at: output) }
+                throw error
+            }
+            if !local {
+                let folder = FileItem(name: folderName, path: output.path, isDirectory: true, size: 0, modified: nil)
+                try await self.services.files.transfer(
+                    [folder], from: LocalProvider(), to: provider, into: directory, move: false
+                ) { progress in report(progress, "Subiendo") }
+            }
+        }
+    }
+
+    /// El trabajo pesado fuera del hilo principal, **y que se entere de
+    /// Cancelar**: una tarea `detached` no hereda la cancelación de quien la
+    /// espera, y cancelar la barra no la habría parado.
+    private static func cancellable(_ work: @escaping @Sendable () throws -> Void) async throws {
+        let task = Task.detached(priority: .userInitiated) { try work() }
+        try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    /// Comprimir o descomprimir, con la barra de la copia y su Cancelar. El
+    /// trabajo va en una carpeta temporal que se borra al terminar, pase lo
+    /// que pase.
+    private func runArchiveTask(
+        label: String,
+        _ work: @escaping @MainActor (URL, @escaping @MainActor (FileService.Progress, String) -> Void) async throws -> Void
+    ) {
+        guard pasteTask == nil else { return }
+        var initial = FileService.Progress()
+        initial.label = label
+        copyProgress = initial
+        setNeedsDisplay()
+        pasteTask = Task { [weak self] in
+            guard let self else { return }
+            let folder = FileManager.default.temporaryDirectory
+                .appending(path: "brunos-zip-\(UUID().uuidString)", directoryHint: .isDirectory)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            do {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try await work(folder) { [weak self] progress, label in
+                    var progress = progress
+                    progress.label = label
+                    self?.copyProgress = progress
+                    self?.setNeedsDisplay()
+                }
+                self.finishPaste()
+                self.reload()
+            } catch is CancellationError {
+                self.finishPaste()
+                self.status = "Cancelado."
                 self.reload()
             } catch {
                 self.finishPaste()

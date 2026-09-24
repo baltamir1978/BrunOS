@@ -813,7 +813,11 @@ enum SettingsPages {
             let modes = FilesPane.ViewMode.allCases
             return [SettingsGroup(
                 footer: "También se cambia con los botones de la cabecera del panel y con el clic "
-                    + "derecho. En iconos, las flechas se mueven por la rejilla.",
+                    + "derecho. En iconos, las flechas se mueven por la rejilla.\n"
+                    + "ZIP: con el botón derecho, «Comprimir» mete lo elegido en un ZIP en la misma "
+                    + "carpeta, y «Descomprimir» (o doble clic en el ZIP) lo abre en una carpeta con "
+                    + "su nombre. Vale en cualquier ubicación, también por SFTP o SMB. No abre ZIP "
+                    + "cifrados ni de más de 4 GB.",
                 rows: [
                     SettingsRow("Ver como", .choice(
                         modes.map(\.label),
