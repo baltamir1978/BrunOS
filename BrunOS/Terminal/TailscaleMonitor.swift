@@ -41,6 +41,7 @@ final class TailscaleMonitor {
     }
 
     private var monitor: NWPathMonitor?
+    private var pollTimer: Timer?
 
     func start() {
         let monitor = NWPathMonitor()
@@ -54,11 +55,23 @@ final class TailscaleMonitor {
         }
         monitor.start(queue: DispatchQueue(label: "com.baltamir.brunos.tailscale"))
         isLikelyUp = Self.hasTailscaleAddress()
+
+        // **Y además, cada 10 segundos** (lo pidió Bruno, 24-sep-2026): el
+        // aviso de cambio de red no siempre llega al encender o apagar la VPN
+        // desde la app de Tailscale, y el icono se quedaba con lo de antes.
+        // Leer las interfaces no cuesta nada, y la barra sólo se repinta si el
+        // estado cambia (`isLikelyUp` sólo avisa entonces).
+        pollTimer?.invalidate()
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
     }
 
     func stop() {
         monitor?.cancel()
         monitor = nil
+        pollTimer?.invalidate()
+        pollTimer = nil
     }
 
     func refresh() {

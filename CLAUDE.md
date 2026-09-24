@@ -293,7 +293,8 @@ estaba, abre otra ventana** (24-sep-2026: Bruno volvía a pulsar el icono espera
 **Sin compilar ni probar.**
 
 - **Tailscale**: el icono va en verde si `TailscaleMonitor` ve una interfaz `utun` con dirección
-  de Tailscale, en gris si no (es una deducción). **iOS no deja que una app encienda la VPN de
+  de Tailscale, en gris si no (es una deducción). Se mira al cambiar la red **y cada 10 segundos**
+  (Bruno, 24-sep): el aviso de red no siempre llega al tocar la VPN desde fuera. **iOS no deja que una app encienda la VPN de
   otra** (`NEVPNManager` sólo gestiona las de la propia app), así que «Conectar/Desconectar» lanza
   el atajo **«BrunOS Tailscale»** de la app Atajos, el mismo camino que el de AssistiveTouch, y
   vuelve por `brunos://tailscale-ok`. Bruno tiene que crear ese atajo una vez con la acción de
