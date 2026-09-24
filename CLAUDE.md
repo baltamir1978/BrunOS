@@ -32,7 +32,11 @@ del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, e
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
-**Última build subida: 2609241832 (24-sep-2026, tarde)**, la séptima del día: el ratón por la
+**Última build subida: 2609241916 (24-sep-2026, noche)**, la octava del día (Apple no cortó):
+el ratón con `GCMouse` delante otra vez y YouTube a pantalla completa sin recortar en iOS. **Sin
+probar en el iPhone**; tampoco encajar la tercera ventana, que el ratón de la anterior no dejó.
+
+**Anterior: 2609241832 (24-sep-2026, tarde)**, la séptima del día: el ratón por la
 posición absoluta (6 % de arriba estirado, rueda de `GCMouse`), YouTube a pantalla completa, el
 zoom de los visores y encajar la tercera ventana. **Sin probar en el iPhone.**
 
@@ -141,17 +145,17 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
-## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241832)
+## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241916)
 
 Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está escrito» con
 «funciona». **Esta es la lista buena**: las marcas «sin probar» repartidas por los CLAUDE.md
 pueden estar viejas. Al confirmar algo, se quita de aquí.
 
 **En la 2609241832**
-- ~~El ratón por la posición absoluta~~: peor (ver «El ratón se atascaba en el borde»). Sin
-  subir: vuelta a `GCMouse` delante, como en la 2609241727.
+- ~~El ratón por la posición absoluta~~: peor (ver «El ratón se atascaba en el borde»). En la
+  2609241916: vuelta a `GCMouse` delante, como en la 2609241727.
 - YouTube a pantalla completa: sólo el vídeo, con sus controles, no la web entera. **Se cortaba
-  por abajo** en el iPhone (100vh de iOS); arreglado sin subir, comprobado en el simulador.
+  por abajo** en el iPhone (100vh de iOS); arreglado en la 2609241916, comprobado en el simulador.
 - El control de zoom de la vista previa (PDF, imagen, vídeo) y del visor de Fotos.
 - Con dos mitades, soltar una tercera en una esquina: la de esa mitad se encoge al cuarto.
 
