@@ -33,6 +33,7 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa, selección múltiple, copiar carpetas por trozos con progreso y arrastrar entre ventanas | 🚧 a falta de rodaje |
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | 🚧 a falta de rodaje |
 | **Notas** con historial del portapapeles, cuarta app del dock (Cmd+4) | ✅ |
+| **Fotos**: las fotos y los vídeos de una carpeta de cualquier ubicación, en rejilla, con visor, reproductor y pase de diapositivas (Cmd+5) | 🚧 sin compilar |
 | **Barra superior** con Tailscale (estado cada 10 s y conectar por Atajos) y el tiempo en un desplegable (Open-Meteo) | ✅ el desplegable del tiempo, sin probar |
 
 El escritorio, el ratón, el teclado, la conexión SSH y el navegador están probados con un monitor

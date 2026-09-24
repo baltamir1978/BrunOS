@@ -621,6 +621,10 @@ final class DesktopViewController: UIViewController {
                 let session = files.sessionLocation
                 saved.location = session.location
                 saved.path = session.path
+            case let photos as PhotosPane:
+                let session = photos.sessionLocation
+                saved.location = session.location
+                saved.path = session.path
             default:
                 break
             }
@@ -679,6 +683,7 @@ final class DesktopViewController: UIViewController {
             case .browser: BrowserPane(frame: .zero)
             case .files: FilesPane(frame: .zero)
             case .notes: NotesPane(frame: .zero)
+            case .photos: PhotosPane(frame: .zero)
             }
             if let frame = window.frame {
                 let scaled = CGRect(x: frame.minX * sx, y: frame.minY * sy,
@@ -696,6 +701,10 @@ final class DesktopViewController: UIViewController {
             case let files as FilesPane:
                 if let location = window.location, let path = window.path {
                     files.restore(location: location, path: path)
+                }
+            case let photos as PhotosPane:
+                if let location = window.location, let path = window.path {
+                    photos.restore(location: location, path: path)
                 }
             default:
                 break
@@ -721,6 +730,7 @@ final class DesktopViewController: UIViewController {
         case .browser: BrowserPane(frame: .zero)
         case .files: FilesPane(frame: .zero)
         case .notes: NotesPane(frame: .zero)
+        case .photos: PhotosPane(frame: .zero)
         }
 
         if DesktopPreferences.newPanesFloat {
@@ -1052,6 +1062,12 @@ final class DesktopViewController: UIViewController {
         services.desktop.notifyChange()
     }
 
+    /// Una carpeta de Ficheros en Fotos y, si se dice, una foto o un vídeo
+    /// de ella ya abierto.
+    func openInPhotos(location: String, path: String, opening name: String? = nil) {
+        (frontmost(.photos) as? PhotosPane)?.show(location: location, path: path, opening: name)
+    }
+
     func openInBrowser(_ url: URL) {
         (frontmost(.browser) as? BrowserPane)?.newTab(url: url.absoluteString)
     }
@@ -1150,6 +1166,9 @@ final class DesktopViewController: UIViewController {
             },
             Launcher.Entry(title: "Nuevo gestor de ficheros", subtitle: "Acción", symbol: "plus.rectangle") {
                 [weak self] in self?.newPane(.files)
+            },
+            Launcher.Entry(title: "Nueva ventana de Fotos", subtitle: "Acción", symbol: "plus.rectangle") {
+                [weak self] in self?.newPane(.photos)
             },
             Launcher.Entry(title: "Nota nueva", subtitle: "Acción · Notas", symbol: "square.and.pencil") {
                 [weak self] in self?.newNote()

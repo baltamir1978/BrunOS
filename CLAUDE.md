@@ -123,6 +123,10 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 - Plex.
 - Sin subir: el botón de historial en la barra y el indicador de zoom («125 %» un segundo).
 
+**Fotos** (24-sep, escrito en Linux, **sin compilar**)
+- La app entera: rejilla, miniaturas (también por SFTP/SMB), visor, vídeo con su barra, pase de
+  diapositivas, «Abrir en Fotos» desde Ficheros, el icono y Cmd+5.
+
 **Terminal**
 - tmux y vim con ratón.
 - Seleccionar arrastrando: **marcaba lejísimos del cursor** (filas visibles frente a filas del
@@ -171,6 +175,7 @@ Lo de cada parte vive junto a su código y se carga sólo al trabajar allí:
 - `BrunOS/Files/CLAUDE.md`: orígenes de ficheros, marcadores de seguridad, la vista previa propia.
 - `BrunOS/Phone/CLAUDE.md`: el único puente a Objective-C (`installTap`).
 - `BrunOS/Notes/CLAUDE.md`: las notas, el editor propio y el historial del portapapeles.
+- `BrunOS/Photos/CLAUDE.md`: Fotos, el visor de imágenes y el reproductor de vídeo de una carpeta.
 - Skill `testflight` (`.claude/skills/testflight/`): subir builds y los errores de distribución.
 
 ---

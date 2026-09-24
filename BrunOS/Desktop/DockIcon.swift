@@ -26,6 +26,7 @@ enum DockIcon {
             case .browser: drawCompass(context, rect)
             case .files: drawFolder(context, rect)
             case .notes: drawNotepad(context, rect)
+            case .photos: drawPhotos(context, rect)
             }
         }
         cache[key] = image
@@ -175,6 +176,37 @@ enum DockIcon {
         context.setFillColor(UIColor.white.cgColor)
         context.addPath(UIBezierPath(roundedRect: body, cornerRadius: rect.width * 0.05).cgPath)
         context.fillPath()
+    }
+
+    /// Fotos: una flor de ocho pétalos de colores sobre blanco, como la de
+    /// macOS pero dibujada aquí. Cada pétalo es una elipse girada y un poco
+    /// transparente, y donde se solapan se mezclan los colores.
+    private static func drawPhotos(_ context: CGContext, _ rect: CGRect) {
+        roundedBackground(context, rect, colors: [UIColor(hex: 0xFFFFFF), UIColor(hex: 0xECECEC)])
+
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let length = rect.width * 0.19
+        let width = rect.width * 0.19
+        // De arriba en el sentido del reloj: naranja, amarillo, verde claro,
+        // verde, azul claro, azul, morado y rosa.
+        let colors: [UInt32] = [0xF7931E, 0xF9CE1D, 0xB8D433, 0x5CBF4A, 0x3DBDE0, 0x3C7FE0, 0x8C5BD6, 0xE9477A]
+
+        context.saveGState()
+        context.setBlendMode(.multiply)
+        for (index, hex) in colors.enumerated() {
+            context.saveGState()
+            context.translateBy(x: center.x, y: center.y)
+            context.rotate(by: CGFloat(index) * .pi / 4)
+            // El pétalo sale de junto al centro hacia arriba, un poco ladeado:
+            // así se solapan con el de al lado y queda un hueco claro en medio.
+            let petal = CGRect(x: -width / 2 - length * 0.4, y: -length * 2 - rect.width * 0.02,
+                               width: width * 1.25, height: length * 2)
+            context.setFillColor(UIColor(hex: hex).withAlphaComponent(0.8).cgColor)
+            context.addPath(UIBezierPath(roundedRect: petal, cornerRadius: width * 0.62).cgPath)
+            context.fillPath()
+            context.restoreGState()
+        }
+        context.restoreGState()
     }
 
     /// Bloc de notas: hoja clara con la franja amarilla arriba y tres líneas.
