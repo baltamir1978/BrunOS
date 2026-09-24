@@ -27,7 +27,7 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Escritorio** con ventanas flotantes o en mosaico estilo i3, las tres apps a la vez, dock con varias ventanas por app, pantalla completa, Exposé (Cmd+E) y cambio de ventana con Cmd+º | 🚧 flotantes sin rodaje |
 | **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él | ✅ |
 | **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
-| **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios con las listas de uBlock Origin, descargas e iframes pulsables (reCAPTCHA, pagos) | ✅ YouTube probado |
+| **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios con las listas de uBlock Origin, avisos de cookies fuera, descargas e iframes pulsables (reCAPTCHA, pagos, logins) | ✅ |
 | **Favoritos** con barra propia, iconos de cada sitio, sugerencias al escribir, modo lectura e historial (Cmd+Y) | 🚧 sin rodaje |
 | **Descargar vídeos** de la página, también por trozos (HLS), con progreso, y guardar la página como PDF | 🚧 sin rodaje |
 | **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa, selección múltiple, copiar carpetas por trozos con progreso y arrastrar entre ventanas | 🚧 a falta de rodaje |
@@ -37,9 +37,10 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Barra superior** con Tailscale (estado cada 10 s y conectar por Atajos) y el tiempo en un desplegable (Open-Meteo) | ✅ el desplegable del tiempo, sin probar |
 
 El escritorio, el ratón, el teclado, la conexión SSH y el navegador están probados con un monitor
-de verdad, y también el modo claro, Notas, la barra superior, quitar ubicaciones de Ficheros y la
-velocidad del scroll. Lo más reciente —el desplegable del tiempo, Exposé, encajar ventanas,
-recordar el escritorio, el SMB propio, el historial— está escrito y compilado, pero sin rodaje.
+de verdad, y también el modo claro, Notas, la barra superior, el bloqueador con las listas de
+uBlock, los avisos de cookies, quitar ubicaciones de Ficheros, la selección del terminal y la
+velocidad del scroll. Lo más reciente —Fotos, la pantalla completa de vídeo, descargar vídeos
+incrustados en otra web, el SMB propio— está escrito y compilado, pero sin rodaje.
 
 El dock funciona como el de macOS: un icono por app, que la trae al escritorio junto a las demás;
 si ya está delante, volver a pulsarlo abre otra ventana, y con el botón derecho se abre otra o se

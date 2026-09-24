@@ -175,6 +175,11 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 - El dictado, el teclado en pantalla y el overscan.
 - Las escalas nuevas: 1,25×, 1,75× y 2,25×.
 
+**Confirmado por Bruno el 24-sep, en la 2609241652**: el login de Reddit, el bloqueador con las
+listas de uBlock, los avisos de cookies (parece), la selección del terminal y la rueda y las
+páginas del PDF. **No**: la resolución del PDF (rehecho), RedGifs dentro de Reddit (arreglado), el
+ratón (arreglado), y los marcos de las ventanas con línea doble (arreglado).
+
 **Confirmado por Bruno el 24-sep**: todo lo nuevo de la 2609241450 (modo mando, Atajos, «mira
 el iPhone», calendario, tiempo, renombrar, iCloud, Tailscale cada 10 s), el cursor de
 redimensionar, los divisores, Cmd+P, Cmd+F, la nitidez (parece), la barra de favoritos y los
