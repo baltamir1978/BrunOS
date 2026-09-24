@@ -36,7 +36,7 @@ struct PointerSettings: Codable, Equatable, Sendable {
 
 /// Elige sola entre las dos fuentes de ratón y reenvía lo que llegue.
 ///
-/// Prefiere `GCMouse` si entrega, y si no el puntero indirecto (ver
+/// Prefiere el puntero indirecto si entrega, y si no `GCMouse` (ver
 /// `preferred`). La decisión no es de una vez para siempre: se rehace cada vez
 /// que una fuente empieza o deja de entregar.
 @MainActor
@@ -75,18 +75,20 @@ final class MouseRouter: MouseSourceDelegate {
         indirectSource.stop()
     }
 
-    /// La fuente que manda: `GCMouse` si entrega, si no el puntero indirecto.
+    /// La fuente que manda: **el puntero indirecto si entrega**, y si no
+    /// `GCMouse`.
     ///
-    /// **Es la preferencia con la que el ratón iba bien** (la 2609241352,
-    /// según Bruno). El 24-sep se probó poner el indirecto delante, pensando
-    /// que `GCMouse` era lo que atascaba el cursor, y fue a peor: tirones y sin
-    /// llegar al borde. Lo que había estropeado la 2609241450 era el modo
-    /// mando en negro forzado, ya quitado. **No cambiar esto sin datos**:
-    /// Ajustes › Ratón y teclado › Diagnóstico dice qué fuente entrega y hasta
-    /// dónde llega el puntero.
+    /// **Decidido con datos** (Bruno, 24-sep-2026, en la 2609241727): con
+    /// `GCMouse` delante, «Fuente activa» decía GCMouse y el cursor chocaba
+    /// con el borde del iPhone: sus desplazamientos salen del puntero de iOS,
+    /// que se para ahí. El indirecto da la posición absoluta y alcanza
+    /// 0–100 % en horizontal y 6–100 % en vertical; lo que falta arriba se
+    /// estira en `IndirectPointerSource.emitTranslation`. Las veces que falló
+    /// con el indirecto delante fue por otras cosas: el toque tomado por un
+    /// dedo (`TrackpadUIView.isMouseSession`) y ese 6 % de arriba.
     private var preferred: (any MouseSource)? {
-        if gcSource.isDelivering { return gcSource }
         if indirectSource.isDelivering { return indirectSource }
+        if gcSource.isDelivering { return gcSource }
         return nil
     }
 

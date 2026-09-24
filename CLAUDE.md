@@ -498,6 +498,15 @@ Además, también sin subir:
   **el alcance del puntero indirecto** (de 0 a 100 % en cada eje). Si no llega a 0 y 100 %, iOS no
   deja que el puntero cubra la pantalla del iPhone: es lo primero que hay que pedirle a Bruno.
 
+**Con datos del diagnóstico** (Bruno, en la 2609241727): «Fuente activa» GCMouse, eventos 60 y
+60 (llegan las dos fuentes a la vez) y alcance del puntero indirecto **0–100 % en horizontal y
+6–100 % en vertical**: arriba iOS no deja entrar el puntero en la franja de la isla. Así que:
+
+- **Manda el puntero indirecto** (posición absoluta), y `GCMouse` sólo si no hay indirecto.
+- **El vertical se estira** desde lo más alto que alcanza el puntero de verdad (`topReach`: el
+  área segura de arriba, o el 6 % si iOS no la diera, o lo más alto visto si sube más) hasta
+  abajo, para que ese 6 % sea el borde de arriba del monitor.
+
 **Sin probar en el iPhone.** Si la posición que da el puntero indirecto no cubre la pantalla
 entera (por ejemplo, si iOS la limita al área segura), el cursor no llegaría a los bordes del
 monitor: es lo primero que hay que mirar.

@@ -265,6 +265,10 @@ final class IndirectPointerSource: NSObject, MouseSource, UIGestureRecognizerDel
         delegate?.mouseSource(self, didRelease: .left)
     }
 
+    /// Lo más alto que puede llegar el puntero, en puntos de la vista. Ver
+    /// `emitTranslation`.
+    private var topReach: CGFloat?
+
     private func emitTranslation(to location: CGPoint) {
         defer { lastLocation = location }
         guard location != lastLocation, let host, host.bounds.width > 0, host.bounds.height > 0 else { return }
@@ -273,9 +277,19 @@ final class IndirectPointerSource: NSObject, MouseSource, UIGestureRecognizerDel
         // más allá: se deja un margen de un punto para que el borde del
         // escritorio sea alcanzable aunque iOS se quede a medio punto.
         let inset: CGFloat = 1
+        // **Arriba no llega a 0.** iOS no deja entrar el puntero en la franja
+        // de la isla y la barra de estado: el diagnóstico de Bruno dio un
+        // alcance de 6–100 % en vertical (24-sep-2026), y el cursor no llegaba
+        // al borde de arriba del monitor. Se toma como arriba del todo lo más
+        // alto que alcanza de verdad: el área segura de arriba, o lo más alto
+        // que se haya visto si ha subido más.
+        // Si iOS no diera área segura, el 6 % que se midió.
+        let safeTop = host.safeAreaInsets.top > 0 ? host.safeAreaInsets.top : host.bounds.height * 0.06
+        topReach = min(topReach ?? safeTop, location.y)
+        let top = max(inset, topReach ?? inset)
         let normalized = CGPoint(
             x: min(max((location.x - inset) / max(1, host.bounds.width - 2 * inset), 0), 1),
-            y: min(max((location.y - inset) / max(1, host.bounds.height - 2 * inset), 0), 1)
+            y: min(max((location.y - top) / max(1, host.bounds.height - inset - top), 0), 1)
         )
         markDelivering()
         delegate?.mouseSource(self, didMove: MouseDelta(
