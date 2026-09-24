@@ -376,6 +376,28 @@ Lo pidió Bruno, como en Safari. **Sin probar en el iPhone ni compilar** (se esc
   los iframes: un reproductor incrustado vive en el suyo.
 - Cmd+Ctrl+M silencia la pestaña que se ve; «Silenciar las demás» en el menú.
 
+### Pantalla completa de vídeo: YouTube, Plex (24-sep-2026)
+
+Lo pidió Bruno. **Sin compilar ni probar en el iPhone**; el script, probado en Chromium (página
+y un iframe de otro origen, entrar, salir y salir desde fuera).
+
+- **La pantalla completa de WebKit no vale**: exige un gesto de verdad, y los clics y teclas de
+  BrunOS son sintéticos (el botón de YouTube y su tecla F no hacían nada); y en iOS la presenta en
+  una ventana suya, sin saber en qué pantalla. **`FullscreenBridge.js`** (mundo de la página, en
+  todos los marcos) sustituye la API: `requestFullscreen`, `webkitRequestFullscreen`, el
+  `webkitEnterFullscreen` de `<video>`, `exitFullscreen`, `document.fullscreenElement` y los
+  eventos `fullscreenchange`. Estira el elemento con CSS (y quita `transform`/`filter` a sus
+  antepasados, que harían el `fixed` relativo a ellos). Dentro de un iframe, pide al de fuera por
+  `postMessage` que estire el iframe, hasta arriba; el de arriba avisa a Swift (`brunosFullscreen`).
+- **`BrowserPane.setVideoFullScreen`**: fuera pestañas, dirección y favoritos, sin esquinas ni
+  borde, y **`DesktopViewController.setVideoFullScreen`** lleva la ventana a todo el monitor por
+  encima de las demás (`paneFrames`, `paneHit`, `arrangeFloating`) sin tocar el mosaico ni las
+  flotantes, y esconde dock y barra **sin que asomen** (la barra del vídeo está abajo).
+- **Sólo justo después de un clic o una tecla** (5 s, `lastUserInput`): si no, cualquier web
+  podría adueñarse del monitor.
+- **Salir**: Esc, Ctrl+Cmd+F, el botón de la propia página, cambiar de pestaña, navegar, cerrar o
+  minimizar la ventana.
+
 ### Botón de historial e indicador de zoom (24-sep-2026)
 
 - El historial tiene botón en la barra, junto a atrás, adelante y recargar (Bruno no lo quería

@@ -137,6 +137,7 @@ final class BrowserTab: NSObject {
 
         installDesktopHints()
         installViewportFix()
+        installFullscreenBridge()
         // El indicador de scroll estorba: el cursor ya dice dónde está uno.
         webView.scrollView.showsVerticalScrollIndicator = false
 
@@ -191,6 +192,42 @@ final class BrowserTab: NSObject {
         webView.configuration.userContentController.addUserScript(
             WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         )
+    }
+
+    // MARK: - Pantalla completa
+
+    /// La pantalla completa de la página la hace BrunOS: la de WebKit exige un
+    /// gesto de verdad, y los clics de BrunOS son sintéticos. Ver
+    /// `FullscreenBridge.js`. Va en el mundo de la página, que es quien llama
+    /// a `requestFullscreen`.
+    private func installFullscreenBridge() {
+        guard let url = Bundle.main.url(forResource: "FullscreenBridge", withExtension: "js"),
+              let source = try? String(contentsOf: url, encoding: .utf8)
+        else { return }
+        let controller = webView.configuration.userContentController
+        controller.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        controller.add(FullscreenRelay(tab: self), contentWorld: .page, name: "brunosFullscreen")
+    }
+
+    /// La página ha entrado (`true`) o salido de la pantalla completa. Lo
+    /// resuelve el panel: esconde sus barras y lleva la ventana a todo el
+    /// monitor.
+    var onFullscreenRequest: (@MainActor (Bool) -> Void)?
+    private(set) var isPageFullscreen = false
+
+    fileprivate func fullscreenRequested(_ on: Bool) {
+        isPageFullscreen = on
+        onFullscreenRequest?(on)
+    }
+
+    /// Esc, cambiar de pestaña o cerrar: la página tiene que enterarse de que
+    /// ya no está a pantalla completa, o su reproductor se quedaría estirado.
+    func exitPageFullscreen() {
+        guard isPageFullscreen else { return }
+        isPageFullscreen = false
+        webView.evaluateJavaScript(
+            "window.__brunosFullscreen && window.__brunosFullscreen.exit();", in: nil, in: .page
+        ) { _ in }
     }
 
     /// Corrige el ancho del viewport en las páginas de escritorio.
@@ -1067,6 +1104,8 @@ extension BrowserTab: WKNavigationDelegate {
     /// cargar, que es cuando arranca el vídeo que se reproduce solo.
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         if isMuted { applyMute(in: nil) }
+        // Otra página: lo que estuviera a pantalla completa ya no existe.
+        if isPageFullscreen { fullscreenRequested(false) }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
@@ -1391,6 +1430,22 @@ private final class CookieRelay: NSObject, WKScriptMessageHandler {
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let host = message.body as? String, !host.isEmpty else { return }
         tab?.answerCookies(host: host, in: message.frameInfo)
+    }
+}
+
+/// Recibe la pantalla completa de `FullscreenBridge.js`, sólo del marco
+/// principal: los iframes se lo piden al de fuera, y éste a Swift.
+@MainActor
+private final class FullscreenRelay: NSObject, WKScriptMessageHandler {
+    weak var tab: BrowserTab?
+
+    init(tab: BrowserTab) {
+        self.tab = tab
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame, let on = message.body as? Bool else { return }
+        tab?.fullscreenRequested(on)
     }
 }
 

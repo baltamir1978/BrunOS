@@ -121,6 +121,8 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 - Descargas de vídeo de la página, el gestor ⤓ y los HLS; «Descargar vídeo» en RedGifs.
 - Contraseñas: **Bruno quiere rehacer los logins** (24-sep); ver con él cómo antes de tocar.
 - Plex.
+- **Pantalla completa de vídeo** en YouTube y Plex (24-sep, **sin compilar**): el botón y la F de
+  YouTube, Esc para salir, y que la barra del vídeo no saque el dock.
 - Sin subir: el botón de historial en la barra y el indicador de zoom («125 %» un segundo).
 
 **Fotos** (24-sep, escrito en Linux, **sin compilar**)

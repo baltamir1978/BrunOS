@@ -164,6 +164,21 @@ final class BrowserPane: UIView, Pane {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        chrome.isHidden = isVideoFullScreen
+        if isVideoFullScreen {
+            // Sólo la página: sin pestañas, dirección ni favoritos.
+            chrome.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 0)
+            bookmarksBar.isHidden = true
+            findBar.isHidden = true
+            content.frame = bounds
+            let factor = AppServices.shared.desktopViewController?.canvasFactor ?? 1
+            for tab in tabs {
+                tab.place(in: content.bounds, factor: factor)
+            }
+            suggestions.frame = bounds
+            layoutDownloadToast()
+            return
+        }
         chrome.frame = CGRect(x: 0, y: 0, width: bounds.width, height: BrowserChrome.height)
 
         let showBookmarks = BookmarksBar.isVisible
@@ -585,6 +600,48 @@ final class BrowserPane: UIView, Pane {
         return tab
     }
 
+    // MARK: - Pantalla completa de vídeo
+
+    /// YouTube, Plex o cualquier página que pida pantalla completa: fuera las
+    /// barras del navegador, y la ventana a todo el monitor por encima de las
+    /// demás. Esc sale.
+    private(set) var isVideoFullScreen = false
+
+    /// El último clic o tecla. La página sólo puede ponerse a pantalla
+    /// completa justo después de uno, como exige el navegador de verdad con
+    /// su «gesto del usuario»: si no, cualquier web podría adueñarse del
+    /// monitor cuando quisiera.
+    private var lastUserInput = Date.distantPast
+
+    private func pageRequestedFullScreen(_ on: Bool, from tab: BrowserTab) {
+        guard tab === activeTab else {
+            if on { tab.exitPageFullscreen() }
+            return
+        }
+        if on, Date().timeIntervalSince(lastUserInput) > 5 {
+            tab.exitPageFullscreen()
+            return
+        }
+        setVideoFullScreen(on)
+    }
+
+    private func setVideoFullScreen(_ on: Bool) {
+        guard on != isVideoFullScreen else { return }
+        isVideoFullScreen = on
+        if on, isFinding { hideFind() }
+        layer.cornerRadius = on ? 0 : Tokens.Metric.paneCornerRadius
+        layer.borderWidth = on ? 0 : Tokens.Metric.focusBorderWidth
+        setNeedsLayout()
+        AppServices.shared.desktopViewController?.setVideoFullScreen(on, for: self)
+    }
+
+    /// Sale del todo: la página deja de estirar el vídeo y la ventana vuelve
+    /// a su sitio.
+    func exitVideoFullScreen() {
+        activeTab?.exitPageFullscreen()
+        setVideoFullScreen(false)
+    }
+
     /// Una pestaña nueva, ya en el panel, sin activar ni cargar nada.
     private func makeTab() -> BrowserTab {
         let tab = BrowserTab(configuration: Self.makeConfiguration())
@@ -601,6 +658,10 @@ final class BrowserPane: UIView, Pane {
         }
         tab.onDownloadChange = { [weak self] name, state in
             self?.showDownload(name, state)
+        }
+        tab.onFullscreenRequest = { [weak self, weak tab] on in
+            guard let self, let tab else { return }
+            self.pageRequestedFullScreen(on, from: tab)
         }
         tabs.append(tab)
         content.addSubview(tab.webView)
@@ -742,6 +803,8 @@ final class BrowserPane: UIView, Pane {
 
     private func activate(_ index: Int) {
         if isFinding { hideFind() }
+        // El vídeo a pantalla completa es de la pestaña que se deja.
+        if isVideoFullScreen { exitVideoFullScreen() }
         // La que se deja de ver empieza a contar desde ahora.
         activeTab?.markUsed()
         activeIndex = max(0, min(index, tabs.count - 1))
@@ -1196,6 +1259,7 @@ final class BrowserPane: UIView, Pane {
     }
 
     func handlePointer(_ event: PointerEvent) {
+        if case .down = event.kind { lastUserInput = Date() }
         if chrome.frame.contains(event.location) {
             handleChromePointer(event)
             return
@@ -1351,6 +1415,11 @@ final class BrowserPane: UIView, Pane {
 
     func handleKey(_ event: KeyEvent) {
         guard event.phase == .down else { return }
+        lastUserInput = Date()
+        if isVideoFullScreen, event.key.keyCode == .keyboardEscape {
+            exitVideoFullScreen()
+            return
+        }
 
         // Con la barra de direcciones abierta, el teclado es suyo.
         if isEditingAddress {
