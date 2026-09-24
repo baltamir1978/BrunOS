@@ -557,16 +557,6 @@ final class BrowserTab: NSObject {
         return String(array.dropFirst().dropLast())
     }
 
-    // MARK: - Inicio de sesión
-
-    /// Rellena usuario y contraseña en el formulario de la página.
-    ///
-    /// Los valores viajan como literales de JavaScript bien escapados y **no
-    /// se guardan en ningún sitio**: van de iOS a la página y ya.
-    func fillLogin(username: String, password: String) {
-        run("window.__brunos.fillLogin(\(Self.jsString(username)), \(Self.jsString(password)));")
-    }
-
     // MARK: - Buscar
 
     /// Busca en la página con el buscador de WebKit, que resalta y lleva al
@@ -633,8 +623,6 @@ final class BrowserTab: NSObject {
         var link: String?
         var image: String?
         var selection: String?
-        /// `password` o `username` si es un campo de inicio de sesión.
-        var login: String?
         var isEditable: Bool
         var cursor: String
     }
@@ -848,7 +836,6 @@ final class BrowserTab: NSObject {
                     link: dictionary["link"] as? String,
                     image: dictionary["image"] as? String,
                     selection: dictionary["selection"] as? String,
-                    login: dictionary["login"] as? String,
                     isEditable: dictionary["editable"] as? Bool ?? false,
                     cursor: dictionary["cursor"] as? String ?? "auto"
                 ))
@@ -1085,9 +1072,6 @@ extension BrowserTab: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if let url = webView.url {
             AppServices.shared.history.record(url: url, title: webView.title)
-            // Una página nueva puede volver a ofrecer las contraseñas aunque en
-            // la anterior se dijera que no.
-            if let host = url.host() { AppServices.shared.passwords.reset(for: host) }
         }
         if isSuspended == false, suspendedScroll != .zero {
             webView.scrollView.setContentOffset(suspendedScroll, animated: false)

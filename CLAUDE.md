@@ -168,7 +168,8 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 - **Avisos de cookies** con las reglas de «I Still Don't Care About Cookies» y la galleta de la
   barra (24-sep, **sin compilar**).
 - Descargas de vídeo de la página, el gestor ⤓ y los HLS; «Descargar vídeo» en RedGifs.
-- Contraseñas: **Bruno quiere rehacer los logins** (24-sep); ver con él cómo antes de tocar.
+- El login de Reddit (y cualquier otro): sin la hoja de contraseñas, que tapaba el trackpad;
+  la lógica de contraseñas está quitada entera (Bruno las escribe a mano).
 - Plex.
 - **Pantalla completa de vídeo** en YouTube y Plex (24-sep, **sin compilar**): el botón y la F de
   YouTube, Esc para salir, y que la barra del vídeo no saque el dock.
@@ -190,8 +191,8 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 - La vista previa de PDF: **salía mal** (sin ajustarse, una página, borrosa); rehecha sin subir.
 
 **Escritorio y entrada**
-- **El ratón va peor que en la 2609241352** (Bruno, 24-sep). Entre las dos builds, en el iPhone
-  sólo cambió el modo mando a negro forzado; vuelto a seguir el modo del iPhone, sin subir.
+- **El ratón iba peor y se atascaba antes del borde** (Bruno, 24-sep, en la 2609241450): mandaba
+  `GCMouse` en vez del puntero indirecto (ver «El ratón se atascaba en el borde»); sin subir.
 - El hueco entre ventanas, de 8 a 4 puntos, y el tercer encaje en una esquina que hace sitio;
   sin subir.
 - El dictado, el teclado en pantalla y el overscan.
@@ -480,6 +481,14 @@ exactamente ahí: el borde del iPhone es el borde del monitor, a la vez. La velo
 (Accesibilidad › Control del puntero › Velocidad de seguimiento); la sensibilidad y la aceleración
 de BrunOS quedan para el trackpad táctil y para `GCMouse`, que sigue siendo relativo.
 
+**Volvió a atascarse el 24-sep-2026** (Bruno, en la 2609241450). Causa probable: `MouseRouter`
+**prefería `GCMouse`** en cuanto entregaba algo, y desde que `KeyboardRouter` lee los
+modificadores con `GCKeyboard` (sesión de la nube), GameController está en marcha y `GCMouse`
+entrega desplazamientos que salen del puntero de iOS, que se para en el borde del iPhone. Ahora
+**manda el puntero indirecto siempre que entregue**, y `GCMouse` queda para cuando no hay
+AssistiveTouch. Ajustes › Ratón y teclado › «Fuente activa» dice cuál manda: con AssistiveTouch
+tiene que poner «puntero indirecto».
+
 **Sin probar en el iPhone.** Si la posición que da el puntero indirecto no cubre la pantalla
 entera (por ejemplo, si iOS la limita al área segura), el cursor no llegaría a los bordes del
 monitor: es lo primero que hay que mirar.
@@ -510,7 +519,7 @@ un fallo posible aunque no fuera éste.
 ### Mira el iPhone, Atajos y el calendario (24-sep-2026)
 
 - **`PhoneNotice`**: aviso en el monitor cuando algo se hace en el iPhone (el selector de
-  carpetas, las contraseñas, el paso por Atajos). Se va solo a los 7 segundos.
+  carpetas, el paso por Atajos). Se va solo a los 7 segundos.
 - **Ajustes › Atajos** junta AssistiveTouch y Tailscale, con cómo crear cada atajo, el estado y
   un botón para probar el de Tailscale. `SettingsPages.shortcutsPageIndex` es su posición; el
   «Cómo crear el atajo…» del menú de Tailscale lleva ahí.

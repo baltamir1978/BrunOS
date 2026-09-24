@@ -33,7 +33,6 @@ final class AppServices {
     let favicons = FaviconStore()
     let downloads = DownloadCenter()
     let hls = HLSDownloader()
-    let passwords = PasswordBridge()
     let notes = NotesStore()
     let clipboard = ClipboardHistory()
     let weather = WeatherService()

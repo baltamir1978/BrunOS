@@ -968,53 +968,6 @@ final class BrowserPane: UIView, Pane {
         return chrome.hit(at: CGPoint(x: point.x, y: point.y - chrome.frame.minY)) == .none
     }
 
-    // MARK: - Contraseñas
-
-    /// Aviso de que la contraseña se elige en el iPhone.
-    private let loginBanner = UILabel()
-
-    /// Si el clic ha caído en un campo de inicio de sesión, se ofrecen las
-    /// contraseñas de iOS en el iPhone. Ver `PasswordBridge`.
-    private func offerPasswordIfLogin(tab: BrowserTab, at point: CGPoint) {
-        Task { [weak self] in
-            guard let hit = await tab.describe(at: point), hit.login != nil,
-                  let url = tab.webView.url, url.scheme == "https" || url.scheme == "http",
-                  let host = url.host()
-            else { return }
-            let bridge = AppServices.shared.passwords
-            guard !bridge.isAsking else { return }
-            bridge.ask(host: host) { [weak self] username, password in
-                tab.fillLogin(username: username, password: password)
-                self?.hideLoginBanner()
-            } onCancel: { [weak self] in
-                self?.hideLoginBanner()
-            }
-            if bridge.isAsking { self?.showLoginBanner() }
-        }
-    }
-
-    private func showLoginBanner() {
-        if loginBanner.superview == nil {
-            loginBanner.font = Tokens.sans(12.5, weight: .medium)
-            loginBanner.textColor = Tokens.Color.text
-            loginBanner.backgroundColor = Tokens.Color.panelElevated
-            loginBanner.textAlignment = .center
-            loginBanner.layer.cornerRadius = 9
-            loginBanner.layer.masksToBounds = true
-            loginBanner.setThemedBorder(Tokens.Color.accent.withAlphaComponent(0.6))
-            loginBanner.layer.borderWidth = 1
-            addSubview(loginBanner)
-        }
-        loginBanner.text = "🔑  Elige la contraseña en el iPhone · Esc para escribirla a mano"
-        let width = min(bounds.width - 40, loginBanner.intrinsicContentSize.width + 32)
-        loginBanner.frame = CGRect(x: (bounds.width - width) / 2, y: content.frame.minY + 12, width: width, height: 30)
-        loginBanner.isHidden = false
-    }
-
-    private func hideLoginBanner() {
-        loginBanner.isHidden = true
-    }
-
     // MARK: - Buscar
 
     /// Cmd+F: la barra de búsqueda bajo la de direcciones.
@@ -1324,7 +1277,6 @@ final class BrowserPane: UIView, Pane {
             }
             tab.click(at: point, button: button, modifiers: event.modifiers)
             refreshChrome()
-            if button == .left { offerPasswordIfLogin(tab: tab, at: point) }
         case .scroll(let delta):
             tab.scroll(at: point, delta: delta)
         case .up:
@@ -1468,12 +1420,6 @@ final class BrowserPane: UIView, Pane {
 
         if isFinding {
             findBar.handleKey(event)
-            return
-        }
-
-        // Mientras se espera la contraseña del iPhone, Esc es «la escribo yo».
-        if AppServices.shared.passwords.isAsking, event.key.keyCode == .keyboardEscape {
-            AppServices.shared.passwords.cancel()
             return
         }
 

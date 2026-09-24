@@ -39,12 +39,6 @@ final class PhoneRootViewController: UIViewController {
 
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(restoreKeyboard),
-            name: .brunosRestoreKeyboard,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
             selector: #selector(externalDisplayChanged),
             name: ExternalDisplayManager.didChangeNotification,
             object: nil
@@ -83,14 +77,6 @@ final class PhoneRootViewController: UIViewController {
         becomeFirstResponder()
     }
 
-    @objc private func restoreKeyboard() {
-        // Tras cerrarse la hoja: si se pide antes, el campo de la hoja todavía
-        // es el primer respondedor y se lo vuelve a quedar.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-            self?.becomeFirstResponder()
-        }
-    }
-
     /// Al conectar el monitor, el iPhone vuelve a su pantalla de mando.
     ///
     /// SwiftUI cierra su hoja de ajustes por su cuenta (ver `PhoneRootView`),
@@ -104,8 +90,7 @@ final class PhoneRootViewController: UIViewController {
     @objc private func externalDisplayChanged() {
         guard services.externalDisplay.currentProfile != nil else { return }
         guard let presented = presentedViewController,
-              !(presented is UIDocumentPickerViewController),
-              !services.passwords.isAsking
+              !(presented is UIDocumentPickerViewController)
         else {
             becomeFirstResponder()
             return
