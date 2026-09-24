@@ -32,7 +32,11 @@ del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, e
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
-**Última build subida: 2609241727 (24-sep-2026, tarde)**: el ratón (el toque de AssistiveTouch
+**Última build subida: 2609241832 (24-sep-2026, tarde)**, la séptima del día: el ratón por la
+posición absoluta (6 % de arriba estirado, rueda de `GCMouse`), YouTube a pantalla completa, el
+zoom de los visores y encajar la tercera ventana. **Sin probar en el iPhone.**
+
+**Anterior: 2609241727 (24-sep-2026, tarde)**: el ratón (el toque de AssistiveTouch
 ya no se toma por un dedo; preferencia de fuentes como en la 2609241352), RedGifs dentro de
 Reddit, el PDF dibujado por BrunOS, los bordes a píxeles enteros, la vista previa con la densidad
 del lienzo y el scroll del terminal. **Sin probar en el iPhone.**
@@ -137,13 +141,13 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
-## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241727)
+## Pendiente de probar en el iPhone (lista única, al 24-sep-2026 con la 2609241832)
 
 Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está escrito» con
 «funciona». **Esta es la lista buena**: las marcas «sin probar» repartidas por los CLAUDE.md
 pueden estar viejas. Al confirmar algo, se quita de aquí.
 
-**Sin subir, para la build siguiente a la 2609241727** (Bruno pidió no subir todavía)
+**En la 2609241832**
 - El ratón por la posición absoluta, con el 6 % de arriba estirado: los cuatro bordes, sin
   chocar con el del iPhone. El diagnóstico tiene que decir «puntero indirecto» y 0–100 % en los
   dos ejes. **Y que la rueda siga igual** (viene de `GCMouse`, con su propia preferencia).
