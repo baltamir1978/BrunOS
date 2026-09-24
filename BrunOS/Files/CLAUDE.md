@@ -190,3 +190,14 @@ reproductor cancela un rango (al saltar), se corta su tarea.
 
 `FileService.rebuild()` avisa con `providersDidChange` y las barras laterales se repintan; antes
 renombrar desde Ajustes no se veía hasta que otra cosa las repintaba.
+
+### La vista previa de PDF (24-sep-2026)
+
+Salía mal (Bruno): sin ajustarse al tamaño, una sola página y borrosa, y cualquier clic la cerraba.
+Ahora `PDFView` va en `.singlePageContinuous` vertical con `autoScales`, se recoloca en cada
+maquetación, y **lleva la escala contraria a la del lienzo**, como las webs (`BrowserTab.place`):
+PDFKit dibuja a la densidad de la pantalla. `applyContentsScale` no entra en un `PDFView`. La
+rueda mueve su `UIScrollView` interno, las flechas y Av Pág cambian de página, Inicio y Fin van al
+principio y al final, y Cmd + / − / 0 hacen zoom (**llegan por `performOverModal`**: los atajos
+con Cmd no le llegan a la vista). La cabecera dice «Página 3 de 12». Un clic dentro ya no cierra;
+en un vídeo, pausa y sigue. **Sin probar en el iPhone.**

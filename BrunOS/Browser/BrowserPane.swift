@@ -827,12 +827,50 @@ final class BrowserPane: UIView, Pane {
     func changeZoom(by delta: CGFloat) {
         guard let tab = activeTab else { return }
         tab.pageZoom = min(max(tab.pageZoom + delta, 0.5), 3)
+        showZoom(tab.pageZoom)
     }
 
     /// Cmd+0 vuelve al zoom que corresponde a la escala de la pantalla, no a 1.
     func resetZoom() {
         BrowserZoom.reset()
         activeTab?.pageZoom = BrowserZoom.default
+        showZoom(BrowserZoom.default)
+    }
+
+    // MARK: - Indicador de zoom
+
+    private let zoomBadge = UILabel()
+    private var zoomBadgeTask: Task<Void, Never>?
+
+    /// «125 %» en el centro de la página durante un segundo, como Safari:
+    /// sin él, con Cmd + / − no se sabía en qué proporción se estaba (Bruno,
+    /// 24-sep-2026).
+    private func showZoom(_ zoom: CGFloat) {
+        if zoomBadge.superview == nil {
+            zoomBadge.font = Tokens.sans(22, weight: .semibold)
+            zoomBadge.textColor = Tokens.Color.text
+            zoomBadge.textAlignment = .center
+            zoomBadge.backgroundColor = Tokens.Color.panelElevated.withAlphaComponent(0.94)
+            zoomBadge.layer.cornerRadius = 14
+            zoomBadge.layer.masksToBounds = true
+            zoomBadge.alpha = 0
+            addSubview(zoomBadge)
+        }
+        zoomBadge.text = "\(Int((zoom * 100).rounded())) %"
+        let size = CGSize(width: 120, height: 56)
+        zoomBadge.frame = CGRect(
+            x: content.frame.midX - size.width / 2, y: content.frame.midY - size.height / 2,
+            width: size.width, height: size.height
+        )
+        bringSubviewToFront(zoomBadge)
+        UIView.animate(withDuration: 0.12) { self.zoomBadge.alpha = 1 }
+
+        zoomBadgeTask?.cancel()
+        zoomBadgeTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, let self else { return }
+            UIView.animate(withDuration: 0.3) { self.zoomBadge.alpha = 0 }
+        }
     }
 
     func copySelection() {
@@ -1278,6 +1316,8 @@ final class BrowserPane: UIView, Pane {
             AppServices.shared.desktopViewController?.presentContextMenu(
                 downloadsMenu(), from: self, at: event.location
             )
+        case .history:
+            AppServices.shared.desktopViewController?.presentHistory()
         case .settings:
             AppServices.shared.desktopViewController?.presentSettings(.browser)
         case .window(let button):

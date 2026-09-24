@@ -108,3 +108,21 @@ texto era el color dinámico del escritorio. SwiftTerm convierte los `UIColor` a
 se entera de los cambios, así que `TerminalTab.applyTheme` le pasa colores ya resueltos y una
 paleta ANSI clara propia (la de xterm no se lee sobre blanco). El modo sigue al escritorio por
 defecto y se puede fijar aparte (`TerminalTheme`).
+
+### Seleccionar marcaba lejos del cursor (24-sep-2026)
+
+En iOS, la `TerminalView` de SwiftTerm es un `UIScrollView` con todo el historial dentro, y
+`getText(start:end:)` cuenta las filas **desde el principio del historial**. BrunOS usaba filas
+de la pantalla visible para todo: con historial acumulado, el resaltado caía lejísimos y se
+copiaban otras líneas. Además la capa del resaltado se colocaba en `bounds`, cuyo origen es por
+dónde va el scroll. Ahora:
+
+- `position(at:)` da filas del historial (visible + `getTopVisibleRow()`), para seleccionar,
+  resaltar y copiar; `visiblePosition(at:)` da las visibles, para el protocolo de ratón de tmux y
+  vim y para los enlaces (`.screen`).
+- La capa del resaltado va en el origen del contenido. SwiftTerm guarda
+  `contentOffset.y == yDisp * cellHeight`, así que la fila N está en `N × alto de celda`.
+- El tamaño de celda sale de `getOptimalFrameSize()` (columnas × celda), no del ancho de la vista,
+  que incluye el sobrante del borde.
+
+**Sin probar en el iPhone.**

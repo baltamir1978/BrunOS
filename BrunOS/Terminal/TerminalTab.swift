@@ -211,29 +211,44 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     private(set) var selection: (start: Position, end: Position)?
     private var isSelecting = false
 
-    /// Tamaño de una celda, deducido del tamaño de la vista.
+    /// Tamaño de una celda.
     ///
-    /// SwiftTerm lo sabe, pero `cellDimension` es interno. Dividir el ancho
-    /// entre las columnas da lo mismo y no obliga a tocar la librería.
+    /// `cellDimension` es interno en SwiftTerm, pero `getOptimalFrameSize()`
+    /// es columnas × ancho de celda, así que dividiendo sale exacto. Antes se
+    /// dividía el ancho de la vista, que incluye el sobrante del borde, y el
+    /// error crecía hacia la derecha.
     private var cellSize: CGSize {
         let terminal = terminalView.getTerminal()
-        let bounds = terminalView.bounds
-        guard terminal.cols > 0, terminal.rows > 0, bounds.width > 0 else {
+        let optimal = terminalView.getOptimalFrameSize().size
+        guard terminal.cols > 0, terminal.rows > 0, optimal.width > 0 else {
             return CGSize(width: 8, height: 16)
         }
         return CGSize(
-            width: bounds.width / CGFloat(terminal.cols),
-            height: bounds.height / CGFloat(terminal.rows)
+            width: optimal.width / CGFloat(terminal.cols),
+            height: optimal.height / CGFloat(terminal.rows)
         )
     }
 
-    /// Convierte un punto del panel a fila y columna.
-    private func position(at point: CGPoint) -> Position {
+    /// Fila y columna **de la pantalla visible** bajo un punto del panel. Es
+    /// lo que esperan tmux y vim en el protocolo de ratón.
+    private func visiblePosition(at point: CGPoint) -> Position {
         let terminal = terminalView.getTerminal()
         let cell = cellSize
         let col = min(max(Int(point.x / cell.width), 0), max(terminal.cols - 1, 0))
         let row = min(max(Int(point.y / cell.height), 0), max(terminal.rows - 1, 0))
         return Position(col: col, row: row)
+    }
+
+    /// Fila y columna **contadas desde el principio del historial**, que es
+    /// como las cuenta SwiftTerm para copiar (`getText`) y como van las capas
+    /// de la vista, que es un `UIScrollView` con todo el historial dentro.
+    ///
+    /// Se usaban las visibles para todo, y con historial acumulado el
+    /// resaltado caía lejísimos del cursor y se copiaban otras líneas, las
+    /// del principio (Bruno, 24-sep-2026).
+    private func position(at point: CGPoint) -> Position {
+        let visible = visiblePosition(at: point)
+        return Position(col: visible.col, row: visible.row + terminalView.getTerminal().getTopVisibleRow())
     }
 
     /// Si la aplicación remota ha pedido el ratón.
@@ -253,21 +268,21 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
             return
         }
 
-        let position = position(at: point)
-
         // Shift deja pasar por encima del modo ratón, como en cualquier
         // terminal: sirve para seleccionar aunque tmux esté capturando.
         if remoteWantsMouse, !modifiers.contains(.shift) {
-            sendMouseEvent(kind, at: position)
+            sendMouseEvent(kind, at: visiblePosition(at: point))
             return
         }
+
+        let position = position(at: point)
 
         switch kind {
         case .down(let button) where button == .left:
             // Cmd+clic sobre un enlace lo abre, como en cualquier terminal
             // moderno. Es lo que hace falta para la URL de reautenticación que
             // enseña el modo `check` de Tailscale.
-            if modifiers.contains(.command), let link = link(at: position) {
+            if modifiers.contains(.command), let link = link(at: visiblePosition(at: point)) {
                 open(link)
                 return
             }
@@ -475,7 +490,11 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     /// recoloquen en vez de pintar sobre una cuadrícula que ya no existe.
     func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
         session.resize(cols: newCols, rows: newRows)
-        selectionLayer.frame = source.bounds
+        // En el origen del contenido, no en `bounds`: la vista es un
+        // `UIScrollView` y el origen de `bounds` es por dónde va el scroll.
+        // Las bandas van en filas del historial, contadas desde arriba del
+        // todo; con la capa movida, caían desplazadas.
+        selectionLayer.frame = CGRect(origin: .zero, size: source.bounds.size)
         reconnectOverlay?.frame = source.bounds
         // Una selección hecha con otro tamaño ya no señala lo mismo.
         clearSelection()

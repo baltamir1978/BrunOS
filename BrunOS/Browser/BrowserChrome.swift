@@ -34,6 +34,8 @@ final class BrowserChrome: UIView {
         case bookmark
         case media
         case downloads
+        /// La ventana de historial (Cmd+Y).
+        case history
         case settings
         case window(WindowControls.Button)
         case none
@@ -108,6 +110,7 @@ final class BrowserChrome: UIView {
     private var bookmarkFrame: CGRect = .zero
     private var mediaFrame: CGRect = .zero
     private var downloadsFrame: CGRect = .zero
+    private var historyFrame: CGRect = .zero
     private var settingsFrame: CGRect = .zero
     /// El cursor está sobre los botones de ventana, que es cuando enseñan sus
     /// símbolos.
@@ -179,6 +182,9 @@ final class BrowserChrome: UIView {
             : .zero
         forwardFrame = CGRect(x: backFrame.maxX + 1, y: y, width: size, height: size)
         reloadFrame = CGRect(x: forwardFrame.maxX + 1, y: y, width: size, height: size)
+        // El historial, con los de moverse: Bruno lo quería a mano en la barra
+        // y no sólo con Cmd+Y (24-sep-2026).
+        historyFrame = CGRect(x: reloadFrame.maxX + 1, y: y, width: size, height: size)
 
         settingsFrame = CGRect(x: bounds.width - size - 4, y: y, width: size, height: size)
         newTabFrame = CGRect(x: settingsFrame.minX - size, y: y, width: size, height: size)
@@ -235,7 +241,7 @@ final class BrowserChrome: UIView {
         // La dirección no se come la barra entera: con un ancho tope y
         // centrada en su hueco, a los lados queda sitio vacío para agarrar el
         // panel y arrastrarlo, como la barra de título de Safari.
-        let addressStart = reloadFrame.maxX + 6
+        let addressStart = historyFrame.maxX + 6
         let addressEnd = (tabFrames.first?.minX ?? rightmostButtonX) - 8
         let available = max(60, addressEnd - addressStart)
         let width = min(available, max(420, available * 0.72))
@@ -303,6 +309,7 @@ final class BrowserChrome: UIView {
         if backFrame.contains(point) { return .back }
         if forwardFrame.contains(point) { return .forward }
         if reloadFrame.contains(point) { return .reload }
+        if historyFrame.contains(point) { return .history }
         if blockerFrame.contains(point) { return .blocker }
         if addressAudioFrame != .zero, addressAudioFrame.insetBy(dx: -2, dy: -2).contains(point) {
             return .audio
@@ -351,6 +358,7 @@ final class BrowserChrome: UIView {
                 size: 13
             )
         }
+        drawSymbol("clock.arrow.circlepath", in: historyFrame, color: Tokens.Color.textSecondary)
         drawSymbol("plus", in: newTabFrame, color: Tokens.Color.textSecondary)
         drawSymbol("gearshape", in: settingsFrame, color: Tokens.Color.text.withAlphaComponent(0.72), size: 13.5)
 

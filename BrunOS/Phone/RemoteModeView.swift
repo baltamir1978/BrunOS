@@ -22,7 +22,9 @@ struct RemoteModeView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // Sigue el modo del iPhone: Bruno no lo quería fijo en oscuro
+            // (24-sep-2026).
+            Color.brunosBackground.ignoresSafeArea()
 
             // Trackpad a pantalla completa. Es lo único que hay.
             TrackpadView(isFullScreen: true)
@@ -44,9 +46,6 @@ struct RemoteModeView: View {
         }
         // Tocar en cualquier sitio lo hace desaparecer antes.
         .onTapGesture { withAnimation { showsHint = false } }
-        // El modo mando va apagado: oscuro siempre, también con el iPhone en
-        // claro (si no, el aviso salía como un recuadro claro sobre negro).
-        .environment(\.colorScheme, .dark)
     }
 
     private var hint: some View {

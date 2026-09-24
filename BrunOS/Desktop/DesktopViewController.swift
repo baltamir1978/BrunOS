@@ -1,3 +1,4 @@
+import PDFKit
 import UIKit
 import WebKit
 
@@ -195,7 +196,7 @@ final class DesktopViewController: UIViewController {
         // Dentro de un `WKWebView` no hay nada nuestro: WebKit decide su
         // densidad (y la página ya va a 1:1, ver `BrowserTab.place`). Además,
         // su árbol de capas es enorme y esto se recorre en cada maquetación.
-        guard !(view is WKWebView) else { return }
+        guard !(view is WKWebView), !(view is PDFView) else { return }
         // Las instantáneas de Exposé se encogen: con `.nearest` saldrían a
         // trozos. Ver `OverviewThumbnail`.
         guard !(view is OverviewThumbnail) else { return }
@@ -398,7 +399,7 @@ final class DesktopViewController: UIViewController {
         view.setNeedsDisplay()
         // Dentro de un `WKWebView` no hay nada nuestro, y la página ya se
         // entera sola del modo por `prefers-color-scheme`.
-        guard !(view is WKWebView) else { return }
+        guard !(view is WKWebView), !(view is PDFView) else { return }
         for subview in view.subviews {
             redraw(subview)
         }
@@ -1011,6 +1012,13 @@ final class DesktopViewController: UIViewController {
             historyWindow?.onDismiss?()
         case .launcher where launcher != nil:
             launcher?.onDismiss?()
+        // El zoom de un PDF en la vista previa.
+        case .zoomIn where quickLook != nil:
+            quickLook?.zoom(by: 1.2)
+        case .zoomOut where quickLook != nil:
+            quickLook?.zoom(by: 1 / 1.2)
+        case .zoomReset where quickLook != nil:
+            quickLook?.zoom(by: nil)
         default:
             break
         }
@@ -1619,6 +1627,7 @@ final class DesktopViewController: UIViewController {
                 // otra vez, o con el botón verde.
                 if zoomRestore[id] == nil { zoomRestore[id] = frame }
                 workspace.setFloatingFrame(id, snapFrame(snap))
+                makeRoom(for: snap, placed: id)
             }
             updateSnapPreview(nil, below: nil)
             services.desktop.notifyChange()
@@ -1816,6 +1825,38 @@ final class DesktopViewController: UIViewController {
         case .topRight: CGRect(x: right, y: top, width: half, height: halfHeight)
         case .bottomLeft: CGRect(x: left, y: bottom, width: half, height: halfHeight)
         case .bottomRight: CGRect(x: right, y: bottom, width: half, height: halfHeight)
+        }
+    }
+
+    /// Al encajar una ventana, las que ya estaban encajadas donde cae le
+    /// hacen sitio, como en Windows: con dos mitades, soltar una tercera en
+    /// una esquina deja la de esa mitad en el cuarto que queda (Bruno,
+    /// 24-sep-2026). Una a pantalla entera pasa a la otra mitad. Sólo se tocan
+    /// las que están exactamente encajadas; las colocadas a mano se respetan.
+    private func makeRoom(for snap: Snap, placed id: PaneID) {
+        let workspace = services.desktop.active
+        let all: [Snap] = [.left, .right, .full, .topLeft, .topRight, .bottomLeft, .bottomRight]
+        func snapped(_ frame: CGRect) -> Snap? {
+            all.first { candidate in
+                let target = snapFrame(candidate)
+                return abs(target.minX - frame.minX) < 2 && abs(target.minY - frame.minY) < 2
+                    && abs(target.width - frame.width) < 2 && abs(target.height - frame.height) < 2
+            }
+        }
+        for (other, frame) in workspace.floating where other != id {
+            guard let current = snapped(frame) else { continue }
+            let next: Snap? = switch (snap, current) {
+            case (.topLeft, .left): .bottomLeft
+            case (.bottomLeft, .left): .topLeft
+            case (.topRight, .right): .bottomRight
+            case (.bottomRight, .right): .topRight
+            case (.left, .full): .right
+            case (.right, .full): .left
+            default: nil
+            }
+            guard let next else { continue }
+            if zoomRestore[other] == nil { zoomRestore[other] = frame }
+            workspace.setFloatingFrame(other, snapFrame(next))
         }
     }
 
@@ -2370,22 +2411,34 @@ final class DesktopViewController: UIViewController {
         at position: CGPoint,
         frames: [PaneID: CGRect]
     ) -> (pane: PaneID, axis: LayoutContainer.Axis)? {
-        // Un poco más ancho que el hueco: acertar con un hueco de 8 pt a pulso
-        // con el ratón es incómodo.
-        let reach = Tokens.Metric.tileGap
+        // El hueco más 3 puntos a cada lado, sobre el borde de las ventanas:
+        // desde que el hueco es de 4 puntos (Bruno los quería más juntos,
+        // 24-sep-2026), sólo el hueco sería imposible de acertar a pulso.
+        let slop: CGFloat = 3
+        let reach = Tokens.Metric.tileGap + slop
+
+        // Sólo cuenta si hay otra ventana al otro lado del hueco: el borde de
+        // la última de la fila no es un divisor, y con el margen se comería
+        // los clics de esa franja.
+        func hasNeighbor(right of: CGRect) -> Bool {
+            frames.values.contains { $0 != of && abs($0.minX - of.maxX) <= reach && $0.minY < of.maxY && $0.maxY > of.minY }
+        }
+        func hasNeighbor(below of: CGRect) -> Bool {
+            frames.values.contains { $0 != of && abs($0.minY - of.maxY) <= reach && $0.minX < of.maxX && $0.maxX > of.minX }
+        }
 
         for (id, frame) in frames {
-            let vertical = position.x > frame.maxX
+            let vertical = position.x > frame.maxX - slop
                 && position.x < frame.maxX + reach
                 && position.y >= frame.minY
                 && position.y <= frame.maxY
-            if vertical { return (id, .horizontal) }
+            if vertical, hasNeighbor(right: frame) { return (id, .horizontal) }
 
-            let horizontal = position.y > frame.maxY
+            let horizontal = position.y > frame.maxY - slop
                 && position.y < frame.maxY + reach
                 && position.x >= frame.minX
                 && position.x <= frame.maxX
-            if horizontal { return (id, .vertical) }
+            if horizontal, hasNeighbor(below: frame) { return (id, .vertical) }
         }
         return nil
     }

@@ -80,7 +80,7 @@ enum Tokens {
         /// Alto de la barra superior del escritorio, en puntos lógicos.
         static let topBarHeight: CGFloat = 34
         /// Separación entre paneles del mosaico.
-        static let tileGap: CGFloat = 8
+        static let tileGap: CGFloat = 4
         /// Grosor del borde del panel con foco.
         static let focusBorderWidth: CGFloat = 1.5
         static let paneCornerRadius: CGFloat = 10

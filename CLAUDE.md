@@ -112,48 +112,35 @@ Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está esc
 «funciona». **Esta es la lista buena**: las marcas «sin probar» repartidas por los CLAUDE.md
 pueden estar viejas. Al confirmar algo, se quita de aquí.
 
-**Nuevo en la 2609241450**
-- El modo mando en negro con el iPhone en claro (antes salía blanco).
-- Tras Tailscale por Atajos: que el iPhone vuelva al modo mando y el ratón responda.
-- Ajustes › Atajos: el botón de probar Tailscale y «Abrir Atajos».
-- El aviso «mira el iPhone» en el monitor: carpeta, contraseña y Atajos.
-- El calendario de la hora: flechas, rueda, ← →, «Hoy» y el fin de semana.
-- El desplegable del tiempo con los colores de la interfaz, en claro y en oscuro.
-- Renombrar una ubicación desde Ajustes y que cambie la barra lateral.
-- La vista previa de iCloud (baja el fichero y avisa del tamaño).
-- Vídeo por SFTP y SMB mientras llega, y saltar a otro punto.
-- El icono de Tailscale al cambiar la VPN desde fuera (cada 10 s).
-- Ajustes › Rendimiento › «Lo último que ha pasado».
-
 **Navegador**
-- Barra de favoritos e iconos, modo lectura, guardar como PDF, Cmd+Mayús+T.
-- Historial (Cmd+Y), descargas de vídeo de la página, el gestor ⤓ y los HLS.
-- «Descargar vídeo» con el botón derecho en RedGifs (el vídeo tapado por capas).
-- Contraseñas de iOS: que salga la llave en el iPhone y rellene la web.
-- Zoom con Cmd + / − (que la página crezca de verdad) y Plex.
+- Descargas de vídeo de la página, el gestor ⤓ y los HLS; «Descargar vídeo» en RedGifs.
+- Contraseñas: **Bruno quiere rehacer los logins** (24-sep); ver con él cómo antes de tocar.
+- Plex.
+- Sin subir: el botón de historial en la barra y el indicador de zoom («125 %» un segundo).
 
 **Terminal**
-- tmux y vim con ratón, y seleccionar arrastrando.
+- tmux y vim con ratón.
+- Seleccionar arrastrando: **marcaba lejísimos del cursor** (filas visibles frente a filas del
+  historial); arreglado sin subir.
 - `known_hosts` ante una clave que cambie, y la reconexión tras una caída real.
 - Entrar con clave ed25519, e importar una clave cifrada.
 
 **Ficheros**
-- SFTP: listar, copiar en los dos sentidos y la vista previa.
-- SMB propio contra un servidor de verdad (alta, listar, copiar).
-- USB y otras carpetas de Archivos; copiar y arrastrar entre orígenes distintos.
-- El doble clic para abrir, y las vistas de iconos con miniaturas.
+- SMB propio contra un servidor de verdad, y el vídeo por SFTP/SMB mientras llega.
+- La vista previa de PDF: **salía mal** (sin ajustarse, una página, borrosa); rehecha sin subir.
 
 **Escritorio y entrada**
-- Divisores del mosaico y el cursor de redimensionar.
-- El lanzador (Cmd+P), buscar (Cmd+F) y la pantalla completa (Ctrl+Cmd+F).
+- **El ratón va peor que en la 2609241352** (Bruno, 24-sep). Entre las dos builds, en el iPhone
+  sólo cambió el modo mando a negro forzado; vuelto a seguir el modo del iPhone, sin subir.
+- El hueco entre ventanas, de 8 a 4 puntos, y el tercer encaje en una esquina que hace sitio;
+  sin subir.
 - El dictado, el teclado en pantalla y el overscan.
-- Que el escritorio se vea nítido a todas las escalas, también 1,25×, 1,75× y 2,25×.
+- Las escalas nuevas: 1,25×, 1,75× y 2,25×.
 
-**Abiertos, sin causa clara**
-- Google en oscuro con el escritorio en claro (en el simulador WebKit hereda bien el modo).
-- Una vez, el iPhone duplicado al arrancar hasta el primer clic: mirar «Lo último que ha pasado».
-
-**Confirmado por Bruno el 24-sep**: volver a pulsar el dock, barras, quitar ubicaciones, cookies
+**Confirmado por Bruno el 24-sep**: todo lo nuevo de la 2609241450 (modo mando, Atajos, «mira
+el iPhone», calendario, tiempo, renombrar, iCloud, Tailscale cada 10 s), el cursor de
+redimensionar, los divisores, Cmd+P, Cmd+F, la nitidez (parece), la barra de favoritos y los
+iconos, guardar como PDF, Ficheros salvo la vista previa de PDF, volver a pulsar el dock, barras, quitar ubicaciones, cookies
 de Google (parece), scroll, Notas, la barra superior, el tiempo, las sugerencias, la barra lateral
 de Ficheros, el fondo al reconectar, la nitidez, encajar ventanas y el dock que se aparta,
 redimensionar juntas, Ajustes como ventana, Exposé, el conmutador, fijar y silenciar pestañas,
@@ -250,10 +237,6 @@ Confirmado en el iPhone: volver a pulsar el dock, las barras, quitar ubicaciones
   modo `embedded`), que se mueve, se encaja y queda detrás de otras. Una sola a la vez;
   `PaneKind.of` devuelve `nil` para ella (no es app del dock), no se recuerda al arrancar y el
   amarillo la cierra.
-- Sin tocar: **Google en oscuro con el escritorio en claro** (en el simulador, WebKit da
-  `prefers-color-scheme: light` al heredar el modo, también al cambiarlo en caliente: puede ser
-  el tema de la cuenta de Google) y **una vez, el iPhone duplicado al arrancar** hasta el primer
-  clic.
 
 ### Pantalla completa y los botones de ventana
 
@@ -413,6 +396,12 @@ barras y de las ventanas modales**, que se vuelven a traer delante en cada maque
   marco anterior se guarda en `zoomRestore`, el mismo del botón verde: al arrastrarla otra vez
   (más de 8 puntos) recupera su tamaño bajo el cursor. Bruno pidió mitades y cuartos.
 
+- **Hacer sitio al encajar** (24-sep-2026): con dos mitades, soltar una tercera en una esquina
+  deja la de esa mitad en el cuarto que queda (`makeRoom`); una a pantalla entera pasa a la otra
+  mitad. Sólo se tocan las que están exactamente encajadas.
+- **El hueco entre ventanas es de 4 puntos** (antes 8; a Bruno le sobraba). Los divisores del
+  mosaico se agarran con 3 puntos de margen a cada lado, y sólo si hay ventana al otro lado.
+
 **Sin probar en el iPhone.** Sobre un borde de una flotante o un divisor del mosaico, el cursor
 pasa a la doble flecha de redimensionar (`PointerController.Shape`), y la mantiene mientras se
 arrastra.
@@ -490,7 +479,7 @@ quedaba en `true` y **se ignoraba el movimiento del puntero** (`mouseSource(_:di
   del trackpad sale de la ventana.
 - **`EventLog`**: las últimas 30 cosas de la app y del monitor (conectar, segundo plano, vueltas
   por `brunos://`), en Ajustes › Rendimiento, porque sin Modo de desarrollador no hay log. Si
-  vuelve a pasar esto o lo de la pantalla duplicada al arrancar, es lo primero que hay que pedirle.
+  vuelve a pasar algo así, es lo primero que hay que pedirle.
 
 ### Al desconectar, el iPhone se quedaba en modo mando
 

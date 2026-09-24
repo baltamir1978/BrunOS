@@ -322,3 +322,9 @@ Lo pidió Bruno, como en Safari. **Sin probar en el iPhone ni compilar** (se esc
   un temporizador) o está silenciada. Pulsarlo silencia. El aviso de medios llega ahora también de
   los iframes: un reproductor incrustado vive en el suyo.
 - Cmd+Ctrl+M silencia la pestaña que se ve; «Silenciar las demás» en el menú.
+
+### Botón de historial e indicador de zoom (24-sep-2026)
+
+- El historial tiene botón en la barra, junto a atrás, adelante y recargar (Bruno no lo quería
+  sólo con Cmd+Y).
+- Cmd + / − / 0 enseñan «125 %» en el centro de la página durante un segundo, como Safari.
