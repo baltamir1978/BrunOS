@@ -12,13 +12,16 @@ emergencia, teclado, dictado y ajustes.
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
-**Última build subida: 2609241157 (24-sep-2026, mediodía)**, con todo: lo de la nube (abajo) y
-los arreglos de «Lo que Bruno vio en la 2609240858». **Nada de esto probado en el iPhone.**
+**Última build subida: 2609241352 (24-sep-2026, tarde)**: lo de la 2609241157 más lo que iba
+«sin subir» justo debajo. **Lo nuevo de esta, sin probar en el iPhone.**
+
+**Anterior: 2609241157 (24-sep-2026, mediodía)**, con lo de la nube (abajo) y los arreglos de
+«Lo que Bruno vio en la 2609240858».
 
 **Visto bien en la 2609241157** (24-sep): Notas y la barra superior (Tailscale y el tiempo en la
 barra; el desplegable del tiempo no, ver abajo).
 
-**Sin subir desde entonces** (Bruno pidió esperar): el desplegable del tiempo, que salía de un
+**Subido en la 2609241352** (antes iba sin subir): el desplegable del tiempo, que salía de un
 color plano (dibujaba fuera de su tarjeta); las sugerencias de la barra de direcciones, con el
 texto desplazado por lo mismo; los nombres largos de la barra lateral de Ficheros, con «…» y la
 barra a 180 puntos; el icono de Tailscale comprobado cada 10 segundos; y el texto que explica el
