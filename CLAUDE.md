@@ -148,10 +148,10 @@ Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está esc
 pueden estar viejas. Al confirmar algo, se quita de aquí.
 
 **En la 2609241832**
-- El ratón por la posición absoluta, con el 6 % de arriba estirado: los cuatro bordes, sin
-  chocar con el del iPhone. El diagnóstico tiene que decir «puntero indirecto» y 0–100 % en los
-  dos ejes. **Y que la rueda siga igual** (viene de `GCMouse`, con su propia preferencia).
-- YouTube a pantalla completa: sólo el vídeo, con sus controles, no la web entera.
+- ~~El ratón por la posición absoluta~~: peor (ver «El ratón se atascaba en el borde»). Sin
+  subir: vuelta a `GCMouse` delante, como en la 2609241727.
+- YouTube a pantalla completa: sólo el vídeo, con sus controles, no la web entera. **Se cortaba
+  por abajo** en el iPhone (100vh de iOS); arreglado sin subir, comprobado en el simulador.
 - El control de zoom de la vista previa (PDF, imagen, vídeo) y del visor de Fotos.
 - Con dos mitades, soltar una tercera en una esquina: la de esa mitad se encoge al cuarto.
 
@@ -510,7 +510,12 @@ Además, también sin subir:
 60 (llegan las dos fuentes a la vez) y alcance del puntero indirecto **0–100 % en horizontal y
 6–100 % en vertical**: arriba iOS no deja entrar el puntero en la franja de la isla. Así que:
 
-- **Manda el puntero indirecto** (posición absoluta), y `GCMouse` sólo si no hay indirecto.
+- ~~**Manda el puntero indirecto**~~ (en la 2609241832): **fue a peor**, más errático y siguiendo
+  las esquinas redondeadas del iPhone (el puntero de iOS no entra en ellas). Bruno confirmó que
+  con `GCMouse` delante (la 2609241727) **llegaba a los bordes** y era suave. **Decisión final:
+  manda `GCMouse`**; el indirecto sólo si no hay `GCMouse`. No darle más vueltas sin datos nuevos.
+  Se descartó el «empuje en los bordes»: con `GCMouse` llegando a los bordes sobra, y moveria el
+  cursor solo con el ratón quieto junto al borde del iPhone.
 - **La rueda tiene su propia preferencia**: `GCMouse` si la entrega, que es la que Bruno confirmó
   con su sentido; si no, la del indirecto. Con la preferencia del movimiento, el scroll de
   `GCMouse` se habría filtrado.

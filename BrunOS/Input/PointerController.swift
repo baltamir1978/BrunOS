@@ -36,7 +36,7 @@ struct PointerSettings: Codable, Equatable, Sendable {
 
 /// Elige sola entre las dos fuentes de ratón y reenvía lo que llegue.
 ///
-/// Prefiere el puntero indirecto si entrega, y si no `GCMouse` (ver
+/// Prefiere `GCMouse` si entrega, y si no el puntero indirecto (ver
 /// `preferred`). La decisión no es de una vez para siempre: se rehace cada vez
 /// que una fuente empieza o deja de entregar.
 @MainActor
@@ -75,20 +75,19 @@ final class MouseRouter: MouseSourceDelegate {
         indirectSource.stop()
     }
 
-    /// La fuente que manda: **el puntero indirecto si entrega**, y si no
-    /// `GCMouse`.
+    /// La fuente que manda: **`GCMouse` si entrega**, y si no el puntero
+    /// indirecto.
     ///
-    /// **Decidido con datos** (Bruno, 24-sep-2026, en la 2609241727): con
-    /// `GCMouse` delante, «Fuente activa» decía GCMouse y el cursor chocaba
-    /// con el borde del iPhone: sus desplazamientos salen del puntero de iOS,
-    /// que se para ahí. El indirecto da la posición absoluta y alcanza
-    /// 0–100 % en horizontal y 6–100 % en vertical; lo que falta arriba se
-    /// estira en `IndirectPointerSource.emitTranslation`. Las veces que falló
-    /// con el indirecto delante fue por otras cosas: el toque tomado por un
-    /// dedo (`TrackpadUIView.isMouseSession`) y ese 6 % de arriba.
+    /// **Decidido con Bruno, con las dos probadas** (24-sep-2026). Con
+    /// `GCMouse` delante (la 2609241727) el cursor iba suave y llegaba a los
+    /// bordes del monitor. Con el indirecto delante (la 2609241832) iba mucho
+    /// peor: más errático, y siguiendo las esquinas redondeadas del iPhone,
+    /// porque es la posición del puntero de iOS, que no entra en ellas. **No
+    /// volver a poner el indirecto delante.** Queda para cuando no hay
+    /// `GCMouse`, con el 6 % de arriba estirado (`IndirectPointerSource`).
     private var preferred: (any MouseSource)? {
-        if indirectSource.isDelivering { return indirectSource }
         if gcSource.isDelivering { return gcSource }
+        if indirectSource.isDelivering { return indirectSource }
         return nil
     }
 
