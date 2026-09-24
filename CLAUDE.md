@@ -143,10 +143,13 @@ Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está esc
 «funciona». **Esta es la lista buena**: las marcas «sin probar» repartidas por los CLAUDE.md
 pueden estar viejas. Al confirmar algo, se quita de aquí.
 
-**Sólo en la build siguiente a la 2609241727** (sin subir)
+**Sin subir, para la build siguiente a la 2609241727** (Bruno pidió no subir todavía)
 - El ratón por la posición absoluta, con el 6 % de arriba estirado: los cuatro bordes, sin
   chocar con el del iPhone. El diagnóstico tiene que decir «puntero indirecto» y 0–100 % en los
-  dos ejes.
+  dos ejes. **Y que la rueda siga igual** (viene de `GCMouse`, con su propia preferencia).
+- YouTube a pantalla completa: sólo el vídeo, con sus controles, no la web entera.
+- El control de zoom de la vista previa (PDF, imagen, vídeo) y del visor de Fotos.
+- Con dos mitades, soltar una tercera en una esquina: la de esa mitad se encoge al cuarto.
 
 **Navegador**
 - «Descargar vídeo» con el botón derecho en un RedGifs dentro de Reddit, y en redgifs.com.
@@ -173,6 +176,9 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 - Los marcos de las ventanas sin línea doble en las esquinas.
 - El hueco de 4 puntos entre ventanas y el tercer encaje en una esquina que hace sitio.
 - El dictado, el teclado en pantalla, el overscan y las escalas 1,25×, 1,75× y 2,25×.
+
+**Confirmado por Bruno el 24-sep, en la 2609241727**: el navegador (salvo YouTube a pantalla
+completa), Ficheros (pidió zoom en los visores), Fotos, el terminal y el hueco entre ventanas.
 
 **Confirmado por Bruno el 24-sep, en la 2609241652**: el login de Reddit, el bloqueador con las
 listas de uBlock, los avisos de cookies (parece), la selección del terminal y la rueda y las
