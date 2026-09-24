@@ -1,7 +1,8 @@
 # Notas y portapapeles
 
-La cuarta app del dock (Cmd+4), pedida por Bruno el 24-sep-2026. **Escrita sin Xcode, sin
-compilar ni probar.**
+La cuarta app del dock (Cmd+4), pedida por Bruno el 24-sep-2026. Escrita en la nube, compilada en
+el Mac y vista funcionando en el iPhone; el RTF y el formato, del 24-sep por la noche, **sin probar
+en el iPhone**.
 
 - `NotesStore`: **cada nota es un `.rtf` en `Documentos/Notas`** (24-sep-2026, lo pidió Bruno):
   se ve desde la app Archivos y desde Ficheros, y lo abre cualquier editor. Lo que el RTF no
