@@ -48,8 +48,14 @@ final class MouseRouter: MouseSourceDelegate {
     private let gcSource = GCMouseSource()
     let indirectSource = IndirectPointerSource()
 
-    /// Cuál está mandando ahora mismo, para poder rotularlo en los ajustes.
-    private(set) var activeSourceName = "ninguna"
+    /// Cuál está mandando ahora mismo, para Ajustes › Ratón y teclado.
+    var activeSourceName: String {
+        switch preferred {
+        case let value as GCMouseSource where value === gcSource: "GCMouse"
+        case let value as IndirectPointerSource where value === indirectSource: "puntero indirecto"
+        default: "ninguna"
+        }
+    }
 
     /// Cuántos eventos ha entregado cada fuente. Sirve para distinguir, desde
     /// los ajustes del iPhone, entre "el ratón no llega a la app" y "llega pero
@@ -79,18 +85,71 @@ final class MouseRouter: MouseSourceDelegate {
     /// el borde del iPhone. Mandaba él y **el cursor volvía a atascarse sin
     /// llegar al borde del monitor** (Bruno, 24-sep-2026). El indirecto da la
     /// posición absoluta: borde del iPhone = borde del monitor.
+    ///
+    /// **Pero sólo mientras llega de verdad.** Con él a secas, en la
+    /// 2609241652 el ratón dejó de ir del todo: si el indirecto deja de
+    /// llegar (o nunca llega en ese estado), el cursor se quedaba muerto
+    /// esperándolo. Ahora, si lleva medio segundo sin llegar y `GCMouse` sí se
+    /// mueve, manda `GCMouse`: en el peor caso, se vuelve a lo de antes en vez
+    /// de quedarse sin ratón.
     private var preferred: (any MouseSource)? {
-        if indirectSource.isDelivering { return indirectSource }
+        let now = CACurrentMediaTime()
+        if indirectSource.isDelivering, now - lastIndirectMove < 0.5 { return indirectSource }
         if gcSource.isDelivering { return gcSource }
+        if indirectSource.isDelivering { return indirectSource }
         return nil
     }
+
+    /// Cuándo llegó el último movimiento del puntero indirecto.
+    private var lastIndirectMove: CFTimeInterval = 0
 
     private func isActive(_ source: any MouseSource) -> Bool {
         preferred === source
     }
 
+    // MARK: - Diagnóstico
+
+    /// Hasta dónde ha llegado el puntero indirecto, de 0 a 1 en cada eje,
+    /// desde que se puso a cero. Si no llega a 0 o a 1 en algún lado, iOS no
+    /// deja que el puntero cubra la pantalla entera del iPhone, y el cursor no
+    /// llegará a ese borde del monitor (Bruno, 24-sep-2026).
+    private(set) var indirectRange: (minX: CGFloat, maxX: CGFloat, minY: CGFloat, maxY: CGFloat)?
+
+    /// Eventos de movimiento de cada fuente en el último segundo, para ver si
+    /// llegan las dos a la vez y cada cuánto.
+    private var recentMoves: [(time: CFTimeInterval, gc: Bool)] = []
+
+    var movesPerSecond: (gc: Int, indirect: Int) {
+        let now = CACurrentMediaTime()
+        let recent = recentMoves.filter { now - $0.time < 1 }
+        return (recent.filter(\.gc).count, recent.filter { !$0.gc }.count)
+    }
+
+    func resetDiagnostics() {
+        indirectRange = nil
+        recentMoves = []
+    }
+
+    private func noteMove(_ source: any MouseSource, _ delta: MouseDelta) {
+        let now = CACurrentMediaTime()
+        recentMoves.append((now, source === gcSource))
+        if recentMoves.count > 400 { recentMoves.removeFirst(recentMoves.count - 400) }
+        guard source === indirectSource, let position = delta.position else { return }
+        if var range = indirectRange {
+            range.minX = min(range.minX, position.x)
+            range.maxX = max(range.maxX, position.x)
+            range.minY = min(range.minY, position.y)
+            range.maxY = max(range.maxY, position.y)
+            indirectRange = range
+        } else {
+            indirectRange = (position.x, position.x, position.y, position.y)
+        }
+    }
+
     func mouseSource(_ source: any MouseSource, didMove delta: MouseDelta) {
         count(source)
+        noteMove(source, delta)
+        if source === indirectSource { lastIndirectMove = CACurrentMediaTime() }
         guard isActive(source) else { return }
         delegate?.mouseSource(source, didMove: delta)
     }
@@ -125,11 +184,6 @@ final class MouseRouter: MouseSourceDelegate {
     }
 
     func mouseSourceDidChangeAvailability(_ source: any MouseSource) {
-        activeSourceName = switch preferred {
-        case let value as GCMouseSource where value === gcSource: "GCMouse"
-        case let value as IndirectPointerSource where value === indirectSource: "puntero indirecto"
-        default: "ninguna"
-        }
         delegate?.mouseSourceDidChangeAvailability(source)
     }
 }
@@ -160,12 +214,23 @@ final class PointerController {
     private let layer = CALayer()
     private let shapeLayer = CAShapeLayer()
     private var displayLink: CADisplayLink?
-    /// La posición que falta por pintar. **El refresco sólo corre mientras
-    /// hay una**: antes iba a 60 o 120 fotogramas por segundo también con el
-    /// ratón quieto, y eso es batería y calor para nada.
+    /// La posición que falta por pintar.
+    ///
+    /// **El refresco se pausa con el ratón quieto**, que a 60 o 120 fotogramas
+    /// por segundo sin moverse es batería y calor para nada. Pero **no al
+    /// instante**: la primera versión pausaba en cuanto no había nada que
+    /// pintar, o sea entre fotograma y fotograma mientras se movía, y un
+    /// `CADisplayLink` reanudado puede tardar un fotograma en volver: el
+    /// cursor daba tirones (Bruno, 24-sep-2026). Ahora se pausa tras medio
+    /// segundo sin movimiento (`idleFrames`).
     private var pendingPosition: CGPoint? {
-        didSet { displayLink?.isPaused = pendingPosition == nil }
+        didSet {
+            guard pendingPosition != nil else { return }
+            idleFrames = 0
+            if displayLink?.isPaused == true { displayLink?.isPaused = false }
+        }
     }
+    private var idleFrames = 0
     private weak var hostLayer: CALayer?
 
     init() {
@@ -193,7 +258,6 @@ final class PointerController {
         displayLink?.invalidate()
         displayLink = scene?.displayLink(target: self, selector: #selector(step))
         displayLink?.add(to: .main, forMode: .common)
-        displayLink?.isPaused = pendingPosition == nil
     }
 
     func detach() {
@@ -292,7 +356,11 @@ final class PointerController {
     }
 
     @objc private func step() {
-        guard let pending = pendingPosition else { return }
+        guard let pending = pendingPosition else {
+            idleFrames += 1
+            if idleFrames > 30 { displayLink?.isPaused = true }
+            return
+        }
         pendingPosition = nil
         // Sin animación implícita: si no, cada movimiento se interpola durante
         // un cuarto de segundo y el cursor va flotando por detrás del ratón.

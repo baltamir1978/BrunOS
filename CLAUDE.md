@@ -466,6 +466,20 @@ entrega desplazamientos que salen del puntero de iOS, que se para en el borde de
 AssistiveTouch. Ajustes › Ratón y teclado › «Fuente activa» dice cuál manda: con AssistiveTouch
 tiene que poner «puntero indirecto».
 
+**Y en la 2609241652 seguía**: el cursor se movía, pero a tirones y sin llegar al borde. Sin
+saber aún la causa (sin datos del iPhone), van tres cosas, **sin subir**:
+
+- `MouseRouter` manda el indirecto **mientras llegue** (medio segundo); si deja de llegar y
+  `GCMouse` se mueve, manda `GCMouse`. «Fuente activa» se calcula al momento.
+- Una posición del indirecto con el botón «pulsado» es que el soltar se perdió: se suelta (con
+  AssistiveTouch, mientras se pulsa no llegan posiciones). Antes se ignoraban todas y el cursor
+  se quedaba quieto.
+- El refresco del cursor ya no se pausa entre fotograma y fotograma: sólo tras medio segundo
+  quieto. Pausar y reanudar a cada movimiento podía dar los tirones.
+- **Ajustes › Ratón y teclado › Diagnóstico**: fuente activa, eventos por segundo de cada fuente y
+  **el alcance del puntero indirecto** (de 0 a 100 % en cada eje). Si no llega a 0 y 100 %, iOS no
+  deja que el puntero cubra la pantalla del iPhone: es lo primero que hay que pedirle a Bruno.
+
 **Sin probar en el iPhone.** Si la posición que da el puntero indirecto no cubre la pantalla
 entera (por ejemplo, si iOS la limita al área segura), el cursor no llegaría a los bordes del
 monitor: es lo primero que hay que mirar.

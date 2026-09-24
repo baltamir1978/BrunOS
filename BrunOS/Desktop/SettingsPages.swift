@@ -123,7 +123,7 @@ enum SettingsPages {
     }
 
     private static var mouse: SettingsPage {
-        SettingsPage(title: "Ratón y teclado", symbol: "computermouse.fill", tint: teal) {
+        var page = SettingsPage(title: "Ratón y teclado", symbol: "computermouse.fill", tint: teal) {
             let pointer = services.pointer.settings
             let steps: [Double] = [0.6, 0.8, 1.0, 1.3, 1.6, 2.0, 2.5]
             let current = steps.enumerated().min { abs($0.element - pointer.sensitivity) < abs($1.element - pointer.sensitivity) }?.offset ?? 2
@@ -131,7 +131,30 @@ enum SettingsPages {
             let scrollCurrent = scrollSteps.enumerated()
                 .min { abs($0.element - pointer.scrollSpeed) < abs($1.element - pointer.scrollSpeed) }?.offset ?? 0
 
+            let router = services.mouse
+            let rates = router.movesPerSecond
+            func percent(_ value: CGFloat) -> String { "\(Int((value * 100).rounded())) %" }
+            let range = router.indirectRange.map { range in
+                "↔ \(percent(range.minX))–\(percent(range.maxX)) · ↕ \(percent(range.minY))–\(percent(range.maxY))"
+            } ?? "sin datos"
+            let diagnostics = SettingsGroup(
+                "Diagnóstico",
+                footer: "Con esta página abierta, pulsa «Empezar de cero» y lleva el ratón a las cuatro "
+                    + "esquinas. El alcance tiene que llegar a 0 % y 100 % en los dos ejes: si se queda "
+                    + "antes, iOS no deja que el puntero cubra la pantalla del iPhone y el cursor no "
+                    + "llegará a ese borde del monitor. Los eventos dicen qué fuente está entregando "
+                    + "movimiento; si llegan de las dos, puede que se pisen.",
+                rows: [
+                    SettingsRow("Fuente activa", .value(router.activeSourceName)),
+                    SettingsRow("Eventos por segundo", .value("indirecto \(rates.indirect) · GCMouse \(rates.gc)")),
+                    SettingsRow("Alcance del puntero", .value(range)),
+                    SettingsRow("Medir", .buttons([
+                        SettingsButton("Empezar de cero") { router.resetDiagnostics() },
+                    ])),
+                ]
+            )
             return [
+                diagnostics,
                 SettingsGroup(
                     "Rueda",
                     footer: "Natural es la de Apple: el contenido sigue al dedo, y al girar la rueda "
@@ -179,6 +202,9 @@ enum SettingsPages {
                 ]),
             ]
         }
+        // En vivo: el diagnóstico se refresca cada segundo mientras se ve.
+        page.isLive = true
+        return page
     }
 
     private static func update(_ change: (inout PointerSettings) -> Void) {
