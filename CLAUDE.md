@@ -298,8 +298,9 @@ estaba, abre otra ventana** (24-sep-2026: Bruno volvía a pulsar el icono espera
   otra** (`NEVPNManager` sólo gestiona las de la propia app), así que «Conectar/Desconectar» lanza
   el atajo **«BrunOS Tailscale»** de la app Atajos, el mismo camino que el de AssistiveTouch, y
   vuelve por `brunos://tailscale-ok`. Bruno tiene que crear ese atajo una vez con la acción de
-  Tailscale, que se llama **«Activar/Desactivar»** (lo confirmó el 24-sep; alterna, así que no
-  hace falta un «Si») (el menú lo explica y abre Atajos). Se le pasa `on`/`off` como entrada. Mientras
+  Tailscale que **activa o desactiva** la VPN (así lo tiene Bruno desde el 24-sep: el atajo
+  alterna y no mira el `on`/`off`, así que no hace falta un «Si»). El menú lo explica y abre
+  Atajos. Se le pasa `on`/`off` como entrada. Mientras
   corre, el iPhone pasa un momento por Atajos y el monitor enseña la pantalla duplicada.
 - **El tiempo**: Open-Meteo, gratis y sin clave. No WeatherKit: habría que activarlo en el App ID
   desde el portal y añadir un permiso a la firma. La ciudad se elige por nombre (búsqueda de
