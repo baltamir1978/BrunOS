@@ -191,9 +191,7 @@ struct SettingsView: View {
             } label: {
                 LabeledContent(
                     "Listas y reglas",
-                    value: services.blocker.isReady
-                        ? "\(services.blocker.sources.count) listas"
-                        : "sin cargar"
+                    value: services.blocker.statusLine
                 )
             }
 
@@ -208,8 +206,7 @@ struct SettingsView: View {
             Text("El zoom arranca compensando la escala de la pantalla: el escritorio se "
                  + "maqueta en puntos lógicos y, sin compensar, las páginas salen "
                  + "desproporcionadas frente al resto de la interfaz.\n\n"
-                 + "Las listas son EasyList y EasyPrivacy, y **no vienen incluidas**: tienen "
-                 + "licencia propia. Se generan con `Tools/fetch-blocklists.sh` en el Mac.\n\n"
+                 + "Las listas son las de uBlock Origin y se bajan en el propio iPhone.\n\n"
                  + "No hay contador de bloqueados: WebKit no dice cuántas peticiones detiene, "
                  + "y enseñar un número inventado sería peor que no enseñar ninguno.")
         }

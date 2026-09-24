@@ -2,8 +2,9 @@
 
 ## Fase 3 — Navegador
 
-**Escrita. El bloqueador de anuncios está verificado funcionando** (114.213 reglas, 3 de 3 listas
-compiladas en el simulador). El resto —clics sintéticos, pestañas, descargas— **no se ha probado
+**Escrita. El bloqueador de anuncios se verificó funcionando** (114.213 reglas, 3 de 3 listas
+compiladas en el simulador) con las listas de antes; las de uBlock, bajadas en el iPhone, sin
+compilar todavía (ver «Bloqueador» más abajo). El resto —clics sintéticos, pestañas, descargas— **no se ha probado
 con una web de verdad**.
 
 - `ClickInjector.js`: sintetiza ratón sobre la página porque **el ratón no llega solo al
@@ -171,13 +172,45 @@ qué hay bajo el cursor se metía también en el shadow root **interno** de un `
 `div`. No se reconocían los campos de texto (tampoco el «Pegar» del botón derecho). Ahora
 `deepElementFromPoint` no entra en los controles nativos.
 
-### Bloqueador editable
+### Bloqueador: las listas de uBlock Origin, bajadas en el iPhone (24-sep-2026)
 
-`Tools/fetch-blocklists.sh` genera ahora **una lista por fuente** (`blocklist-easylist-NN`,
-`blocklist-easyprivacy-NN`) y un `manifest-blocklists.json` con cuántas reglas lleva cada una, para
-poder apagarlas por separado sin leer megas de JSON al arrancar. Encima van **reglas propias**,
-compiladas aparte en `brunos-user-rules`: dominios bloqueados y elementos ocultos con la sintaxis
-de AdBlock (`dominio##selector`). El formato se comprobó compilándolo con WebKit en macOS.
+Bruno pidió todas las listas que trae uBlock y que desaparecieran los **recuadros grises** donde
+iba un anuncio. **Escrito desde Linux, sin compilar ni probar en el iPhone.**
+
+- **`FilterList.catalog`**: el catálogo de uBlock (`assets/assets.json`), con sus direcciones y
+  grupos. Encendidas de serie, las de uBlock (Anuncios, Privacidad, Malware, Arreglos, Arreglos
+  rápidos), EasyList, EasyPrivacy, Peter Lowe, Online Malicious URL y **EasyList Spanish**. Fuera,
+  «URL Tracking Protection»: sólo lleva `$removeparam`. Se pueden añadir listas por dirección.
+- **Se bajan en el propio iPhone** a Application Support/Blocklists (fuera de la copia de
+  iCloud), cada 4 días o con «Actualizar ahora». Los `!#include` de uBlock se resuelven al bajar
+  (su lista «Anuncios» es casi todo `filters-20NN.txt`). Se acabó `Tools/fetch-blocklists.sh` y
+  las listas en el bundle; `removeLegacyLists` borra del almacén las `blocklist-*` viejas. **Si
+  en el Mac queda `BrunOS/Resources/Blocklists/`, se puede borrar**: ya no se lee.
+- **`FilterListConverter`** traduce red (`||`, comodines, `$domain`, `$3p`, tipos con los alias
+  de uBlock, `$badfilter`, `$document`/`$elemhide`/`$generichide`), ficheros hosts y la
+  **ocultación** (`##`, `dominio##`, `#@#`), que antes se tiraba y es lo que quita los recuadros.
+  Directivas `!#if`: es `env_safari` y no `env_mobile`. Se probó antes en Python con las listas
+  reales (116.000 bloqueos, 27.000 selectores) y los selectores, uno a uno, con Chromium: **0
+  inválidos** tras quitar los procedurales de uBlock y los `:has` anidados.
+- **Todas las listas se convierten juntas**: `ignore-previous-rules` sólo anula reglas de su
+  misma lista de WebKit, y las excepciones de «Arreglos» no servirían contra EasyList compilada
+  aparte. Bloqueos en trozos de 50.000 (`brunos-filters-NN`) con **todas las excepciones detrás
+  de cada trozo**, y la ocultación en `brunos-cosmetic`, aparte para que una excepción de red sin
+  tipo no la anule. Selectores en grupos de 100 por regla: si uno es inválido, WebKit se salta la
+  regla, no la lista. Lo compilado se reutiliza al arrancar si la firma (listas y fechas) no
+  cambia.
+- **`BlockerCollapse.js`** pliega lo que queda, como uBlock: las imágenes que dan `error` (y
+  vuelven si luego cargan) y los iframes cuyo dominio las listas bloquean entero
+  (`ContentBlocker.isBlockedHost`, preguntado por `brunosCollapse` y contestado en el marco que
+  pregunta). Se apaga en Ajustes › Bloqueo. Probado en Chromium con un canal simulado.
+- **Encima van las reglas propias**, compiladas aparte en `brunos-user-rules`: dominios
+  bloqueados y elementos ocultos con la sintaxis de AdBlock (`dominio##selector`).
+- **Lo que no entra**: scriptlets (`##+js`), procedurales (`:has-text`, `:upward`…), `$redirect`,
+  `$removeparam`, `$csp`, expresiones regulares. uBlock hace más en páginas con antibloqueo.
+
+**Lo menos seguro sin compilar**: la primera compilación en el iPhone (unos 160.000 reglas en 4
+listas de WebKit; puede tardar), y si WebKit acepta todos los `resource-type` y `load-type` que
+salen. Si una lista no compila, el error sale en Ajustes con el `userInfo` en el log.
 
 ### El contador de bloqueados: quitado
 

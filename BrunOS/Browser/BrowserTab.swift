@@ -847,6 +847,38 @@ final class BrowserTab: NSObject {
         // Aviso de la página cuando aparece o arranca un vídeo. Antes el
         // panel lo preguntaba cada 3 segundos, se viera o no.
         controller.add(MediaHintRelay(tab: self), contentWorld: world, name: "brunosMedia")
+
+        // El que pliega los huecos de lo bloqueado, en todos los marcos
+        // también: los anuncios suelen ir en iframes dentro de iframes.
+        if let url = Bundle.main.url(forResource: "BlockerCollapse", withExtension: "js"),
+           let collapse = try? String(contentsOf: url, encoding: .utf8) {
+            controller.addUserScript(WKUserScript(
+                source: collapse,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false,
+                in: world
+            ))
+            controller.add(CollapseRelay(tab: self), contentWorld: world, name: "brunosCollapse")
+        }
+    }
+
+    /// `BlockerCollapse.js` pregunta si el bloqueador está encendido en esta
+    /// página y cuáles de esos dominios de iframe están bloqueados enteros. Se
+    /// contesta en el mismo marco que preguntó.
+    fileprivate func answerCollapse(hosts: [String], in frame: WKFrameInfo) {
+        let blocker = AppServices.shared.blocker
+        let enabled = blocker.collapsesBlocked && blocker.isEnabled(for: webView.url?.host())
+        var blocked: [String: Bool] = [:]
+        for host in hosts.prefix(200) {
+            blocked[host] = enabled && blocker.isBlockedHost(host)
+        }
+        let reply: [String: Any] = ["enabled": enabled, "blocked": blocked]
+        guard let data = try? JSONSerialization.data(withJSONObject: reply) else { return }
+        webView.evaluateJavaScript(
+            "window.__brunosCollapse && window.__brunosCollapse.answer(\(String(decoding: data, as: UTF8.self)));",
+            in: frame,
+            in: world
+        ) { _ in }
     }
 
     /// La página tiene un vídeo nuevo, o ha cambiado lo que reproduce.
@@ -1301,6 +1333,23 @@ private final class MediaHintRelay: NSObject, WKScriptMessageHandler {
         // También de los iframes: un reproductor incrustado (YouTube en otra
         // web) avisa desde el suyo, y es lo que enciende el altavoz.
         tab?.mediaHint()
+    }
+}
+
+/// Recibe las preguntas de `BlockerCollapse.js`, con referencia débil por lo
+/// mismo que `FrameRegistrar`.
+@MainActor
+private final class CollapseRelay: NSObject, WKScriptMessageHandler {
+    weak var tab: BrowserTab?
+
+    init(tab: BrowserTab) {
+        self.tab = tab
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any] else { return }
+        let hosts = (body["hosts"] as? [Any])?.compactMap { $0 as? String } ?? []
+        tab?.answerCollapse(hosts: hosts, in: message.frameInfo)
     }
 }
 

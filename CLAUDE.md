@@ -113,6 +113,9 @@ Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está esc
 pueden estar viejas. Al confirmar algo, se quita de aquí.
 
 **Navegador**
+- **Bloqueador con las listas de uBlock** (24-sep, escrito en Linux, **sin compilar**): que
+  compile, que baje y compile las listas en el iPhone, que desaparezcan los recuadros grises y
+  cuánto tarda la primera vez. Ver `BrunOS/Browser/CLAUDE.md`.
 - Descargas de vídeo de la página, el gestor ⤓ y los HLS; «Descargar vídeo» en RedGifs.
 - Contraseñas: **Bruno quiere rehacer los logins** (24-sep); ver con él cómo antes de tocar.
 - Plex.
@@ -641,6 +644,7 @@ movimiento más incómodo que hay.
   mejoren la respuesta y el manejo de la app. Proponer antes de hacer: es él quien decide.
 - **Navegador, para parecerse más a Safari**: navegación privada, silenciar una pestaña, zoom por
   sitio, fijar pestañas y buscadores propios.
+- ~~Más listas de bloqueo y quitar los recuadros grises~~: escrito el 24-sep, falta compilarlo.
 - **YouTube**: sólo saldría lanzando yt-dlp en una máquina del tailnet por SSH. HLS ya se baja
   (`HLSDownloader`, 23-sep-2026).
 

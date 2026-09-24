@@ -56,9 +56,6 @@ targets:
     type: application
     platform: iOS
     sources:
-      # Las listas de bloqueo se copian planas al bundle: ContentBlocker las
-      # busca por el prefijo del nombre, no por carpeta. No se versionan, así
-      # que puede no haber ninguna, y entonces la app funciona sin bloquear.
       - path: BrunOS
         # Las notas para Claude viven junto al código de cada carpeta, pero no
         # van en la app: además, al llamarse todas igual, chocarían en el bundle.

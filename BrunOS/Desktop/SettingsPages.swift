@@ -415,22 +415,61 @@ enum SettingsPages {
                 rows: [
                     SettingsRow("Bloquear anuncios y rastreadores",
                                 .toggle(blocker.isEnabled) { blocker.isEnabled = $0 }),
+                    SettingsRow("Esconder los huecos de lo bloqueado",
+                                subtitle: "Imágenes que no llegan e iframes de anuncios, como uBlock",
+                                .toggle(blocker.collapsesBlocked) { blocker.collapsesBlocked = $0 }),
                 ]
             ))
 
             groups.append(SettingsGroup(
                 "Listas",
-                footer: "Se descargan y convierten con Tools/fetch-blocklists.sh. WebKit no dice "
-                    + "cuántas peticiones detiene, así que BrunOS no se inventa un contador.",
-                rows: blocker.sources.isEmpty
-                    ? [SettingsRow("No hay listas cargadas")]
-                    : blocker.sources.map { source in
+                footer: "Las de uBlock Origin, con las mismas direcciones. Se bajan en el iPhone, se "
+                    + "convierten y se renuevan cada 4 días. De cada lista entra lo que WebKit sabe "
+                    + "hacer: bloquear peticiones y ocultar elementos; los scriptlets y los filtros "
+                    + "procedurales de uBlock, no. WebKit no dice cuántas peticiones detiene, así que "
+                    + "BrunOS no se inventa un contador.",
+                rows: [
+                    SettingsRow(blocker.statusLine, symbol: "arrow.triangle.2.circlepath", .buttons([
+                        SettingsButton("Actualizar ahora") { blocker.updateNow() },
+                    ])),
+                ]
+            ))
+
+            for group in FilterList.Group.allCases where group != .custom {
+                groups.append(SettingsGroup(
+                    group.title,
+                    rows: blocker.catalog.filter { $0.group == group }.map { list in
                         SettingsRow(
-                            source.label,
-                            subtitle: "\(source.ruleCount.formatted()) reglas",
-                            .toggle(blocker.isSourceEnabled(source)) { blocker.setSource(source, enabled: $0) }
+                            list.title,
+                            subtitle: blocker.summary(of: list),
+                            .toggle(blocker.isListEnabled(list)) { blocker.setList(list, enabled: $0) }
                         )
                     }
+                ))
+            }
+
+            var customRows = blocker.catalog.filter { $0.group == .custom }.map { list in
+                let isOn = blocker.isListEnabled(list)
+                return SettingsRow(list.title, subtitle: blocker.summary(of: list) ?? list.url.absoluteString,
+                                   .buttons([
+                                       SettingsButton(isOn ? "Apagar" : "Encender") {
+                                           blocker.setList(list, enabled: !isOn)
+                                       },
+                                       SettingsButton("Quitar", style: .destructive) { blocker.removeCustomList(list) },
+                                   ]))
+            }
+            customRows.append(SettingsRow("Añadir una lista por su dirección", .buttons([
+                SettingsButton("Añadir…") {
+                    desktop?.presentPrompt(title: "Dirección de la lista (https://…)", value: "") { text in
+                        guard let text, !text.isEmpty else { return }
+                        blocker.addCustomList(text)
+                    }
+                },
+            ])))
+            groups.append(SettingsGroup(
+                FilterList.Group.custom.title,
+                footer: "Cualquier lista con la sintaxis de AdBlock, uBlock o AdGuard, o un fichero hosts.",
+                rows: customRows
             ))
 
             var domainRows = blocker.blockedDomains.map { domain in

@@ -9,31 +9,53 @@ struct BlockerSettingsView: View {
     @State private var newDomain = ""
     @State private var newSite = ""
     @State private var newRule = ""
+    @State private var newList = ""
 
     var body: some View {
         List {
             Section {
-                ForEach(blocker.sources) { source in
-                    Toggle(isOn: Binding(
-                        get: { blocker.isSourceEnabled(source) },
-                        set: { blocker.setSource(source, enabled: $0) }
-                    )) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(source.label)
-                            Text("\(source.ruleCount.formatted()) reglas")
-                                .font(.brunosMono(12))
-                                .foregroundStyle(Color.brunosTextSecondary)
-                        }
+                Toggle("Esconder los huecos de lo bloqueado", isOn: Binding(
+                    get: { blocker.collapsesBlocked },
+                    set: { blocker.collapsesBlocked = $0 }
+                ))
+                HStack {
+                    Text(blocker.statusLine)
+                        .font(.brunosSans(13))
+                        .foregroundStyle(Color.brunosTextSecondary)
+                    Spacer()
+                    Button("Actualizar ahora") { blocker.updateNow() }
+                        .disabled(blocker.activity != nil)
+                }
+            } footer: {
+                Text("Las listas de uBlock Origin, con las mismas direcciones. Se bajan en el iPhone "
+                     + "y se renuevan cada 4 días. De cada una entra lo que WebKit sabe hacer: "
+                     + "bloquear peticiones y ocultar elementos.")
+            }
+
+            ForEach(FilterList.Group.allCases.filter { $0 != .custom }, id: \.self) { group in
+                Section(group.title) {
+                    ForEach(blocker.catalog.filter { $0.group == group }) { list in
+                        listToggle(list)
                     }
                 }
-                if blocker.sources.isEmpty {
-                    Text("No hay listas cargadas")
-                        .foregroundStyle(Color.brunosTextSecondary)
+            }
+
+            Section {
+                ForEach(blocker.catalog.filter { $0.group == .custom }) { list in
+                    listToggle(list)
+                }
+                .onDelete { offsets in
+                    let custom = blocker.catalog.filter { $0.group == .custom }
+                    offsets.map { custom[$0] }.forEach(blocker.removeCustomList)
+                }
+                addField("https://…/lista.txt", text: $newList) {
+                    blocker.addCustomList($0)
                 }
             } header: {
-                Text("Listas")
+                Text(FilterList.Group.custom.title)
             } footer: {
-                Text("Se descargan y convierten con Tools/fetch-blocklists.sh en el Mac.")
+                Text("Cualquier lista con la sintaxis de AdBlock, uBlock o AdGuard, o un fichero hosts. "
+                     + "Desliza a la izquierda para quitar una.")
             }
 
             Section {
@@ -102,6 +124,22 @@ struct BlockerSettingsView: View {
         }
         .navigationTitle("Bloqueo de anuncios")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func listToggle(_ list: FilterList) -> some View {
+        Toggle(isOn: Binding(
+            get: { blocker.isListEnabled(list) },
+            set: { blocker.setList(list, enabled: $0) }
+        )) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(list.title)
+                if let summary = blocker.summary(of: list) {
+                    Text(summary)
+                        .font(.brunosMono(12))
+                        .foregroundStyle(Color.brunosTextSecondary)
+                }
+            }
+        }
     }
 
     /// Un campo con botón de añadir al final de cada lista.
