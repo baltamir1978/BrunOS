@@ -12,12 +12,14 @@ emergencia, teclado, dictado y ajustes.
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
-**Para seguir en el Mac** (rama `claude/admiring-mendel-ncfej4`, PR #1 en borrador). Todo lo de la
+**Para seguir en el Mac** (rama `claude/admiring-mendel-ncfej4`, ya juntada con `main`). Todo lo de la
 tarde del 24-sep se escribió en una sesión de Linux **sin Xcode ni compilador**; sólo se pasó un
 análisis de sintaxis (tree-sitter) y una revisión a mano del diff. Por orden:
 
-1. `git pull` de la rama y `./Tools/build.sh`. **Saldrán errores de tipos**: arreglarlos antes que
-   nada. Lo menos seguro: `WKWebView.requestMediaPlaybackState()` (altavoz de las pestañas), las
+1. ~~`git pull` de la rama y `./Tools/build.sh`.~~ **Hecho en el Mac el 24-sep** (commit d687c59,
+   ya en `main`): sólo fallaban `isFocused` en Notas (choca con la de `UIView`, ahora `hasFocus`)
+   y la inferencia de las closures de progreso en `FileService`. Compila sin warnings. Que compile
+   no dice que funcione. Lo menos seguro: `WKWebView.requestMediaPlaybackState()` (altavoz de las pestañas), las
    firmas de progreso de AMSMB2 (comprobadas contra su `master`), `UITextDirection.storage(_:)` y
    la geometría de `UITextInput` en el editor de Notas, y el aislamiento de los cierres
    `@MainActor` que se pasan a `ProgressThrottle`.
