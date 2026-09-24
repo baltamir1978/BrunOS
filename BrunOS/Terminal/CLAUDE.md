@@ -126,3 +126,11 @@ dónde va el scroll. Ahora:
   que incluye el sobrante del borde.
 
 **Sin probar en el iPhone.**
+
+### El scroll iba al revés que en el resto (24-sep-2026)
+
+Con scroll natural o inverso, el navegador iba bien y el terminal al contrario (Bruno). Todos los
+paneles mueven el contenido al revés que el evento (`scrollOffset - delta.dy`); el terminal lo
+hacía al derecho, tanto el historial (`scrollDown(lines:)`) como la rueda que se manda a tmux y
+vim (64/65 de xterm). Ahora usa `-delta.dy` en los dos. **Regla: un panel nuevo, con el mismo
+convenio**, para que el ajuste de dirección valga igual en todos.

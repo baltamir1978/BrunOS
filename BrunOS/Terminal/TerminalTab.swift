@@ -320,8 +320,9 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
                 pixelX: 0, pixelY: 0
             )
         case .scroll(let delta):
-            // 64 arriba, 65 abajo, que es como xterm codifica la rueda.
-            let flags = delta.dy > 0 ? 65 : 64
+            // 64 arriba, 65 abajo, que es como xterm codifica la rueda. Con el
+            // mismo sentido que el scroll del historial (ver `scroll(by:)`).
+            let flags = delta.dy < 0 ? 65 : 64
             terminal.sendEvent(buttonFlags: flags, x: position.col, y: position.row)
         default:
             break
@@ -413,9 +414,13 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         selectionLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
     }
 
+    /// El contenido se mueve **al revés que el evento**, como en el
+    /// navegador, Ficheros y Ajustes (`-delta.dy`): así la dirección natural o
+    /// inversa de Ajustes vale igual en todos. El terminal lo hacía al
+    /// derecho y quedaba justo al contrario que el resto (Bruno, 24-sep-2026).
     func scroll(by delta: CGVector) {
         // Tres líneas por muesca, como cualquier terminal.
-        let lines = Int((delta.dy / 10).rounded())
+        let lines = Int((-delta.dy / 10).rounded())
         guard lines != 0 else { return }
         terminalView.scrollDown(lines: lines)
     }
