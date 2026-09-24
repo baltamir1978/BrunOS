@@ -37,6 +37,8 @@ final class DesktopViewController: UIViewController {
         view.backgroundColor = Tokens.Color.background
         canvas.backgroundColor = .clear
         canvas.layer.addSublayer(wallpaperLayer)
+        // Capa nueva (se ha vuelto a enchufar el monitor): hay que pintarla.
+        services.wallpaper.invalidate()
         view.addSubview(canvas)
 
         canvas.addSubview(topBar)
@@ -142,7 +144,13 @@ final class DesktopViewController: UIViewController {
         // Subiendo `contentsScale` se le dice a Core Animation que dibuje a esa
         // densidad, así que el texto se rasteriza ya a resolución nativa y el
         // escalado no le quita un píxel de definición.
-        contentsScale = screen.scale * max(factor, 1)
+        //
+        // **La densidad exacta, ni más ni menos** (24-sep-2026): píxeles del
+        // monitor por punto lógico, que es la escala elegida. Antes era
+        // `screen.scale * max(factor, 1)`: con un monitor que iOS ve como
+        // Retina, a 1,5× se dibujaba a 2 píxeles por punto y la reducción a
+        // 1,5 dejaba el texto un poco blando. Bruno lo seguía notando.
+        contentsScale = screen.scale * factor
         if canvasFactor != factor {
             canvasFactor = factor
             // Las páginas deshacen este estirado por su cuenta: hay que
@@ -185,6 +193,15 @@ final class DesktopViewController: UIViewController {
             view.layer.contentsScale = contentsScale
             view.setNeedsDisplay()
         }
+        // Lo que se dibuja ya va a un píxel de pantalla por píxel dibujado, así
+        // que no hace falta interpolar: con el filtro lineal, una vista que cae
+        // entre dos píxeles (a 1,5× pasa con cualquier posición impar) se
+        // emborronaba medio píxel. Las imágenes sí se escalan, y se quedan como
+        // estaban.
+        if !(view is UIImageView) {
+            view.layer.magnificationFilter = .nearest
+            view.layer.minificationFilter = .nearest
+        }
         view.layer.rasterizationScale = contentsScale
         for layer in view.layer.sublayers ?? [] {
             applyContentsScale(to: layer)
@@ -199,6 +216,18 @@ final class DesktopViewController: UIViewController {
         for sublayer in layer.sublayers ?? [] {
             applyContentsScale(to: sublayer)
         }
+    }
+
+    /// Un marco llevado a píxeles enteros del monitor. A 1,5×, un punto lógico
+    /// son 1,5 píxeles: una ventana en x = 7 empezaba en el píxel 10,5 y todo
+    /// su contenido se volvía a muestrear.
+    private func pixelAligned(_ rect: CGRect) -> CGRect {
+        let scale = max(contentsScale, 1)
+        let minX = (rect.minX * scale).rounded() / scale
+        let minY = (rect.minY * scale).rounded() / scale
+        let maxX = (rect.maxX * scale).rounded() / scale
+        let maxY = (rect.maxY * scale).rounded() / scale
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
     /// Evita que una maquetación dispare otra.
@@ -226,20 +255,24 @@ final class DesktopViewController: UIViewController {
             height: logicalSize.height
         )
 
-        settingsWindow?.frame = CGRect(origin: .zero, size: logicalSize)
         hostEditor?.frame = CGRect(origin: .zero, size: logicalSize)
         quickLook?.frame = CGRect(origin: .zero, size: logicalSize)
         prompt?.frame = CGRect(origin: .zero, size: logicalSize)
         launcher?.frame = CGRect(origin: .zero, size: logicalSize)
         historyWindow?.frame = CGRect(origin: .zero, size: logicalSize)
 
-        let dockHidden = fullScreen && !dockRevealed
-        dock.frame = CGRect(
+        // Una ventana que ocupa el sitio del dock (una encajada llega hasta
+        // abajo) lo esconde, como la pantalla completa: asoma al llevar el
+        // cursor al borde de abajo. Bruno no quería el hueco (24-sep-2026).
+        dockAutoHidden = fullScreen || dockIsCovered()
+        if !dockAutoHidden { dockRevealed = false }
+        let dockHidden = dockAutoHidden && !dockRevealed
+        dock.frame = pixelAligned(CGRect(
             x: 0,
             y: logicalSize.height - (dockHidden ? -Dock.bottomMargin : Dock.height + Dock.bottomMargin),
             width: logicalSize.width,
             height: Dock.height
-        )
+        ))
 
         dock.update(desktop: services.desktop)
 
@@ -271,7 +304,7 @@ final class DesktopViewController: UIViewController {
             if pane.view.superview !== canvas {
                 canvas.addSubview(pane.view)
             }
-            pane.view.frame = frame
+            pane.view.frame = pixelAligned(frame)
         }
         arrangeFloating(in: workspace, frames: frames)
 
@@ -428,7 +461,7 @@ final class DesktopViewController: UIViewController {
 
         case .newPane:
             // Cmd+N: otra ventana de la app que está delante, como en macOS.
-            addPane(kind: workspace.focusedPane.map(PaneKind.of) ?? .terminal)
+            addPane(kind: workspace.focusedPane.flatMap(PaneKind.of) ?? .terminal)
 
         case .newTab:
             switch workspace.focusedPane {
@@ -525,8 +558,10 @@ final class DesktopViewController: UIViewController {
         guard logicalSize.width > 0 else { return nil }
         let workspace = services.desktop.active
 
-        func window(_ pane: any Pane, frame: CGRect?, minimized: Bool, focused: Bool) -> SavedDesktop.Window {
-            var saved = SavedDesktop.Window(kind: PaneKind.of(pane).rawValue, frame: frame,
+        func window(_ pane: any Pane, frame: CGRect?, minimized: Bool, focused: Bool) -> SavedDesktop.Window? {
+            // Los ajustes no se recuerdan: no son una app.
+            guard let kind = PaneKind.of(pane) else { return nil }
+            var saved = SavedDesktop.Window(kind: kind.rawValue, frame: frame,
                                             isMinimized: minimized, isFocused: focused)
             switch pane {
             case let browser as BrowserPane:
@@ -549,17 +584,22 @@ final class DesktopViewController: UIViewController {
 
         var windows: [SavedDesktop.Window] = []
         for id in workspace.layout.panes {
-            guard let pane = workspace.pane(id) else { continue }
-            windows.append(window(pane, frame: nil, minimized: false, focused: id == workspace.focused))
+            guard let pane = workspace.pane(id),
+                  let saved = window(pane, frame: nil, minimized: false, focused: id == workspace.focused)
+            else { continue }
+            windows.append(saved)
         }
         for id in workspace.floatingOrder {
             guard let pane = workspace.pane(id) else { continue }
             // Una encajada o maximizada se guarda con su tamaño de antes.
             let frame = zoomRestore[id] ?? workspace.floating[id]
-            windows.append(window(pane, frame: frame, minimized: false, focused: id == workspace.focused))
+            guard let saved = window(pane, frame: frame, minimized: false, focused: id == workspace.focused)
+            else { continue }
+            windows.append(saved)
         }
         for entry in workspace.minimized {
-            windows.append(window(entry.pane, frame: entry.frame, minimized: true, focused: false))
+            guard let saved = window(entry.pane, frame: entry.frame, minimized: true, focused: false) else { continue }
+            windows.append(saved)
         }
         return SavedDesktop(windows: windows, logicalSize: logicalSize)
     }
@@ -664,34 +704,48 @@ final class DesktopViewController: UIViewController {
     // MARK: - Lanzador
 
     private var launcher: Launcher?
-    private var settingsWindow: SettingsWindow?
 
     /// Ajustes, en el monitor: los globales o los de un tipo de panel.
     ///
     /// Tienen que estar aquí porque el iPhone, con pantalla externa, es sólo
     /// superficie táctil: si allí hubiera controles, el clic izquierdo acabaría
     /// pulsándolos en vez de llegar al escritorio.
+    /// Ajustes, en una ventana más del escritorio (`SettingsPane`). Si ya
+    /// hay una, pasa delante con lo que se pide.
     func presentSettings(_ scope: SettingsScope, page: Int = 0) {
-        settingsWindow?.removeFromSuperview()
-        let content = SettingsPages.window(for: scope)
-        let window = SettingsWindow(
-            title: content.title,
-            symbol: content.symbol,
-            pages: content.pages,
-            page: page,
-            frame: CGRect(origin: .zero, size: logicalSize)
-        )
-        window.onDismiss = { [weak self] in
-            self?.dismissSettings()
+        let workspace = services.desktop.active
+        if let (id, pane) = settingsPaneEntry {
+            pane.show(scope: scope, page: page)
+            if let minimized = workspace.minimized.first(where: { $0.id == id }) {
+                restoreMinimized(minimized.id)
+            }
+            workspace.setFocus(id)
+            services.desktop.notifyChange()
+            return
         }
-        canvas.addSubview(window)
-        settingsWindow = window
-        applyContentsScale(to: window)
+        let pane = SettingsPane(scope: scope, page: page)
+        let area = tileArea
+        let size = CGSize(
+            width: min(max(area.width * 0.55, 640), 900, area.width),
+            height: min(max(area.height * 0.75, 420), 660, area.height)
+        )
+        let frame = CGRect(x: area.midX - size.width / 2, y: area.midY - size.height / 2,
+                           width: size.width, height: size.height)
+        workspace.addFloating(pane, id: PaneID(), frame: clampWindow(frame))
+        services.desktop.notifyChange()
     }
 
     func dismissSettings() {
-        settingsWindow?.removeFromSuperview()
-        settingsWindow = nil
+        guard let (_, pane) = settingsPaneEntry else { return }
+        closePane(pane)
+    }
+
+    /// La ventana de ajustes, si hay una abierta.
+    private var settingsPaneEntry: (PaneID, SettingsPane)? {
+        for (id, pane) in services.desktop.active.panes {
+            if let settings = pane as? SettingsPane { return (id, settings) }
+        }
+        return nil
     }
 
     private var quickLook: QuickLookView?
@@ -894,7 +948,7 @@ final class DesktopViewController: UIViewController {
     ///
     /// Devuelve `nil` si no hay ninguna modal.
     private func performOverModal(_ command: DesktopCommand) -> Bool? {
-        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, settingsWindow, historyWindow, launcher]
+        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher]
         guard modals.contains(where: { $0 != nil }) else { return nil }
 
         switch command {
@@ -977,7 +1031,7 @@ final class DesktopViewController: UIViewController {
         editor.onDismiss = { [weak self] in
             self?.hostEditor?.removeFromSuperview()
             self?.hostEditor = nil
-            self?.settingsWindow?.refresh()
+            self?.settingsPaneEntry?.1.refresh()
         }
         canvas.addSubview(editor)
         hostEditor = editor
@@ -1165,7 +1219,6 @@ final class DesktopViewController: UIViewController {
         if let prompt, prompt.handlePointer(kind, at: position) { return }
         if let quickLook, quickLook.handlePointer(kind, at: position) { return }
         if let hostEditor, hostEditor.handlePointer(kind, at: position) { return }
-        if let settingsWindow, settingsWindow.handlePointer(kind, at: position) { return }
         if let historyWindow, historyWindow.handlePointer(kind, at: position, modifiers: modifiers) { return }
         if let launcher, launcher.handlePointer(kind, at: position) { return }
 
@@ -1176,10 +1229,10 @@ final class DesktopViewController: UIViewController {
         // se pararía a medio camino.
         if windowDrag != nil, handleWindowDrag(kind, at: position) { return }
 
-        if case .moved = kind, services.desktop.isFullScreen {
+        if case .moved = kind, dockAutoHidden {
             updateFullScreenReveal(at: position)
         }
-        if !services.desktop.isFullScreen || dockRevealed, handleDock(kind, at: position) { return }
+        if !dockAutoHidden || dockRevealed, handleDock(kind, at: position) { return }
         if !services.desktop.isFullScreen || topBarRevealed, handleTopBar(kind, at: position) { return }
         if handleWindowDrag(kind, at: position) { return }
         if floatingWindow(at: position) == nil,
@@ -1252,7 +1305,7 @@ final class DesktopViewController: UIViewController {
                 floatingShadows[id] = view
                 return view
             }()
-            shadow.frame = frame
+            shadow.frame = pixelAligned(frame)
             shadow.layer.shadowPath = UIBezierPath(
                 roundedRect: shadow.bounds,
                 cornerRadius: Tokens.Metric.paneCornerRadius
@@ -1267,7 +1320,7 @@ final class DesktopViewController: UIViewController {
         // por encima de todo, incluidas las barras.
         canvas.bringSubviewToFront(topBar)
         canvas.bringSubviewToFront(dock)
-        let modals: [UIView?] = [launcher, settingsWindow, historyWindow, hostEditor, quickLook, prompt, contextMenu]
+        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu]
         for modal in modals.compactMap({ $0 }) {
             canvas.bringSubviewToFront(modal)
         }
@@ -1312,6 +1365,33 @@ final class DesktopViewController: UIViewController {
     }
 
     private var windowDrag: WindowDrag?
+
+    /// Las flotantes que se redimensionan a la vez que la arrastrada: las que
+    /// tocan el borde que se mueve, con el suyo de enfrente y su marco al
+    /// empezar. Lo pidió Bruno al encajar dos ventanas (24-sep-2026).
+    private var linkedResize: [(id: PaneID, edge: Edges, frame: CGRect)] = []
+
+    /// Qué ventanas están pegadas a los bordes que se van a mover. «Pegadas»
+    /// es a la distancia del hueco del mosaico o menos, y solapando a lo largo
+    /// del borde: así casan las encajadas, que dejan ese hueco entre ellas.
+    private func neighbors(of id: PaneID, frame: CGRect, edges: Edges) -> [(id: PaneID, edge: Edges, frame: CGRect)] {
+        let touch = Tokens.Metric.tileGap + 3
+        var result: [(id: PaneID, edge: Edges, frame: CGRect)] = []
+        for (other, candidate) in services.desktop.active.floating where other != id {
+            let overlapsVertically = candidate.minY < frame.maxY - 20 && candidate.maxY > frame.minY + 20
+            let overlapsHorizontally = candidate.minX < frame.maxX - 20 && candidate.maxX > frame.minX + 20
+            if edges.contains(.right), overlapsVertically, abs(candidate.minX - frame.maxX) <= touch {
+                result.append((other, .left, candidate))
+            } else if edges.contains(.left), overlapsVertically, abs(candidate.maxX - frame.minX) <= touch {
+                result.append((other, .right, candidate))
+            } else if edges.contains(.bottom), overlapsHorizontally, abs(candidate.minY - frame.maxY) <= touch {
+                result.append((other, .top, candidate))
+            } else if edges.contains(.top), overlapsHorizontally, abs(candidate.maxY - frame.minY) <= touch {
+                result.append((other, .bottom, candidate))
+            }
+        }
+        return result
+    }
     /// El último clic en una barra, para reconocer el doble clic.
     private var lastBarClick: (id: PaneID, time: Date)?
 
@@ -1332,6 +1412,7 @@ final class DesktopViewController: UIViewController {
                 if !edges.isEmpty {
                     focusPane(id)
                     windowDrag = .resizing(id: id, edges: edges, start: position, frame: frame)
+                    linkedResize = neighbors(of: id, frame: frame, edges: edges)
                     return true
                 }
             }
@@ -1419,7 +1500,32 @@ final class DesktopViewController: UIViewController {
                     next.size.height = height
                 }
                 if edges.contains(.bottom) { next.size.height = max(minimum.height, frame.height + dy) }
-                workspace.setFloatingFrame(id, clampWindow(next))
+                next = clampWindow(next)
+                // Las que están pegadas por ese borde lo siguen, como dos
+                // ventanas encajadas lado a lado: lo que gana una lo pierde la
+                // otra. Si la de al lado ya no puede encoger más, se para todo.
+                var moved: [(PaneID, CGRect)] = []
+                for (other, edge, original) in linkedResize {
+                    var follower = original
+                    switch edge {
+                    case .left:
+                        follower.origin.x = original.minX + (next.maxX - frame.maxX)
+                        follower.size.width = original.maxX - follower.minX
+                    case .right:
+                        follower.size.width = original.width + (next.minX - frame.minX)
+                    case .top:
+                        follower.origin.y = original.minY + (next.maxY - frame.maxY)
+                        follower.size.height = original.maxY - follower.minY
+                    default:
+                        follower.size.height = original.height + (next.minY - frame.minY)
+                    }
+                    guard follower.width >= minimum.width, follower.height >= minimum.height else { return true }
+                    moved.append((other, follower))
+                }
+                workspace.setFloatingFrame(id, next)
+                for (other, follower) in moved {
+                    workspace.setFloatingFrame(other, follower)
+                }
                 layoutWithoutAnimation()
             }
             return true
@@ -1427,6 +1533,7 @@ final class DesktopViewController: UIViewController {
         case .up:
             guard let drag = windowDrag else { return false }
             windowDrag = nil
+            linkedResize = []
             if case .moving(let id, _, _) = drag, let snap = snapTarget(at: position),
                let frame = workspace.floating[id] {
                 // Se recuerda dónde estaba para devolverla al arrastrarla
@@ -1455,7 +1562,7 @@ final class DesktopViewController: UIViewController {
         if let divider = activeDivider { return Self.shape(for: divider.axis) }
         guard windowDrag == nil, fileDrag == nil else { return .arrow }
 
-        let modals: [UIView?] = [launcher, settingsWindow, historyWindow, hostEditor, quickLook, prompt, contextMenu]
+        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu]
         guard modals.allSatisfy({ $0 == nil }) else { return .arrow }
 
         if let (_, frame) = floatingWindow(at: position, margin: Self.resizeMargin) {
@@ -1612,7 +1719,9 @@ final class DesktopViewController: UIViewController {
     }
 
     private func snapFrame(_ snap: Snap) -> CGRect {
-        let area = tileArea
+        // Hasta abajo del todo: el dock se aparta (ver `dockIsCovered`).
+        var area = tileArea
+        area.size.height = logicalSize.height - Tokens.Metric.tileGap / 2 - area.minY
         let gap = Tokens.Metric.tileGap
         let half = (area.width - gap) / 2
         let halfHeight = (area.height - gap) / 2
@@ -1780,15 +1889,34 @@ final class DesktopViewController: UIViewController {
     /// arriba, como en macOS. Se esconden al alejarse.
     private var dockRevealed = false
     private var topBarRevealed = false
+    /// El dock se esconde solo: con pantalla completa o si una ventana ocupa
+    /// su sitio.
+    private var dockAutoHidden = false
+
+    /// Si alguna ventana pisa el sitio de la barra del dock.
+    private func dockIsCovered() -> Bool {
+        let width = max(dock.barWidth, 200)
+        let bar = CGRect(
+            x: (logicalSize.width - width) / 2,
+            y: logicalSize.height - Dock.height - Dock.bottomMargin,
+            width: width,
+            height: Dock.height
+        )
+        let workspace = services.desktop.active
+        return currentFrames().contains { id, frame in
+            workspace.pane(id) != nil && frame.intersects(bar)
+        }
+    }
 
     private func updateFullScreenReveal(at position: CGPoint) {
         let edge: CGFloat = 3
         let wantsDock = dockRevealed
             ? position.y > logicalSize.height - Dock.height - Dock.bottomMargin - 24
             : position.y >= logicalSize.height - edge
-        let wantsTopBar = topBarRevealed
+        // La barra de arriba sólo se esconde con pantalla completa.
+        let wantsTopBar = services.desktop.isFullScreen && (topBarRevealed
             ? position.y < Tokens.Metric.topBarHeight + 16
-            : position.y <= edge
+            : position.y <= edge)
         guard wantsDock != dockRevealed || wantsTopBar != topBarRevealed else { return }
         dockRevealed = wantsDock
         topBarRevealed = wantsTopBar
@@ -1910,7 +2038,6 @@ final class DesktopViewController: UIViewController {
         if let prompt, prompt.handleKey(event) { return }
         if let quickLook, quickLook.handleKey(event) { return }
         if let hostEditor, hostEditor.handleKey(event) { return }
-        if let settingsWindow, settingsWindow.handleKey(event) { return }
         if let historyWindow, historyWindow.handleKey(event) { return }
         if launcherHandlesKey(event) { return }
         services.desktop.active.focusedPane?.handleKey(event)

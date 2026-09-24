@@ -80,6 +80,9 @@ conviene no confundir "está escrito" con "funciona":
 - **Si el espacio lógico sale nítido** a todas las escalas: el lienzo se escala con un
   `CGAffineTransform` y, si el factor estuviera mal, se vería borroso o cortado.
 
+**Hay arreglos sin subir** (ver «Lo que Bruno vio en la 2609240858»). **Bruno pidió no subir
+todavía.**
+
 **Última build subida: 2609240858 (24-sep-2026, mañana)**: lleva todo lo de abajo, la nitidez de
 las webs a 1,5×, la ronda de optimización (Ajustes › Rendimiento), encajar ventanas y recordar
 el escritorio al arrancar. **Nada de esto probado en el iPhone.**
@@ -159,6 +162,34 @@ dibujar**, en el mismo cálculo, para que lo que se ve y lo que responde no se d
 La primera versión era una lista de filas que cambiaban de valor al pulsarlas: Bruno la llamó
 «un horror» y no dejaba cambiar casi nada. Las explicaciones de cada ajuste van en la nota de
 debajo de su grupo.
+
+### Lo que Bruno vio en la 2609240858 (24-sep-2026)
+
+Confirmado en el iPhone: volver a pulsar el dock, las barras, quitar ubicaciones, las cookies
+(parece) y el scroll. Arreglado después, **sin subir** (pidió no subir todavía):
+
+- **El fondo no aparecía al reconectar el monitor**: `WallpaperStore.apply` recordaba lo último
+  pintado sin mirar en qué capa, y el escritorio nuevo trae la suya vacía. Ahora apunta la capa,
+  y el escritorio invalida la caché al crearse.
+- **Seguía un poco borroso**: `contentsScale` era `screen.scale * max(factor, 1)`, y con un
+  monitor que iOS ve como Retina, a 1,5× se dibujaba a 2 píxeles por punto y se reducía. Ahora es
+  la densidad exacta, `screen.scale * factor`. Además las ventanas y el dock van a píxel entero
+  (`pixelAligned`) y las capas que dibujan ellas mismas usan filtro `.nearest`, para que medio
+  píxel de desplazamiento no las emborrone. **Sin probar en el iPhone**; si sigue, lo siguiente
+  es mirar en el log el `contentsScale` y el `scale` de la pantalla.
+- **El hueco del dock al encajar**: lo encajado llega hasta abajo, y el dock se esconde solo
+  cuando una ventana pisa su barra (`dockIsCovered`), como con pantalla completa: asoma al llevar
+  el cursor al borde de abajo.
+- **Redimensionar una encajada movía sólo esa**: ahora las que tocan el borde que se arrastra (a
+  la distancia del hueco o menos) lo siguen (`linkedResize`); si una ya no puede encoger, se para.
+- **Ajustes siempre encima**: ahora es una ventana más (`SettingsPane`, con `SettingsWindow` en
+  modo `embedded`), que se mueve, se encaja y queda detrás de otras. Una sola a la vez;
+  `PaneKind.of` devuelve `nil` para ella (no es app del dock), no se recuerda al arrancar y el
+  amarillo la cierra.
+- Sin tocar: **Google en oscuro con el escritorio en claro** (en el simulador, WebKit da
+  `prefers-color-scheme: light` al heredar el modo, también al cambiarlo en caliente: puede ser
+  el tema de la cuenta de Google) y **una vez, el iPhone duplicado al arrancar** hasta el primer
+  clic.
 
 ### Pantalla completa y los botones de ventana
 

@@ -169,7 +169,11 @@ final class WallpaperStore {
     /// clic, y con un fondo de imagen eso significaba **volver a decodificar un
     /// HEIC de 3840 px cada vez**. Unos cuantos clics seguidos y iOS mataba la
     /// app por consumo de memoria.
-    private var lastApplied: (wallpaper: Wallpaper, size: CGSize)?
+    /// Lo último pintado, **y en qué capa**. Sin la capa, al desenchufar y
+    /// volver a enchufar el monitor el escritorio nuevo traía su capa vacía,
+    /// el fondo y el tamaño coincidían con lo apuntado, y no se pintaba nada
+    /// (Bruno, 24-sep-2026).
+    private var lastApplied: (wallpaper: Wallpaper, size: CGSize, layer: ObjectIdentifier)?
 
     /// La imagen ya decodificada. Decodificar un HEIC grande cuesta caro.
     private var cachedImage: (name: String, image: UIImage)?
@@ -214,10 +218,11 @@ final class WallpaperStore {
     /// degradados, resplandores e imágenes sin rehacer la jerarquía de vistas.
     func apply(to layer: CALayer, size: CGSize) {
         // Si no ha cambiado ni el fondo ni el tamaño, no hay nada que rehacer.
-        if let lastApplied, lastApplied.wallpaper == current, lastApplied.size == size {
+        if let lastApplied, lastApplied.wallpaper == current, lastApplied.size == size,
+           lastApplied.layer == ObjectIdentifier(layer) {
             return
         }
-        lastApplied = (current, size)
+        lastApplied = (current, size, ObjectIdentifier(layer))
 
         let bounds = CGRect(origin: .zero, size: size)
         switch current {

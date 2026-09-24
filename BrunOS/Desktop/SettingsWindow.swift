@@ -121,22 +121,43 @@ final class SettingsWindow: UIView {
 
     private var observers: [NSObjectProtocol] = []
 
-    init(title: String, symbol: String, pages: [SettingsPage], page: Int = 0, frame: CGRect) {
+    /// Dentro de una ventana del escritorio (`SettingsPane`): la tarjeta
+    /// ocupa todo, sin velo detrás ni aspa, y lleva los tres botones de macOS
+    /// como cualquier otra. Bruno quería moverla y dejarla detrás de otras
+    /// (24-sep-2026); antes era una ventana modal, siempre encima.
+    let isEmbedded: Bool
+
+    /// Si el cursor está sobre los botones de ventana, que es cuando se ven
+    /// sus símbolos.
+    var hoveringControls = false {
+        didSet { if hoveringControls != oldValue { card.setNeedsDisplay() } }
+    }
+
+    /// Dónde van los botones de ventana, en coordenadas de la tarjeta.
+    static let controlsX: CGFloat = 16
+    static let controlsMidY: CGFloat = 26
+
+    init(title: String, symbol: String, pages: [SettingsPage], page: Int = 0, embedded: Bool = false, frame: CGRect) {
         self.windowTitle = title
         self.windowSymbol = symbol
         self.pages = pages
         self.pageIndex = min(max(page, 0), max(pages.count - 1, 0))
+        self.isEmbedded = embedded
         super.init(frame: frame)
 
-        backgroundColor = UIColor.black.withAlphaComponent(0.35)
+        backgroundColor = embedded ? .clear : UIColor.black.withAlphaComponent(0.35)
 
         card.backgroundColor = Tokens.Color.background
-        card.layer.cornerRadius = 16
-        card.layer.borderWidth = 1
-        card.layer.shadowColor = UIColor.black.cgColor
-        card.layer.shadowOpacity = 0.35
-        card.layer.shadowRadius = 30
-        card.layer.shadowOffset = CGSize(width: 0, height: 12)
+        if embedded {
+            card.layer.cornerRadius = Tokens.Metric.paneCornerRadius
+        } else {
+            card.layer.cornerRadius = 16
+            card.layer.borderWidth = 1
+            card.layer.shadowColor = UIColor.black.cgColor
+            card.layer.shadowOpacity = 0.35
+            card.layer.shadowRadius = 30
+            card.layer.shadowOffset = CGSize(width: 0, height: 12)
+        }
         card.drawContent = { [weak self] context in
             guard let self else { return }
             // `CardView` entrega el contexto en coordenadas de la ventana;
@@ -232,6 +253,12 @@ final class SettingsWindow: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        if isEmbedded {
+            card.frame = bounds
+            layoutRegions()
+            card.setNeedsDisplay()
+            return
+        }
         let width = min(max(bounds.width * 0.62, 640), 900, bounds.width - 40)
         let height = min(max(bounds.height * 0.78, 420), 660, bounds.height - 40)
         card.frame = CGRect(
@@ -282,7 +309,7 @@ final class SettingsWindow: UIView {
                 ]
             )
         }
-        renderClose(in: context, size: size)
+        if !isEmbedded { renderClose(in: context, size: size) }
 
         // Contenido, recortado y desplazable.
         let area = contentRect
@@ -313,10 +340,11 @@ final class SettingsWindow: UIView {
     private func renderSidebar(in context: CGContext?, height: CGFloat) {
         if let context {
             let sidebar = CGRect(x: 0, y: 0, width: Self.sidebarWidth, height: height)
+            let radius = isEmbedded ? Tokens.Metric.paneCornerRadius : 16
             let path = UIBezierPath(
                 roundedRect: sidebar,
                 byRoundingCorners: [.topLeft, .bottomLeft],
-                cornerRadii: CGSize(width: 16, height: 16)
+                cornerRadii: CGSize(width: radius, height: radius)
             )
             context.setFillColor(Tokens.Color.panelElevated.desktopCGColor)
             context.addPath(path.cgPath)
@@ -324,9 +352,16 @@ final class SettingsWindow: UIView {
             context.setFillColor(Tokens.Color.border.desktopCGColor)
             context.fill(CGRect(x: Self.sidebarWidth - 1, y: 0, width: 1, height: height))
 
-            drawSymbol(windowSymbol, at: CGPoint(x: 28, y: 32), size: 15, color: Tokens.Color.accent)
+            if isEmbedded {
+                WindowControls.draw(in: context, x: Self.controlsX, midY: Self.controlsMidY,
+                                    hovering: hoveringControls, scale: card.layer.contentsScale)
+            } else {
+                drawSymbol(windowSymbol, at: CGPoint(x: 28, y: 32), size: 15, color: Tokens.Color.accent)
+            }
+            let titleX = isEmbedded ? Self.controlsX + WindowControls.width + 14 : 44
+            let titleY: CGFloat = isEmbedded ? Self.controlsMidY - 10 : 22
             (windowTitle as NSString).draw(
-                at: CGPoint(x: 44, y: 22),
+                at: CGPoint(x: titleX, y: titleY),
                 withAttributes: [
                     .font: Tokens.sans(15, weight: .semibold),
                     .foregroundColor: Tokens.Color.text,
@@ -819,8 +854,8 @@ final class SettingsWindow: UIView {
     /// suyo.
     func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint) -> Bool {
         guard card.frame.contains(point) else {
-            if case .down = kind { onDismiss?() }
-            return true
+            if case .down = kind, !isEmbedded { onDismiss?() }
+            return !isEmbedded
         }
         let local = CGPoint(x: point.x - card.frame.minX, y: point.y - card.frame.minY)
         // La última zona apuntada es la que está encima: un botón dentro de
@@ -846,6 +881,13 @@ final class SettingsWindow: UIView {
             break
         }
         return true
+    }
+
+    /// La parte de arriba sin nada pulsable: por ahí se agarra la ventana.
+    func isTitleArea(_ point: CGPoint) -> Bool {
+        let local = CGPoint(x: point.x - card.frame.minX, y: point.y - card.frame.minY)
+        guard local.y >= 0, local.y < 52 else { return false }
+        return !regions.contains { $0.frame.contains(local) }
     }
 
     func handleKey(_ event: KeyEvent) -> Bool {

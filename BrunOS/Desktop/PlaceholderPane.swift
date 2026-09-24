@@ -6,16 +6,18 @@ enum PaneKind: String, CaseIterable, Sendable {
     case browser
     case files
 
-    /// De qué tipo es un panel ya creado. Lo usa el dock para dibujar el
-    /// icono de los minimizados.
+    /// De qué app es un panel ya creado. Lo usa el dock para dibujar el
+    /// icono de los minimizados. `nil` para lo que no es una app del dock,
+    /// como la ventana de Ajustes: antes caía en `.terminal` y habría
+    /// encendido su punto.
     @MainActor
-    static func of(_ pane: any Pane) -> PaneKind {
+    static func of(_ pane: any Pane) -> PaneKind? {
         switch pane {
         case is TerminalPane: .terminal
         case is BrowserPane: .browser
         case is FilesPane: .files
         case let placeholder as PlaceholderPane: placeholder.kind
-        default: .terminal
+        default: nil
         }
     }
 

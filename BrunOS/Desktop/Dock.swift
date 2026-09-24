@@ -76,7 +76,7 @@ final class Dock: UIView {
             }
         }
 
-        let frontmost = desktop.active.focusedPane.map(PaneKind.of)
+        let frontmost = desktop.active.focusedPane.flatMap(PaneKind.of)
         for (kind, item) in zip(kinds, items) {
             item.update(
                 kind: kind,
@@ -154,6 +154,9 @@ final class Dock: UIView {
     func contains(point: CGPoint) -> Bool {
         background.frame.contains(point)
     }
+
+    /// Lo que ocupa la barra del dock, que no es todo el ancho del escritorio.
+    var barWidth: CGFloat { background.frame.width }
 }
 
 /// Un icono del dock.
