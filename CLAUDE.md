@@ -116,6 +116,8 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 - **Bloqueador con las listas de uBlock** (24-sep, escrito en Linux, **sin compilar**): que
   compile, que baje y compile las listas en el iPhone, que desaparezcan los recuadros grises y
   cuánto tarda la primera vez. Ver `BrunOS/Browser/CLAUDE.md`.
+- **Avisos de cookies** con las reglas de «I Still Don't Care About Cookies» y la galleta de la
+  barra (24-sep, **sin compilar**).
 - Descargas de vídeo de la página, el gestor ⤓ y los HLS; «Descargar vídeo» en RedGifs.
 - Contraseñas: **Bruno quiere rehacer los logins** (24-sep); ver con él cómo antes de tocar.
 - Plex.

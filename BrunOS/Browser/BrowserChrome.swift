@@ -30,6 +30,8 @@ final class BrowserChrome: UIView {
         case reload
         case address
         case blocker
+        /// La galleta: los avisos de cookies en este sitio.
+        case cookies
         case reader
         case bookmark
         case media
@@ -77,6 +79,7 @@ final class BrowserChrome: UIView {
     private var canGoForward = false
     private var isLoading = false
     private var blockerOn = true
+    private var cookiesOn = true
     /// Cuánto lleva cargada la página, de 0 a 1. Safari lo pinta dentro de la
     /// propia cápsula de dirección, y se lee mejor que cualquier ruedecita.
     private var progress: Double = 1
@@ -106,6 +109,7 @@ final class BrowserChrome: UIView {
     private var reloadFrame: CGRect = .zero
     private var addressFrame: CGRect = .zero
     private var blockerFrame: CGRect = .zero
+    private var cookiesFrame: CGRect = .zero
     private var readerFrame: CGRect = .zero
     private var bookmarkFrame: CGRect = .zero
     private var mediaFrame: CGRect = .zero
@@ -140,6 +144,7 @@ final class BrowserChrome: UIView {
         isLoading: Bool,
         progress: Double,
         blockerOn: Bool,
+        cookiesOn: Bool,
         isBookmarked: Bool,
         isReading: Bool,
         isWebPage: Bool,
@@ -157,6 +162,7 @@ final class BrowserChrome: UIView {
         self.canGoForward = canGoForward
         self.isLoading = isLoading
         self.blockerOn = blockerOn
+        self.cookiesOn = cookiesOn
         self.isBookmarked = isBookmarked
         self.isReading = isReading
         self.isWebPage = isWebPage
@@ -189,7 +195,8 @@ final class BrowserChrome: UIView {
         settingsFrame = CGRect(x: bounds.width - size - 4, y: y, width: size, height: size)
         newTabFrame = CGRect(x: settingsFrame.minX - size, y: y, width: size, height: size)
         blockerFrame = CGRect(x: newTabFrame.minX - size, y: y, width: size, height: size)
-        bookmarkFrame = CGRect(x: blockerFrame.minX - size, y: y, width: size, height: size)
+        cookiesFrame = CGRect(x: blockerFrame.minX - size, y: y, width: size, height: size)
+        bookmarkFrame = CGRect(x: cookiesFrame.minX - size, y: y, width: size, height: size)
         // El de medios sólo ocupa sitio cuando hay algo que descargar: un
         // botón permanentemente apagado sería un adorno.
         mediaFrame = hasMedia
@@ -311,6 +318,7 @@ final class BrowserChrome: UIView {
         if reloadFrame.contains(point) { return .reload }
         if historyFrame.contains(point) { return .history }
         if blockerFrame.contains(point) { return .blocker }
+        if cookiesFrame.contains(point) { return .cookies }
         if addressAudioFrame != .zero, addressAudioFrame.insetBy(dx: -2, dy: -2).contains(point) {
             return .audio
         }
@@ -334,6 +342,11 @@ final class BrowserChrome: UIView {
             blockerOn ? "shield.lefthalf.filled" : "shield.slash",
             in: blockerFrame,
             color: blockerOn ? Tokens.Color.accentAlt : Tokens.Color.textSecondary
+        )
+        drawCookie(
+            in: cookiesFrame,
+            isOn: cookiesOn,
+            color: cookiesOn ? Tokens.Color.accentAlt : Tokens.Color.textSecondary
         )
         if isWebPage {
             drawSymbol(
@@ -529,6 +542,51 @@ final class BrowserChrome: UIView {
 
     /// Dibuja un símbolo del sistema centrado en un rectángulo.
     ///
+    /// Una galleta, que SF Symbols no trae: un círculo con un mordisco y tres
+    /// pepitas, tachado cuando los avisos de cookies se dejan en paz.
+    private func drawCookie(in frame: CGRect, isOn: Bool, color: UIColor) {
+        let resolved = color.resolvedColor(with: UITraitCollection(userInterfaceStyle: DesktopTheme.style))
+        let radius: CGFloat = 6
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        // El mordisco, arriba a la derecha: el borde de la galleta fuera de
+        // él, y el del mordisco dentro de la galleta.
+        let biteCenter = CGPoint(x: center.x + radius * 0.7, y: center.y - radius * 0.7)
+        let bite = UIBezierPath(arcCenter: biteCenter, radius: radius * 0.5, startAngle: 0, endAngle: 2 * .pi,
+                                clockwise: true)
+        let cookie = UIBezierPath(arcCenter: center, radius: radius, startAngle: 0, endAngle: 2 * .pi,
+                                  clockwise: true)
+        cookie.lineWidth = 1.3
+        bite.lineWidth = 1.3
+        resolved.setStroke()
+
+        UIGraphicsGetCurrentContext()?.saveGState()
+        let outsideBite = UIBezierPath(rect: frame.insetBy(dx: -4, dy: -4))
+        outsideBite.append(bite)
+        outsideBite.usesEvenOddFillRule = true
+        outsideBite.addClip()
+        cookie.stroke()
+        UIGraphicsGetCurrentContext()?.restoreGState()
+
+        UIGraphicsGetCurrentContext()?.saveGState()
+        cookie.addClip()
+        bite.stroke()
+        UIGraphicsGetCurrentContext()?.restoreGState()
+
+        resolved.setFill()
+        for offset in [CGPoint(x: -2.5, y: -1), CGPoint(x: 1.5, y: 2.5), CGPoint(x: -1, y: 3)] {
+            UIBezierPath(ovalIn: CGRect(x: center.x + offset.x - 0.9, y: center.y + offset.y - 0.9,
+                                        width: 1.8, height: 1.8)).fill()
+        }
+
+        if !isOn {
+            let slash = UIBezierPath()
+            slash.move(to: CGPoint(x: center.x - radius - 1, y: center.y - radius - 1))
+            slash.addLine(to: CGPoint(x: center.x + radius + 1, y: center.y + radius + 1))
+            slash.lineWidth = 1.3
+            slash.stroke()
+        }
+    }
+
     /// El color se resuelve en oscuro a mano: esto se pinta en la pantalla
     /// externa, que va siempre oscura, y un color dinámico saldría con el modo
     /// que tuviera el iPhone en ese momento.

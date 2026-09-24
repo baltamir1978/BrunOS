@@ -421,6 +421,28 @@ enum SettingsPages {
                 ]
             ))
 
+            let notices = services.cookieNotices
+            var cookieRows = [
+                SettingsRow("Quitar los avisos de cookies",
+                            .toggle(notices.isEnabled) { notices.isEnabled = $0 }),
+                SettingsRow(notices.statusLine, symbol: "arrow.triangle.2.circlepath", .buttons([
+                    SettingsButton("Actualizar ahora") { notices.updateNow() },
+                ])),
+            ]
+            cookieRows += notices.exceptions.sorted().map { host in
+                SettingsRow(host, symbol: "hand.raised", .buttons([
+                    SettingsButton("Quitar") { notices.toggleException(for: host) },
+                ]))
+            }
+            groups.append(SettingsGroup(
+                "Avisos de cookies",
+                footer: "Con las reglas de «I Still Don't Care About Cookies», que se bajan de su "
+                    + "repositorio: esconde el aviso y, donde hace falta, pulsa el botón por ti. "
+                    + "La galleta de la barra del navegador lo apaga en un sitio; los que salen "
+                    + "aquí son los sitios donde está apagado.",
+                rows: cookieRows
+            ))
+
             groups.append(SettingsGroup(
                 "Listas",
                 footer: "Las de uBlock Origin, con las mismas direcciones. Se bajan en el iPhone, se "

@@ -281,6 +281,7 @@ final class BrowserPane: UIView, Pane {
             isLoading: activeTab?.isLoading ?? false,
             progress: activeTab?.loadProgress ?? 1,
             blockerOn: AppServices.shared.blocker.isEnabled(for: url?.host()),
+            cookiesOn: AppServices.shared.cookieNotices.isEnabled(for: url?.host()),
             isBookmarked: url.map { AppServices.shared.history.isBookmarked($0) } ?? false,
             isReading: activeTab?.isReading ?? false,
             isWebPage: url?.scheme == "http" || url?.scheme == "https",
@@ -888,6 +889,17 @@ final class BrowserPane: UIView, Pane {
         AppServices.shared.blocker.toggleException(for: host)
     }
 
+    /// Los avisos de cookies en el sitio que se está viendo. Al volver a
+    /// dejarlos, se recarga: lo ya inyectado no se puede sacar de la página.
+    func toggleCookieNoticesForCurrentSite() {
+        guard let host = activeTab?.webView.url?.host() else { return }
+        let notices = AppServices.shared.cookieNotices
+        notices.toggleException(for: host)
+        let state = notices.isEnabled(for: host) ? "Se quitan los avisos de cookies" : "Avisos de cookies sin tocar"
+        toast("\(state) en \(host)")
+        reload()
+    }
+
     func isDragArea(_ point: CGPoint) -> Bool {
         guard chrome.frame.contains(point) else { return false }
         return chrome.hit(at: CGPoint(x: point.x, y: point.y - chrome.frame.minY)) == .none
@@ -1125,6 +1137,13 @@ final class BrowserPane: UIView, Pane {
             ) { [weak self] in
                 self?.toggleBlockerForCurrentSite()
             })
+            let cookies = AppServices.shared.cookieNotices.isEnabled(for: host)
+            entries.append(ContextMenu.Entry(
+                title: cookies ? "Dejar los avisos de cookies en \(host)" : "Quitar los avisos de cookies en \(host)",
+                symbol: cookies ? "hand.raised.slash" : "hand.raised"
+            ) { [weak self] in
+                self?.toggleCookieNoticesForCurrentSite()
+            })
         }
         return entries
     }
@@ -1304,6 +1323,8 @@ final class BrowserPane: UIView, Pane {
             focusAddressBar()
         case .blocker:
             toggleBlockerForCurrentSite()
+        case .cookies:
+            toggleCookieNoticesForCurrentSite()
         case .bookmark:
             toggleBookmark()
         case .reader:

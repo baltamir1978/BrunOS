@@ -212,6 +212,26 @@ iba un anuncio. **Escrito desde Linux, sin compilar ni probar en el iPhone.**
 listas de WebKit; puede tardar), y si WebKit acepta todos los `resource-type` y `load-type` que
 salen. Si una lista no compila, el error sale en Ajustes con el `userInfo` en el log.
 
+### Avisos de cookies: «I Still Don't Care About Cookies» (24-sep-2026)
+
+Lo pidió Bruno, con un icono para apagarlo por sitio en la barra del navegador. **Sin compilar
+ni probar en el iPhone.**
+
+- **`CookieNoticeBlocker`** hace lo que `activateDomain`/`doTheMagic` de la extensión: en cada
+  marco, `common.css`, `embedsHandler.js` y, si el sitio (o un padre, quitando `www.`) tiene regla
+  en `rules.js`, su CSS, su CSS común y su script; si no, `0_defaultClickHandler.js`.
+- **La extensión es GPL-3 y BrunOS MIT: no se copia nada.** Sus ficheros se bajan de su
+  repositorio (`OhMyGuus/I-Still-Dont-Care-About-Cookies`, rama `master`) a Application
+  Support/CookieNotices, cada 4 días; todos o ninguno. `rules.js` es un módulo de JS: se le quita
+  el `export` y se evalúa con JavaScriptCore para sacar JSON.
+- Cada marco pide lo suyo al cargar (`brunosCookies`, un script de una línea al empezar el
+  documento) y Swift le contesta con `evaluateJavaScript` en ese marco. Todo en **su propio mundo
+  de contenido** (`brunos-cookies`), sin los canales del inyector: es código de fuera.
+- **La galleta** (`BrowserChrome.drawCookie`, SF Symbols no trae) va junto al escudo: apaga el
+  sitio y recarga, porque lo ya inyectado no se puede sacar. También en el clic derecho.
+- Fuera: su bloqueo de red (`rules.json`), que cubren las listas de avisos de cookies del
+  bloqueador. Los scripts se probaron envueltos en Chromium, sin errores.
+
 ### El contador de bloqueados: quitado
 
 `WKContentRuleList` **no informa de cuántas peticiones detiene** — el filtrado ocurre dentro de

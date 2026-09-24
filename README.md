@@ -131,7 +131,8 @@ Software de terceros:
 
 Las listas de bloqueo (las de uBlock Origin, EasyList, EasyPrivacy, AdGuard…) tienen licencia
 propia y **no se redistribuyen**: la app las baja de sus direcciones de siempre y las convierte en el
-propio iPhone.
+propio iPhone. Igual con las reglas de **I Still Don't Care About Cookies** (GPL-3), que quitan
+los avisos de cookies.
 
 Lo mismo con los **fondos de macOS**: son de Apple, y `Tools/fetch-wallpapers.sh` los copia desde
 tu propio Mac sin que salgan de él. Los degradados que trae BrunOS de serie se dibujan por código

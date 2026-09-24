@@ -860,6 +860,31 @@ final class BrowserTab: NSObject {
             ))
             controller.add(CollapseRelay(tab: self), contentWorld: world, name: "brunosCollapse")
         }
+
+        // Los avisos de cookies: cada marco dice dónde está y Swift le mete
+        // las reglas de su sitio. En su propio mundo, sin los canales de
+        // BrunOS: ver `CookieNoticeBlocker`.
+        controller.addUserScript(WKUserScript(
+            source: """
+                if (/^https?:$/.test(location.protocol) && window.webkit && window.webkit.messageHandlers.brunosCookies) {
+                    window.webkit.messageHandlers.brunosCookies.postMessage(location.hostname);
+                }
+                """,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false,
+            in: CookieNoticeBlocker.world
+        ))
+        controller.add(CookieRelay(tab: self), contentWorld: CookieNoticeBlocker.world, name: "brunosCookies")
+    }
+
+    /// Un marco pide las reglas de cookies de su sitio. Se mira si están
+    /// apagadas para la página de arriba, que es la que sale en la barra.
+    fileprivate func answerCookies(host: String, in frame: WKFrameInfo) {
+        let notices = AppServices.shared.cookieNotices
+        guard notices.isEnabled(for: webView.url?.host() ?? host),
+              let script = notices.injection(forHost: host)
+        else { return }
+        webView.evaluateJavaScript(script, in: frame, in: CookieNoticeBlocker.world) { _ in }
     }
 
     /// `BlockerCollapse.js` pregunta si el bloqueador está encendido en esta
@@ -1350,6 +1375,22 @@ private final class CollapseRelay: NSObject, WKScriptMessageHandler {
         guard let body = message.body as? [String: Any] else { return }
         let hosts = (body["hosts"] as? [Any])?.compactMap { $0 as? String } ?? []
         tab?.answerCollapse(hosts: hosts, in: message.frameInfo)
+    }
+}
+
+/// Recibe las peticiones de `answerCookies`, con referencia débil por lo
+/// mismo que `FrameRegistrar`.
+@MainActor
+private final class CookieRelay: NSObject, WKScriptMessageHandler {
+    weak var tab: BrowserTab?
+
+    init(tab: BrowserTab) {
+        self.tab = tab
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let host = message.body as? String, !host.isEmpty else { return }
+        tab?.answerCookies(host: host, in: message.frameInfo)
     }
 }
 

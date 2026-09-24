@@ -5,6 +5,7 @@ import SwiftUI
 struct BlockerSettingsView: View {
 
     private let blocker = AppServices.shared.blocker
+    private let notices = AppServices.shared.cookieNotices
 
     @State private var newDomain = ""
     @State private var newSite = ""
@@ -30,6 +31,33 @@ struct BlockerSettingsView: View {
                 Text("Las listas de uBlock Origin, con las mismas direcciones. Se bajan en el iPhone "
                      + "y se renuevan cada 4 días. De cada una entra lo que WebKit sabe hacer: "
                      + "bloquear peticiones y ocultar elementos.")
+            }
+
+            Section {
+                Toggle("Quitar los avisos de cookies", isOn: Binding(
+                    get: { notices.isEnabled },
+                    set: { notices.isEnabled = $0 }
+                ))
+                HStack {
+                    Text(notices.statusLine)
+                        .font(.brunosSans(13))
+                        .foregroundStyle(Color.brunosTextSecondary)
+                    Spacer()
+                    Button("Actualizar") { notices.updateNow() }
+                        .disabled(notices.isUpdating)
+                }
+                ForEach(notices.exceptions.sorted(), id: \.self) { host in
+                    Text(host).font(.brunosMono(14))
+                }
+                .onDelete { offsets in
+                    let sorted = notices.exceptions.sorted()
+                    offsets.map { sorted[$0] }.forEach(notices.toggleException(for:))
+                }
+            } header: {
+                Text("Avisos de cookies")
+            } footer: {
+                Text("Con las reglas de «I Still Don't Care About Cookies». La galleta de la barra "
+                     + "del navegador lo apaga en un sitio; esos sitios salen aquí.")
             }
 
             ForEach(FilterList.Group.allCases.filter { $0 != .custom }, id: \.self) { group in
