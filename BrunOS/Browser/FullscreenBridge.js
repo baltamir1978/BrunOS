@@ -45,6 +45,22 @@
                 background: #000 !important;
             }
             video[${ATTRIBUTE}], [${ATTRIBUTE}] video { object-fit: contain; }
+            /* Lo que hay entre el reproductor estirado y su vídeo, y el vídeo,
+               a todo el hueco: YouTube les pone el tamaño a mano y no lo
+               recalcula del todo al estirar el reproductor. */
+            [${ATTRIBUTE}] :has(video) {
+                position: absolute !important; inset: 0 !important;
+                width: auto !important; height: auto !important;
+                max-width: none !important; max-height: none !important;
+                margin: 0 !important; padding: 0 !important;
+                transform: none !important;
+            }
+            [${ATTRIBUTE}] video {
+                position: absolute !important; inset: 0 !important;
+                width: 100% !important; height: 100% !important;
+                max-width: none !important; max-height: none !important;
+                object-fit: contain !important;
+            }
             /* Un antepasado con transform o filter haría que el fixed fuera
                relativo a él, y no a la ventana. */
             [${ANCESTOR}] {
@@ -86,8 +102,50 @@
         document.documentElement.classList.toggle('brunos-fullscreen', on);
     }
 
-    function enter(element) {
-        if (!(element instanceof Element)) return Promise.reject(new TypeError('No es un elemento'));
+    /// El vídeo más grande que se ve dentro de un elemento.
+    function mainVideo(root) {
+        let best = null;
+        let bestArea = 0;
+        for (const video of root.querySelectorAll('video')) {
+            const rect = video.getBoundingClientRect();
+            const area = rect.width * rect.height;
+            if (area > bestArea) { best = video; bestArea = area; }
+        }
+        return best;
+    }
+
+    /// Lo que de verdad hay que estirar.
+    ///
+    /// **YouTube pide la pantalla completa para la página entera** (`<html>`)
+    /// y luego no recoloca el vídeo: con esta imitación, se estiraba la web y
+    /// el vídeo se quedaba donde estaba (Bruno, 24-sep-2026; comprobado con
+    /// YouTube en un WKWebView de macOS). Si lo pedido es la página, o algo
+    /// mucho más grande que el vídeo que lleva dentro, se estira el
+    /// reproductor: el antepasado más alto del vídeo que tiene su mismo
+    /// tamaño, que es el que lleva los controles encima.
+    function fullscreenTarget(element) {
+        if (element.tagName === 'VIDEO' || element.tagName === 'IFRAME') return element;
+        const video = mainVideo(element);
+        if (!video) return element;
+        const videoRect = video.getBoundingClientRect();
+        const videoArea = videoRect.width * videoRect.height;
+        if (videoArea === 0) return element;
+        const rect = element.getBoundingClientRect();
+        const isPage = element === document.documentElement || element === document.body;
+        if (!isPage && rect.width * rect.height < videoArea * 1.6) return element;
+
+        let player = video;
+        for (let node = video.parentElement; node && node !== element; node = node.parentElement) {
+            const r = node.getBoundingClientRect();
+            if (r.width * r.height > videoArea * 1.3) break;
+            player = node;
+        }
+        return player;
+    }
+
+    function enter(requested) {
+        if (!(requested instanceof Element)) return Promise.reject(new TypeError('No es un elemento'));
+        const element = fullscreenTarget(requested);
         if (current === element) return Promise.resolve();
         injectStyle();
         if (current) mark(current, false);
@@ -95,6 +153,9 @@
         mark(element, true);
         notify(true);
         fire(element);
+        // Que la página vuelva a medir su reproductor: YouTube coloca el
+        // vídeo por JavaScript según el tamaño del contenedor.
+        window.dispatchEvent(new Event('resize'));
         return Promise.resolve();
     }
 
@@ -111,6 +172,7 @@
         }
         if (!fromParent) notify(false);
         fire(element);
+        window.dispatchEvent(new Event('resize'));
         return Promise.resolve();
     }
 

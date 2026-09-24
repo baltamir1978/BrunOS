@@ -32,6 +32,11 @@ final class QuickLookView: UIView {
     private var player: AVPlayer?
     private var animationTask: Task<Void, Never>?
     private var pdfView: PDFPagesView?
+    /// Lo que se amplía con el control de zoom si no es un PDF.
+    private var imageView: UIImageView?
+    private var playerLayer: AVPlayerLayer?
+    private let zoomControl = ZoomControl()
+    private var zoomState = ZoomState()
 
     init(item: FileItem, provider: any FileProvider, frame: CGRect) {
         self.item = item
@@ -66,6 +71,10 @@ final class QuickLookView: UIView {
         content.layer.cornerRadius = 8
         content.clipsToBounds = true
         card.addSubview(content)
+
+        // Sólo sale en lo que se puede ampliar: PDF, imagen y vídeo.
+        zoomControl.isHidden = !(item.kind == .pdf || item.kind == .image || item.kind == .media)
+        card.addSubview(zoomControl)
 
         statusLabel.font = Tokens.sans(13)
         statusLabel.textColor = Tokens.Color.textSecondary
@@ -160,6 +169,7 @@ final class QuickLookView: UIView {
         imageView.frame = content.bounds
         imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         content.addSubview(imageView)
+        self.imageView = imageView
         statusLabel.isHidden = true
 
         // Los GIF animados hay que animarlos a mano: `UIImage` sólo se queda
@@ -213,6 +223,7 @@ final class QuickLookView: UIView {
         layer.frame = content.bounds
         layer.videoGravity = .resizeAspect
         content.layer.addSublayer(layer)
+        playerLayer = layer
         statusLabel.isHidden = true
 
         player.play()
@@ -242,9 +253,29 @@ final class QuickLookView: UIView {
     /// Cmd + / − / 0 en un PDF. Llega desde `performOverModal`: los atajos
     /// con Cmd se atienden antes de que la tecla llegue a la vista. `nil`
     /// vuelve a ajustar al ancho.
+    ///
+    /// Vale también para imágenes y vídeos, y lo usa el control de zoom de la
+    /// cabecera: va a pasos (100, 125, 150, 200 %…).
     func zoom(by factor: CGFloat?) {
-        guard let pdfView else { return }
-        pdfView.setZoom(factor.map { pdfView.zoom * $0 } ?? 1)
+        switch factor {
+        case nil: zoomState.reset()
+        case let factor? where factor > 1: zoomState.step(1)
+        default: zoomState.step(-1)
+        }
+        applyZoom()
+    }
+
+    private func applyZoom() {
+        zoomControl.zoom = zoomState.zoom
+        if let pdfView {
+            pdfView.setZoom(zoomState.zoom)
+            return
+        }
+        imageView?.transform = zoomState.transform
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        playerLayer?.setAffineTransform(zoomState.transform)
+        CATransaction.commit()
     }
 
     private func presentText(_ url: URL) {
@@ -285,33 +316,57 @@ final class QuickLookView: UIView {
             height: height
         )
 
-        titleLabel.frame = CGRect(x: 18, y: 14, width: width - 36, height: 20)
-        detailLabel.frame = CGRect(x: 18, y: 36, width: width - 36, height: 14)
+        let zoomSize = ZoomControl.size
+        zoomControl.frame = CGRect(x: width - 18 - zoomSize.width, y: 16, width: zoomSize.width, height: zoomSize.height)
+        let textWidth = width - 36 - (zoomControl.isHidden ? 0 : zoomSize.width + 12)
+        titleLabel.frame = CGRect(x: 18, y: 14, width: textWidth, height: 20)
+        detailLabel.frame = CGRect(x: 18, y: 36, width: textWidth, height: 14)
         content.frame = CGRect(x: 14, y: 58, width: width - 28, height: height - 72)
         statusLabel.frame = content.bounds
-        player?.currentItem.map { _ in
-            content.layer.sublayers?.first?.frame = content.bounds
+        if let playerLayer {
+            // El marco sin el zoom, que va aparte en la transformación.
+            let transform = playerLayer.affineTransform()
+            playerLayer.setAffineTransform(.identity)
+            playerLayer.frame = content.bounds
+            playerLayer.setAffineTransform(transform)
         }
     }
 
     // MARK: - Entrada
 
-    /// Cualquier clic la cierra, como el QuickLook de macOS.
     /// Un clic fuera cierra; dentro, no (antes cerraba cualquier clic y no
     /// había forma de moverse por un PDF). En un vídeo, pausa y sigue. La
     /// rueda desplaza el PDF.
     func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint) -> Bool {
+        let inZoom = CGPoint(x: point.x - card.frame.minX - zoomControl.frame.minX,
+                             y: point.y - card.frame.minY - zoomControl.frame.minY)
         switch kind {
+        case .moved:
+            if !zoomControl.isHidden { zoomControl.hover(at: inZoom) }
         case .down:
             guard card.frame.contains(point) else {
                 dismiss()
+                return true
+            }
+            if !zoomControl.isHidden, let action = zoomControl.hit(at: inZoom) {
+                switch action {
+                case .zoomOut: zoom(by: 1 / 1.2)
+                case .zoomIn: zoom(by: 1.2)
+                case .reset: zoom(by: nil)
+                }
                 return true
             }
             if let player {
                 player.timeControlStatus == .playing ? player.pause() : player.play()
             }
         case .scroll(let delta):
-            pdfView?.scroll(by: delta.dy)
+            if let pdfView {
+                pdfView.scroll(by: delta.dy, horizontally: delta.dx)
+            } else {
+                // Ampliado, la rueda mueve lo que se ve.
+                zoomState.scroll(by: delta, in: content.bounds.size)
+                applyZoom()
+            }
         default:
             break
         }

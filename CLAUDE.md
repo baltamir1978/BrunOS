@@ -441,7 +441,11 @@ barras y de las ventanas modales**, que se vuelven a traer delante en cada maque
 
 - **Hacer sitio al encajar** (24-sep-2026): con dos mitades, soltar una tercera en una esquina
   deja la de esa mitad en el cuarto que queda (`makeRoom`); una a pantalla entera pasa a la otra
-  mitad. Sólo se tocan las que están exactamente encajadas.
+  mitad. **A Bruno no le funcionó** en la 2609241727: exigía el marco exacto de la mitad (y una
+  redimensionada o de una sesión con el hueco de 8 pt ya no lo era), y con el ratón que no llegaba
+  al 6 % de arriba, la esquina de arriba (80 pt) era inalcanzable. Ahora reconoce las mitades con
+  tolerancia (pegada al lado, casi todo el alto, menos de tres cuartos del ancho) y las esquinas
+  son de 120 pt.
 - **El hueco entre ventanas es de 4 puntos** (antes 8; a Bruno le sobraba). Los divisores del
   mosaico se agarran con 3 puntos de margen a cada lado, y sólo si hay ventana al otro lado.
 

@@ -211,3 +211,12 @@ rueda mueve su `UIScrollView` interno, las flechas y Av Pág cambian de página,
 principio y al final, y Cmd + / − / 0 hacen zoom (**llegan por `performOverModal`**: los atajos
 con Cmd no le llegan a la vista). La cabecera dice «Página 3 de 12». Un clic dentro ya no cierra;
 en un vídeo, pausa y sigue. **Sin probar en el iPhone.**
+
+### Control de zoom en los visores (24-sep-2026, noche)
+
+`ZoomControl` («−  100 %  +», el porcentaje vuelve a ajustar) y `ZoomState` (pasos de 100 a 600 %,
+y moverse con la rueda por lo ampliado sin pasarse del borde), en `Desktop/ZoomControl.swift`.
+Los usan la vista previa de Ficheros (PDF, imagen y vídeo; el PDF con su propio zoom, que además
+se mueve a los lados) y el visor de Fotos. Cmd + / − / 0 hacen lo mismo: en la vista previa por
+`performOverModal`, en Fotos por `PhotosPane.zoomViewer`. Lo pidió Bruno. **Sin probar en el
+iPhone.**

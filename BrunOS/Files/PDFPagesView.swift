@@ -15,6 +15,8 @@ final class PDFPagesView: UIView {
     private let document: PDFDocument
     /// Cuánto se ha bajado, en puntos.
     private var offset: CGFloat = 0
+    /// Cuánto se ha movido a los lados, con zoom de más del ancho.
+    private var offsetX: CGFloat = 0
     /// 1 es el ancho de la vista; Cmd + / − lo cambian.
     private(set) var zoom: CGFloat = 1
     /// Páginas ya dibujadas, para el ancho con que se dibujaron.
@@ -89,9 +91,15 @@ final class PDFPagesView: UIView {
 
     // MARK: - Moverse
 
-    func scroll(by delta: CGFloat) {
+    func scroll(by delta: CGFloat, horizontally deltaX: CGFloat = 0) {
         offset = min(max(offset - delta, 0), maxOffset)
+        offsetX = min(max(offsetX - deltaX, -maxOffsetX), maxOffsetX)
         changed()
+    }
+
+    /// Con zoom, lo que la página se sale por cada lado.
+    private var maxOffsetX: CGFloat {
+        max(0, (pageWidth + 2 * Self.margin - bounds.width) / 2)
     }
 
     func go(toPage index: Int) {
@@ -108,6 +116,7 @@ final class PDFPagesView: UIView {
 
     private func changed() {
         offset = min(offset, maxOffset)
+        offsetX = min(max(offsetX, -maxOffsetX), maxOffsetX)
         setNeedsDisplay()
         let page = currentPage
         if page != lastReportedPage {
@@ -144,7 +153,7 @@ final class PDFPagesView: UIView {
             guard y + pageSize.height > 0 else { continue }
             if y > bounds.height { break }
 
-            let frame = CGRect(x: (bounds.width - pageSize.width) / 2, y: y,
+            let frame = CGRect(x: (bounds.width - pageSize.width) / 2 - offsetX, y: y,
                                width: pageSize.width, height: pageSize.height)
             context.setShadow(offset: CGSize(width: 0, height: 2), blur: 6,
                               color: UIColor.black.withAlphaComponent(0.25).cgColor)

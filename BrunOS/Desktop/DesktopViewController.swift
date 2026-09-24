@@ -580,6 +580,8 @@ final class DesktopViewController: UIViewController {
                 case .zoomOut: browser.changeZoom(by: -0.1)
                 default: browser.resetZoom()
                 }
+            case let photos as PhotosPane:
+                guard photos.zoomViewer(command == .zoomIn ? 1 : command == .zoomOut ? -1 : nil) else { return false }
             default: return false
             }
 
@@ -1873,11 +1875,13 @@ final class DesktopViewController: UIViewController {
 
     /// El cursor no sale del escritorio, así que «en el borde» es tocarlo.
     ///
-    /// Las esquinas son generosas (80 puntos a lo largo del borde): acertar
-    /// el píxel exacto de una esquina con un ratón es imposible.
+    /// Las esquinas son generosas (120 puntos a lo largo del borde): acertar
+    /// el píxel exacto de una esquina con un ratón es imposible. Eran 80, y
+    /// con el ratón que no llegaba al 6 % de arriba del monitor (unos 86
+    /// puntos), las esquinas de arriba eran inalcanzables.
     private func snapTarget(at position: CGPoint) -> Snap? {
         let edge: CGFloat = 3
-        let corner: CGFloat = 80
+        let corner: CGFloat = 120
         let atLeft = position.x <= edge
         let atRight = position.x >= logicalSize.width - 1 - edge
         let atTop = position.y <= edge
@@ -1926,13 +1930,23 @@ final class DesktopViewController: UIViewController {
     /// las que están exactamente encajadas; las colocadas a mano se respetan.
     private func makeRoom(for snap: Snap, placed id: PaneID) {
         let workspace = services.desktop.active
-        let all: [Snap] = [.left, .right, .full, .topLeft, .topRight, .bottomLeft, .bottomRight]
+        let area = snapFrame(.full)
+        /// Dónde está encajada una ventana, **con tolerancia**: la primera
+        /// versión exigía el marco exacto, y en cuanto se redimensionaba una
+        /// mitad junto a la otra, o venía de una sesión con el hueco de antes,
+        /// ya no la reconocía y no hacía sitio (Bruno, 24-sep-2026). Cuenta
+        /// como mitad la que está pegada a ese lado, ocupa casi todo el alto y
+        /// no llega a tres cuartos del ancho; como entera, la que ocupa casi
+        /// todo.
         func snapped(_ frame: CGRect) -> Snap? {
-            all.first { candidate in
-                let target = snapFrame(candidate)
-                return abs(target.minX - frame.minX) < 2 && abs(target.minY - frame.minY) < 2
-                    && abs(target.width - frame.width) < 2 && abs(target.height - frame.height) < 2
-            }
+            let edge: CGFloat = 24
+            let tall = frame.height >= area.height * 0.85
+            let wide = frame.width >= area.width * 0.85
+            if tall, wide { return .full }
+            guard tall, frame.width <= area.width * 0.75 else { return nil }
+            if abs(frame.minX - area.minX) <= edge { return .left }
+            if abs(frame.maxX - area.maxX) <= edge { return .right }
+            return nil
         }
         for (other, frame) in workspace.floating where other != id {
             guard let current = snapped(frame) else { continue }

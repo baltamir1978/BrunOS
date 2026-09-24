@@ -408,3 +408,17 @@ y un iframe de otro origen, entrar, salir y salir desde fuera).
 usa ésa como `Referer`: con la de Reddit, el CDN de RedGifs lo niega. **Comprobado en macOS** con
 un iframe en otro puerto: el punto llega bien descontado el margen y el borde, y el `Referer` es el
 del iframe. **Sin probar contra Reddit.**
+
+### YouTube a pantalla completa ponía la web entera (24-sep-2026, noche)
+
+**YouTube pide la pantalla completa para la página entera** (`<html>`) y luego no recoloca el
+vídeo: con la imitación de `FullscreenBridge.js`, se estiraba la web y el vídeo se quedaba donde
+estaba. Comprobado con YouTube de verdad en un `WKWebView` de macOS con el propio script (vídeo
+959×720 en una ventana de 1400×900 tras pulsar el botón). Ahora `fullscreenTarget`: si lo
+pedido es la página, o algo mucho más grande que su vídeo, se estira el **reproductor** (el
+antepasado más alto del vídeo más grande que tiene su mismo tamaño); dentro, cada contenedor del
+vídeo va en `position: absolute; inset: 0` y el vídeo con `object-fit: contain`, y se lanza
+`resize` para que la página vuelva a medir. Resultado en la misma prueba: vídeo 1400×900, los
+controles de YouTube abajo a todo lo ancho, y al salir todo vuelve a su sitio (captura vista).
+**Trampa**: `height: 100%` en los contenedores no vale; YouTube tiene uno con relleno por
+proporción y el vídeo salía de 1950 de alto.

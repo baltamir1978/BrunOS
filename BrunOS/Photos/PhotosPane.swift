@@ -459,6 +459,13 @@ final class PhotosPane: UIView, Pane {
         if isSlideshow { scheduleSlide() }
     }
 
+    /// Cmd + / − / 0 con una foto abierta. `false` si no hay ninguna.
+    func zoomViewer(_ step: Int?) -> Bool {
+        guard viewerIndex != nil else { return false }
+        viewer.zoom(step: step)
+        return true
+    }
+
     private func closeViewer() {
         guard viewerIndex != nil else { return }
         stopSlideshow()
@@ -776,7 +783,7 @@ final class PhotosPane: UIView, Pane {
             break
 
         case .scroll(let delta):
-            if viewerIndex == nil { scroll(by: delta.dy) }
+            if viewerIndex == nil { scroll(by: delta.dy) } else { viewer.scroll(by: delta) }
         }
     }
 
@@ -883,6 +890,7 @@ final class PhotoViewer: UIView {
         arrows.isUserInteractionEnabled = false
         arrows.backgroundColor = .clear
         addSubview(arrows)
+        addSubview(zoomControl)
     }
 
     @available(*, unavailable)
@@ -892,8 +900,39 @@ final class PhotoViewer: UIView {
 
     private let arrows = ViewerArrows()
 
+    // MARK: - Zoom
+
+    /// «−  100 %  +» arriba a la derecha (Bruno, 24-sep-2026), y Cmd + / −.
+    private let zoomControl = ZoomControl()
+    private var zoomState = ZoomState()
+
+    /// Cmd + / − / 0 desde el panel: un paso más, uno menos, o ajustar.
+    func zoom(step: Int?) {
+        if let step { zoomState.step(step) } else { zoomState.reset() }
+        applyZoom()
+    }
+
+    /// Ampliado, la rueda mueve lo que se ve.
+    func scroll(by delta: CGVector) {
+        zoomState.scroll(by: delta, in: contentRect.size)
+        applyZoom()
+    }
+
+    private var contentRect: CGRect {
+        CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height - barHeight)
+    }
+
+    private func applyZoom() {
+        zoomControl.zoom = zoomState.zoom
+        imageView.transform = zoomState.transform
+        playerView.transform = zoomState.transform
+    }
+
     func show(_ item: FileItem, from provider: any FileProvider, position: String) {
         stop()
+        // Cada foto empieza ajustada.
+        zoomState.reset()
+        applyZoom()
         self.position = position
         itemName = item.name
         imageView.image = nil
@@ -1042,6 +1081,7 @@ final class PhotoViewer: UIView {
     }
 
     func hover(at point: CGPoint) {
+        zoomControl.hover(at: convert(point, to: zoomControl))
         let side: Action = previousFrame.contains(point) ? .previous : nextFrame.contains(point) ? .next : .none
         guard side != hoverSide else { return }
         hoverSide = side
@@ -1051,6 +1091,14 @@ final class PhotoViewer: UIView {
     /// Qué hace un clic: los lados pasan de foto; la barra del vídeo, lo suyo;
     /// sobre el vídeo, pausa y sigue.
     func action(at point: CGPoint) -> Action {
+        if let zoom = zoomControl.hit(at: convert(point, to: zoomControl)) {
+            switch zoom {
+            case .zoomOut: self.zoom(step: -1)
+            case .zoomIn: self.zoom(step: 1)
+            case .reset: self.zoom(step: nil)
+            }
+            return .handled
+        }
         if player != nil, bar.frame.contains(point) {
             switch bar.hit(at: convert(point, to: bar)) {
             case .playPause: togglePlayback()
@@ -1074,10 +1122,17 @@ final class PhotoViewer: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let content = CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height - barHeight)
+        let content = contentRect
+        // El marco sin el zoom, que va aparte en la transformación.
+        imageView.transform = .identity
+        playerView.transform = .identity
         imageView.frame = content
         playerView.frame = content
         playerLayer.frame = playerView.bounds
+        applyZoom()
+        let zoomSize = ZoomControl.size
+        zoomControl.frame = CGRect(x: bounds.width - zoomSize.width - 12, y: 12,
+                                   width: zoomSize.width, height: zoomSize.height)
         statusLabel.frame = content.insetBy(dx: 30, dy: 0)
         bar.frame = CGRect(x: 0, y: bounds.height - PlayerBar.height, width: bounds.width, height: PlayerBar.height)
         arrows.frame = content
