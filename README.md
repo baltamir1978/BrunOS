@@ -40,7 +40,8 @@ SMB propio, el historial— está escrito y compilado, pero sin rodaje.
 El dock funciona como el de macOS: un icono por app, que la trae al escritorio junto a las demás;
 si ya está delante, volver a pulsarlo abre otra ventana, y con el botón derecho se abre otra o se
 va a una concreta. Cmd+1, 2 y 3 abren el navegador, el
-terminal y Ficheros.
+terminal y Ficheros. Las ventanas se encajan en mitades o cuartos llevándolas a un borde, y al
+arrancar vuelven las de la última vez, con sus pestañas y sesiones (se puede apagar en Ajustes).
 
 Cada panel lleva los tres botones de macOS: **rojo** cierra, **amarillo** lo manda al dock y
 **verde** lo pone a pantalla completa. Los ajustes globales están en la rueda del dock, y los de

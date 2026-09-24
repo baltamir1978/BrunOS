@@ -173,6 +173,14 @@ enum DesktopPreferences {
     /// Si los paneles nuevos salen como ventanas flotantes en vez de entrar
     /// en el mosaico. **Por defecto flotan**, como en macOS: Bruno quería ver
     /// unas ventanas encima de otras (23-sep-2026).
+    /// Si al arrancar vuelven las ventanas de la última vez. Si no, el
+    /// escritorio sale vacío y se abre lo que se pulse en el dock (Bruno,
+    /// 24-sep-2026).
+    static var restoresSession: Bool {
+        get { UserDefaults.standard.object(forKey: "desktop.restoresSession") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "desktop.restoresSession") }
+    }
+
     static var newPanesFloat: Bool {
         get { UserDefaults.standard.object(forKey: "desktop.newPanesFloat") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "desktop.newPanesFloat") }

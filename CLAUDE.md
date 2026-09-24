@@ -178,8 +178,16 @@ tenía un icono aparte duplicado, y con la app cerrada no había forma de volver
 genéricos y luego Bruno pidió quitar los otros dos: con flotantes, dock y lanzador sólo servían
 para esconder ventanas. Ahora `DesktopModel.active` es el único `Workspace`; el dock tiene un
 icono por app (`PaneKind.dockOrder`) y **Cmd+1/2/3 abren navegador, terminal y Ficheros**, como
-pulsar su icono. Al arrancar sale una ventana de cada app y **los paneles nuevos flotan por
-defecto**. Abrir algo desde otro sitio (historial, «Mostrar en Ficheros», el lanzador) usa
+pulsar su icono. **Los paneles nuevos flotan por defecto.**
+
+**Al arrancar** (24-sep-2026) vuelve el escritorio de la última vez (`SessionStore`,
+`desktop-session.json`): cada ventana con su marco (en proporción si cambia la escala), las
+minimizadas, cuál tenía el foco, las pestañas del navegador (**sólo carga la que se ve**; las
+demás esperan dormidas, `prepareSuspended`), las máquinas del terminal (**vuelve a conectar**)
+y la carpeta de Ficheros. Se guarda 2 s después de cada cambio y al irse a segundo plano. Si en
+Ajustes › General › Ventanas se elige «Escritorio vacío», o no hay nada guardado, **no se abre
+nada** hasta pulsar el dock: lo pidió Bruno. Antes salía una ventana de cada app. Del mosaico se
+recuerda qué había, no el árbol exacto de divisiones. **Sin probar en el iPhone.** Abrir algo desde otro sitio (historial, «Mostrar en Ficheros», el lanzador) usa
 `frontmost(_:)`.
 
 **Varias ventanas de la misma app** (23-sep-2026): botón derecho sobre su icono del dock ›

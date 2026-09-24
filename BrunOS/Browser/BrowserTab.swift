@@ -383,6 +383,25 @@ final class BrowserTab: NSObject {
         webView.loadHTMLString("", baseURL: nil)
     }
 
+    /// La dirección que se guarda para el próximo arranque: la de la página
+    /// (la original, si se está en modo lectura), o `nil` en la de inicio.
+    var sessionURL: URL? {
+        if isSuspended { return suspendedURL }
+        let url = readerOrigin ?? webView.url
+        guard let url, url.scheme == "http" || url.scheme == "https" else { return nil }
+        return url
+    }
+
+    /// Una pestaña recuperada al arrancar que no se está viendo: **no carga
+    /// nada** hasta que se mira, como las que se duermen. Abrir ocho webs a la
+    /// vez al arrancar es justo lo que hace que iOS cierre la app.
+    func prepareSuspended(at url: URL) {
+        suspendedURL = url
+        isSuspended = true
+        title = url.host() ?? url.absoluteString
+        urlText = url.absoluteString
+    }
+
     /// Apunta que se acaba de usar: al dejar de verla, el rato sin mirarla
     /// cuenta desde aquí y no desde que se abrió.
     func markUsed() {

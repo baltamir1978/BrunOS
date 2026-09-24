@@ -1383,6 +1383,23 @@ final class FilesPane: UIView, Pane {
         findBar.insertText(text)
     }
 
+    // MARK: - Sesión
+
+    /// Qué ubicación y qué carpeta se estaban viendo.
+    var sessionLocation: (location: String, path: String) {
+        (FileService.key(of: services.files.currentProvider), path)
+    }
+
+    /// Vuelve a la ubicación y la carpeta guardadas. Si la ubicación ya no
+    /// está (se quitó), se queda en el iPhone.
+    func restore(location: String, path: String) {
+        guard let index = services.files.providers.firstIndex(where: { FileService.key(of: $0) == location })
+        else { return }
+        services.files.select(index)
+        self.path = path
+        reload()
+    }
+
     /// Enseña una carpeta del iPhone y, si se dice, deja marcado un fichero.
     /// Lo usa el aviso de descarga del navegador.
     func show(localDirectory directory: String, selecting name: String?) {

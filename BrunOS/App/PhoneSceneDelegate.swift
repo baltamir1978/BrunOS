@@ -39,5 +39,6 @@ final class PhoneSceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Si iOS cierra la app en segundo plano, que no se lleve las cookies.
         CookieVault.shared.saveNow()
         AppServices.shared.history.flush()
+        AppServices.shared.desktopViewController?.saveSessionNow()
     }
 }

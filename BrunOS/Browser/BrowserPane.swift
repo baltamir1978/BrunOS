@@ -526,8 +526,57 @@ final class BrowserPane: UIView, Pane {
         return configuration
     }
 
+    // MARK: - Sesión
+
+    /// Las direcciones de las pestañas, para el próximo arranque.
+    var sessionTabs: (urls: [String?], active: Int) {
+        (tabs.map { $0.sessionURL?.absoluteString }, activeIndex)
+    }
+
+    /// Recupera las pestañas guardadas. Sólo carga la que se ve; las demás
+    /// esperan dormidas a que se pulsen.
+    func restore(urls: [String?], active: Int) {
+        guard !urls.isEmpty else {
+            newTab()
+            return
+        }
+        let active = min(max(active, 0), urls.count - 1)
+        for (index, address) in urls.enumerated() {
+            if index != active, let address, let url = URL(string: address) {
+                let tab = makeTab()
+                tab.prepareSuspended(at: url)
+                tab.webView.isHidden = true
+            } else {
+                newTab(url: address)
+            }
+        }
+        activate(active)
+    }
+
     @discardableResult
     func newTab(url: String? = nil) -> BrowserTab {
+        let tab = makeTab()
+        activate(tabs.count - 1)
+
+        if let url {
+            // Las cookies guardadas, antes de la primera petición: si no, la
+            // primera página de cada arranque volvería a pedir el aviso.
+            Task { [weak tab] in
+                await CookieVault.shared.restore()
+                tab?.load(url)
+            }
+        } else {
+            // Página de inicio propia: una en blanco no dice ni dónde estás ni
+            // qué puedes hacer.
+            tab.loadStartPage()
+            Task { await CookieVault.shared.restore() }
+        }
+        setNeedsLayout()
+        return tab
+    }
+
+    /// Una pestaña nueva, ya en el panel, sin activar ni cargar nada.
+    private func makeTab() -> BrowserTab {
         let tab = BrowserTab(configuration: Self.makeConfiguration())
         tab.onChange = { [weak self] in
             self?.refreshChrome()
@@ -545,22 +594,6 @@ final class BrowserPane: UIView, Pane {
         }
         tabs.append(tab)
         content.addSubview(tab.webView)
-        activate(tabs.count - 1)
-
-        if let url {
-            // Las cookies guardadas, antes de la primera petición: si no, la
-            // primera página de cada arranque volvería a pedir el aviso.
-            Task { [weak tab] in
-                await CookieVault.shared.restore()
-                tab?.load(url)
-            }
-        } else {
-            // Página de inicio propia: una en blanco no dice ni dónde estás ni
-            // qué puedes hacer.
-            tab.loadStartPage()
-            Task { await CookieVault.shared.restore() }
-        }
-        setNeedsLayout()
         return tab
     }
 

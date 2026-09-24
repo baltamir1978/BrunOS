@@ -63,6 +63,10 @@ enum SettingsPages {
                         + "media pantalla, a una esquina un cuarto y arriba la pantalla entera. Al "
                         + "arrastrarla otra vez recupera su tamaño.",
                     rows: [
+                        SettingsRow("Al arrancar", subtitle: "Las ventanas de la última vez, o nada hasta pulsar el dock", .choice(
+                            ["Recordar ventanas", "Escritorio vacío"],
+                            selected: DesktopPreferences.restoresSession ? 0 : 1
+                        ) { index in DesktopPreferences.restoresSession = index == 0 }),
                         SettingsRow("Paneles nuevos", .choice(
                             ["En mosaico", "Flotantes"],
                             selected: DesktopPreferences.newPanesFloat ? 1 : 0

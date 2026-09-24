@@ -124,6 +124,32 @@ final class TerminalPane: UIView, Pane {
 
     // MARK: - Pestañas
 
+    // MARK: - Sesión
+
+    /// A qué máquinas estaba conectado, para el próximo arranque.
+    var sessionHosts: (ids: [UUID], active: Int?) {
+        (tabs.map(\.host.id), isShowingHome ? nil : activeIndex)
+    }
+
+    /// Vuelve a conectar con las máquinas guardadas. Las que ya no existen se
+    /// saltan; si no queda ninguna, la lista de conexiones.
+    func restore(hosts ids: [UUID], active: Int?) {
+        let known = AppServices.shared.hosts.hosts
+        let hosts = ids.compactMap { id in known.first { $0.id == id } }
+        guard !hosts.isEmpty else {
+            showHome()
+            return
+        }
+        for host in hosts {
+            openSession(to: host)
+        }
+        if let active, tabs.indices.contains(active) {
+            activate(active)
+        } else if active == nil {
+            showHome()
+        }
+    }
+
     /// Abre una sesión contra un host y le pasa el foco.
     @discardableResult
     func openSession(to host: SSHHost) -> TerminalTab {

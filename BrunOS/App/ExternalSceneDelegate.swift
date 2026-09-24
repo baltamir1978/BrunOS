@@ -31,10 +31,11 @@ final class ExternalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.layoutIfNeeded()
         desktop.attachPointer()
 
-        // Un escritorio vacío no se distingue de uno roto: se arranca con una
-        // ventana de cada app.
+        // Las ventanas de la última vez, si así está en Ajustes. Si no, el
+        // escritorio sale vacío y se abre lo que se pulse en el dock (lo pidió
+        // Bruno el 24-sep-2026; antes salía una ventana de cada app).
         if services.desktop.active.isEmpty, services.desktop.active.minimized.isEmpty {
-            desktop.populateDesktop()
+            desktop.restoreSession()
         }
     }
 

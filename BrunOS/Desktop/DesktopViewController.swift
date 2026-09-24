@@ -292,9 +292,12 @@ final class DesktopViewController: UIViewController {
 
     @objc private func desktopChanged() {
         layoutCanvas()
+        scheduleSessionSave()
     }
 
     @objc private func titleChanged() {
+        // Cambiar de pestaña o de web también es algo que recordar.
+        scheduleSessionSave()
         topBar.update(
             desktop: services.desktop,
             profile: services.externalDisplay.currentProfile,
@@ -511,12 +514,114 @@ final class DesktopViewController: UIViewController {
         return true
     }
 
-    /// Al arrancar, una ventana de cada app: un escritorio vacío no se
-    /// distingue de uno roto.
-    func populateDesktop() {
-        for kind in PaneKind.dockOrder.reversed() {
-            addPane(kind: kind)
+    // MARK: - Recordar el escritorio
+
+    /// Cómo está el escritorio ahora, para el próximo arranque.
+    ///
+    /// El orden importa: primero el mosaico, luego las flotantes de la de más
+    /// atrás a la de más delante, y al final las minimizadas. Así, al
+    /// recuperarlas una tras otra, cada una queda donde estaba.
+    private func sessionSnapshot() -> SavedDesktop? {
+        guard logicalSize.width > 0 else { return nil }
+        let workspace = services.desktop.active
+
+        func window(_ pane: any Pane, frame: CGRect?, minimized: Bool, focused: Bool) -> SavedDesktop.Window {
+            var saved = SavedDesktop.Window(kind: PaneKind.of(pane).rawValue, frame: frame,
+                                            isMinimized: minimized, isFocused: focused)
+            switch pane {
+            case let browser as BrowserPane:
+                let session = browser.sessionTabs
+                saved.tabs = session.urls
+                saved.activeTab = session.active
+            case let terminal as TerminalPane:
+                let session = terminal.sessionHosts
+                saved.hosts = session.ids
+                saved.activeHost = session.active
+            case let files as FilesPane:
+                let session = files.sessionLocation
+                saved.location = session.location
+                saved.path = session.path
+            default:
+                break
+            }
+            return saved
         }
+
+        var windows: [SavedDesktop.Window] = []
+        for id in workspace.layout.panes {
+            guard let pane = workspace.pane(id) else { continue }
+            windows.append(window(pane, frame: nil, minimized: false, focused: id == workspace.focused))
+        }
+        for id in workspace.floatingOrder {
+            guard let pane = workspace.pane(id) else { continue }
+            // Una encajada o maximizada se guarda con su tamaño de antes.
+            let frame = zoomRestore[id] ?? workspace.floating[id]
+            windows.append(window(pane, frame: frame, minimized: false, focused: id == workspace.focused))
+        }
+        for entry in workspace.minimized {
+            windows.append(window(entry.pane, frame: entry.frame, minimized: true, focused: false))
+        }
+        return SavedDesktop(windows: windows, logicalSize: logicalSize)
+    }
+
+    private func scheduleSessionSave() {
+        SessionStore.scheduleSave { [weak self] in self?.sessionSnapshot() }
+    }
+
+    /// Al irse la app a segundo plano: iOS puede cerrarla ahí sin avisar.
+    func saveSessionNow() {
+        SessionStore.saveNow(sessionSnapshot())
+    }
+
+    /// Al conectar el monitor con el escritorio vacío: las ventanas de la
+    /// última vez, si así está en Ajustes. Si no, se queda vacío hasta que se
+    /// pulse el dock.
+    func restoreSession() {
+        guard DesktopPreferences.restoresSession, let saved = SessionStore.load() else { return }
+        let workspace = services.desktop.active
+        // Con otra escala u otro monitor, las ventanas se reparten en
+        // proporción.
+        let sx = saved.logicalSize.width > 0 ? logicalSize.width / saved.logicalSize.width : 1
+        let sy = saved.logicalSize.height > 0 ? logicalSize.height / saved.logicalSize.height : 1
+        var focusedID: PaneID?
+        var toMinimize: [PaneID] = []
+
+        for window in saved.windows {
+            guard let kind = PaneKind(rawValue: window.kind) else { continue }
+            let id = PaneID()
+            let pane: any Pane = switch kind {
+            case .terminal: TerminalPane(frame: .zero)
+            case .browser: BrowserPane(frame: .zero)
+            case .files: FilesPane(frame: .zero)
+            }
+            if let frame = window.frame {
+                let scaled = CGRect(x: frame.minX * sx, y: frame.minY * sy,
+                                    width: frame.width * sx, height: frame.height * sy)
+                workspace.addFloating(pane, id: id, frame: clampWindow(scaled))
+            } else {
+                workspace.add(pane, id: id, focusedFrame: workspace.focused.flatMap { currentFrames()[$0] })
+            }
+
+            switch pane {
+            case let browser as BrowserPane:
+                browser.restore(urls: window.tabs ?? [], active: window.activeTab ?? 0)
+            case let terminal as TerminalPane:
+                terminal.restore(hosts: window.hosts ?? [], active: window.activeHost)
+            case let files as FilesPane:
+                if let location = window.location, let path = window.path {
+                    files.restore(location: location, path: path)
+                }
+            default:
+                break
+            }
+            if window.isMinimized { toMinimize.append(id) }
+            if window.isFocused { focusedID = id }
+        }
+        for id in toMinimize {
+            workspace.minimize(id)
+        }
+        if let focusedID { workspace.setFocus(focusedID) }
+        services.desktop.notifyChange()
     }
 
     /// Crea un panel en el escritorio.
