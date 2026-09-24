@@ -18,7 +18,7 @@ enum SettingsPages {
 
     static func window(for scope: SettingsScope) -> (title: String, symbol: String, pages: [SettingsPage]) {
         switch scope {
-        case .global: ("Ajustes", "gearshape.fill", [general, display, mouse, about, performance])
+        case .global: ("Ajustes", "gearshape.fill", [general, display, mouse, shortcuts, about, performance])
         case .browser: ("Navegador", "safari.fill", [browserGeneral, bookmarks, blocking, downloads])
         case .terminal: ("Terminal", "terminal.fill", [machines, sshKey, terminalLook, knownHosts])
         case .files: ("Ficheros", "folder.fill", [filesView, locations])
@@ -186,6 +186,61 @@ enum SettingsPages {
         change(&settings)
         services.pointer.settings = settings
         settings.save()
+    }
+
+    /// Dónde está «Atajos» entre los ajustes globales, para abrirlo desde el
+    /// menú de Tailscale.
+    static let shortcutsPageIndex = 3
+
+    /// Los dos atajos de la app Atajos que BrunOS usa, juntos: lo que no se
+    /// puede hacer desde una app se hace así (Bruno los quería en el mismo
+    /// sitio, 24-sep-2026).
+    private static var shortcuts: SettingsPage {
+        SettingsPage(title: "Atajos", symbol: "square.2.layers.3d.fill", tint: blue) {
+            let assistive = services.assistiveTouch
+            let tailscale = services.tailscale
+            var tailscaleRows = [
+                SettingsRow("Nombre del atajo", .value(TailscaleMonitor.shortcutName)),
+                SettingsRow("Estado", .value(tailscale.isLikelyUp ? "conectado" : "desconectado")),
+            ]
+            if tailscale.lastToggle == .missingShortcut {
+                tailscaleRows.append(SettingsRow("La última vez no se encontró el atajo", symbol: "exclamationmark.triangle"))
+            }
+            tailscaleRows.append(SettingsRow("Probar", .buttons([
+                SettingsButton(tailscale.isLikelyUp ? "Desconectar" : "Conectar") {
+                    tailscale.toggle(on: !tailscale.isLikelyUp)
+                },
+                SettingsButton("Abrir Atajos") {
+                    guard let url = URL(string: "shortcuts://create-shortcut") else { return }
+                    desktop?.showPhoneNotice("Atajos se abre en el iPhone para crear el atajo")
+                    UIApplication.shared.open(url)
+                },
+            ])))
+
+            return [
+                SettingsGroup(
+                    "AssistiveTouch",
+                    footer: "El ratón Bluetooth sólo funciona en el iPhone con AssistiveTouch encendido, y "
+                        + "ninguna app puede encenderlo. Un atajo con la acción «Establecer AssistiveTouch» "
+                        + "lo hace, y una automatización de Atajos lo lanza al abrir BrunOS. El asistente "
+                        + "para crearlos está en los ajustes del iPhone, sin el monitor conectado.",
+                    rows: [
+                        SettingsRow("Nombre del atajo", .value(assistive.shortcutName)),
+                        SettingsRow("Estado", .value(assistive.statusLabel)),
+                    ]
+                ),
+                SettingsGroup(
+                    "Tailscale",
+                    footer: "iOS no deja que una app encienda la VPN de otra, pero la app de Tailscale trae "
+                        + "acciones para Atajos. Crea en Atajos uno que se llame «\(TailscaleMonitor.shortcutName)» "
+                        + "con la acción de Tailscale que activa o desactiva la VPN: con que alterne basta. "
+                        + "Se lanza desde el icono de Tailscale de la barra de arriba. Al lanzarlo, el iPhone "
+                        + "pasa un momento por Atajos y vuelve solo; mientras, el monitor enseña el iPhone "
+                        + "duplicado. El icono se pone verde con Tailscale conectado, y se mira cada 10 segundos.",
+                    rows: tailscaleRows
+                ),
+            ]
+        }
     }
 
     private static var about: SettingsPage {

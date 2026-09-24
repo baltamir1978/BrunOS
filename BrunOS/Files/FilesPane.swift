@@ -184,6 +184,12 @@ final class FilesPane: UIView, Pane {
             name: Self.viewModeDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(providersChanged),
+            name: FileService.providersDidChange,
+            object: nil
+        )
 
         reload()
     }
@@ -194,6 +200,11 @@ final class FilesPane: UIView, Pane {
     }
 
     static let viewModeDidChange = Notification.Name("BrunOSFilesViewModeDidChange")
+
+    @objc private func providersChanged() {
+        setNeedsLayout()
+        setNeedsDisplay()
+    }
 
     @objc private func viewModeChanged() {
         setMode(ViewMode.current)

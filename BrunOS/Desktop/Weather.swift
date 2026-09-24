@@ -299,10 +299,10 @@ final class WeatherService {
 /// El desplegable del tiempo, al estilo del widget de macOS: ahora, las
 /// próximas horas y los próximos días. Cuelga de su icono de la barra.
 ///
-/// **Con los colores del fondo Golden Gate** (lo pidió Bruno): un degradado
-/// de atardecer, del azul del crepúsculo al ámbar, con el texto en blanco,
-/// como el widget del Tiempo. De noche, el mismo cielo más apagado. No
-/// cambia con el modo claro u oscuro: es un cielo, no un panel.
+/// **Con los colores de la interfaz**, como cualquier otra ventana, y
+/// siguiendo el modo claro u oscuro. La primera versión llevaba un cielo fijo
+/// con los colores del fondo Golden Gate, y a Bruno no le cuadraba con el
+/// resto (24-sep-2026).
 @MainActor
 final class WeatherPopover: UIView {
 
@@ -320,10 +320,10 @@ final class WeatherPopover: UIView {
         super.init(frame: bounds)
         backgroundColor = .clear
 
-        card.backgroundColor = Self.sky(isDay: true).last
+        card.backgroundColor = Tokens.Color.panelElevated
         card.layer.cornerRadius = 18
         card.layer.borderWidth = 1
-        card.layer.borderColor = UIColor.white.withAlphaComponent(0.18).cgColor
+        card.setThemedBorder(Tokens.Color.border)
         card.layer.shadowColor = UIColor.black.cgColor
         card.layer.shadowOpacity = 0.4
         card.layer.shadowRadius = 18
@@ -355,18 +355,10 @@ final class WeatherPopover: UIView {
 
     private var weather: WeatherService { AppServices.shared.weather }
 
-    private static let white = UIColor.white
-    private static let dimmed = UIColor.white.withAlphaComponent(0.72)
-    /// El ámbar del sol bajo, para los enlaces y la barra de temperaturas.
-    private static let amber = UIColor(hex: 0xFFC56E)
-
-    /// El cielo de fondo: de arriba abajo. Colores fijos a propósito (ver
-    /// arriba), así que aquí sí vale `.cgColor`.
-    static func sky(isDay: Bool) -> [UIColor] {
-        isDay
-            ? [UIColor(hex: 0x2C4A7E), UIColor(hex: 0x8C5A78), UIColor(hex: 0xE38B55)]
-            : [UIColor(hex: 0x141C33), UIColor(hex: 0x2E2B4D), UIColor(hex: 0x6B4150)]
-    }
+    private static let primary = Tokens.Color.text
+    private static let dimmed = Tokens.Color.textSecondary
+    /// El ámbar de la marca, para los enlaces y la barra de temperaturas.
+    private static let amber = Tokens.Color.accent
 
     private var contentHeight: CGFloat {
         weather.forecast == nil ? 150 : 430
@@ -380,7 +372,7 @@ final class WeatherPopover: UIView {
     // MARK: - Dibujo
 
     private func text(_ string: String, at point: CGPoint, size: CGFloat, weight: UIFont.Weight = .regular,
-                      color: UIColor = WeatherPopover.white, width: CGFloat? = nil, align: NSTextAlignment = .left) {
+                      color: UIColor = WeatherPopover.primary, width: CGFloat? = nil, align: NSTextAlignment = .left) {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = align
         paragraph.lineBreakMode = .byTruncatingTail
@@ -405,19 +397,6 @@ final class WeatherPopover: UIView {
     }
 
     private func drawCard(in context: CGContext) {
-        let colors = Self.sky(isDay: weather.forecast?.isDay ?? true)
-        if let gradient = CGGradient(
-            colorsSpace: CGColorSpaceCreateDeviceRGB(),
-            colors: colors.map(\.cgColor) as CFArray,
-            locations: [0, 0.55, 1]
-        ) {
-            context.drawLinearGradient(
-                gradient,
-                start: CGPoint(x: 0, y: 0),
-                end: CGPoint(x: Self.width * 0.35, y: card.bounds.height),
-                options: [.drawsAfterEndLocation]
-            )
-        }
         let place = weather.place
         text(place?.name ?? "El tiempo", at: CGPoint(x: 16, y: 14), size: 15, weight: .semibold, width: 190)
         if let detail = place?.detail, !detail.isEmpty {
@@ -483,17 +462,17 @@ final class WeatherPopover: UIView {
             text(day.label, at: CGPoint(x: 16, y: y + 5), size: 12.5, weight: .medium, width: 50)
             symbol(WeatherService.symbol(for: day.code), in: CGRect(x: 66, y: y + 2, width: 28, height: 24), size: 14)
             if let rain = day.rainChance, rain >= 20 {
-                text("\(rain) %", at: CGPoint(x: 96, y: y + 7), size: 10, color: UIColor(hex: 0x9FD3FF), width: 40)
+                text("\(rain) %", at: CGPoint(x: 96, y: y + 7), size: 10, color: Tokens.Color.accentAlt, width: 40)
             }
             text(WeatherService.degrees(day.low), at: CGPoint(x: 140, y: y + 5), size: 12,
                  color: Self.dimmed, width: 34, align: .right)
             let track = CGRect(x: 182, y: y + 13, width: 94, height: 4)
-            context.setFillColor(UIColor.white.withAlphaComponent(0.22).cgColor)
+            context.setFillColor(Tokens.Color.text.withAlphaComponent(0.14).desktopCGColor)
             context.addPath(UIBezierPath(roundedRect: track, cornerRadius: 2).cgPath)
             context.fillPath()
             let start = track.minX + track.width * CGFloat((day.low - weekLow) / span)
             let end = track.minX + track.width * CGFloat((day.high - weekLow) / span)
-            context.setFillColor(Self.amber.cgColor)
+            context.setFillColor(Self.amber.desktopCGColor)
             context.addPath(UIBezierPath(roundedRect: CGRect(x: start, y: track.minY, width: max(4, end - start), height: 4),
                                          cornerRadius: 2).cgPath)
             context.fillPath()
@@ -511,7 +490,7 @@ final class WeatherPopover: UIView {
     }
 
     private func separator(at y: CGFloat, in context: CGContext) {
-        context.setFillColor(UIColor.white.withAlphaComponent(0.2).cgColor)
+        context.setFillColor(Tokens.Color.border.desktopCGColor)
         context.fill(CGRect(x: 16, y: y, width: Self.width - 32, height: 1))
     }
 

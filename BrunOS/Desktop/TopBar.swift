@@ -38,6 +38,8 @@ final class TopBar: UIView {
         case tailscale
         /// El desplegable del tiempo.
         case weather
+        /// La hora abre un calendario del mes.
+        case clock
         case none
     }
 
@@ -47,6 +49,7 @@ final class TopBar: UIView {
         if resolutionLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .display }
         if tailscaleLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .tailscale }
         if weatherLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .weather }
+        if clockLabel.frame.insetBy(dx: -6, dy: -4).contains(point) { return .clock }
         return .none
     }
 
@@ -57,6 +60,7 @@ final class TopBar: UIView {
         case .weather: weatherLabel.frame
         case .display: resolutionLabel.frame
         case .brand: brandLabel.frame
+        case .clock: clockLabel.frame
         case .none: .zero
         }
     }

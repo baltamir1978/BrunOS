@@ -39,6 +39,9 @@ final class PasswordBridge {
         self.completion = completion
         self.onCancel = onCancel
         request = Request(host: host)
+        AppServices.shared.desktopViewController?.showPhoneNotice(
+            "Elige la contraseña de \(host) en el iPhone, o pulsa Esc allí para escribirla a mano"
+        )
     }
 
     func complete(username: String, password: String) {

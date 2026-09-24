@@ -77,6 +77,12 @@ final class DesktopViewController: UIViewController {
         )
         NotificationCenter.default.addObserver(
             self,
+            selector: #selector(folderPickerRequested),
+            name: .brunosPickFolder,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
             selector: #selector(refreshLayout),
             name: WallpaperStore.didChangeNotification,
             object: nil
@@ -266,6 +272,7 @@ final class DesktopViewController: UIViewController {
         historyWindow?.frame = CGRect(origin: .zero, size: logicalSize)
         overview?.frame = CGRect(origin: .zero, size: logicalSize)
         weatherPopover?.frame = CGRect(origin: .zero, size: logicalSize)
+        calendarPopover?.frame = CGRect(origin: .zero, size: logicalSize)
 
         // Una ventana que ocupa el sitio del dock (una encajada llega hasta
         // abajo) lo esconde, como la pantalla completa: asoma al llevar el
@@ -988,7 +995,7 @@ final class DesktopViewController: UIViewController {
     ///
     /// Devuelve `nil` si no hay ninguna modal.
     private func performOverModal(_ command: DesktopCommand) -> Bool? {
-        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, overview, weatherPopover]
+        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, overview, weatherPopover, calendarPopover]
         guard modals.contains(where: { $0 != nil }) else { return nil }
 
         switch command {
@@ -1280,6 +1287,7 @@ final class DesktopViewController: UIViewController {
         // Lo modal manda, y la vista previa va por encima de todo.
         if let contextMenu, contextMenu.handlePointer(kind, at: position) { return }
         if let weatherPopover, weatherPopover.handlePointer(kind, at: position) { return }
+        if let calendarPopover, calendarPopover.handlePointer(kind, at: position) { return }
         if let prompt, prompt.handlePointer(kind, at: position) { return }
         if let quickLook, quickLook.handlePointer(kind, at: position) { return }
         if let hostEditor, hostEditor.handlePointer(kind, at: position) { return }
@@ -1388,7 +1396,10 @@ final class DesktopViewController: UIViewController {
         // por encima de todo, incluidas las barras.
         canvas.bringSubviewToFront(topBar)
         canvas.bringSubviewToFront(dock)
-        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu]
+        let modals: [UIView?] = [
+            launcher, historyWindow, hostEditor, quickLook, weatherPopover, calendarPopover, prompt, contextMenu,
+            phoneNotice,
+        ]
         for modal in modals.compactMap({ $0 }) {
             canvas.bringSubviewToFront(modal)
         }
@@ -1630,7 +1641,7 @@ final class DesktopViewController: UIViewController {
         if let divider = activeDivider { return Self.shape(for: divider.axis) }
         guard windowDrag == nil, fileDrag == nil else { return .arrow }
 
-        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu, overview, weatherPopover]
+        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu, overview, weatherPopover, calendarPopover]
         guard modals.allSatisfy({ $0 == nil }) else { return .arrow }
 
         if let (_, frame) = floatingWindow(at: position, margin: Self.resizeMargin) {
@@ -1869,7 +1880,7 @@ final class DesktopViewController: UIViewController {
     /// Si hay otra ventana modal delante: entonces ni el conmutador ni
     /// Exposé se abren, que taparían algo a medio hacer.
     private var hasOtherModal: Bool {
-        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, weatherPopover]
+        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, weatherPopover, calendarPopover]
         return modals.contains { $0 != nil }
     }
 
@@ -2154,6 +2165,9 @@ final class DesktopViewController: UIViewController {
         case .weather:
             let frame = topBar.itemFrame(.weather)
             presentWeather(anchor: CGPoint(x: frame.midX, y: topBar.frame.maxY))
+        case .clock:
+            let frame = topBar.itemFrame(.clock)
+            presentCalendar(anchor: CGPoint(x: frame.maxX, y: topBar.frame.maxY))
         case .none:
             break
         }
@@ -2191,23 +2205,28 @@ final class DesktopViewController: UIViewController {
         return entries
     }
 
+    /// La explicación está con la de AssistiveTouch, en Ajustes › Atajos.
     private func explainTailscaleShortcut() {
-        presentConfirm(
-            title: "Atajo «\(TailscaleMonitor.shortcutName)»",
-            message: "iOS no deja que una app encienda la VPN de otra, pero la app de Tailscale trae "
-                + "acciones para Atajos. Crea en Atajos uno que se llame «\(TailscaleMonitor.shortcutName)» "
-                + "con la acción de Tailscale que activa o desactiva la VPN: con que alterne basta. BrunOS le pasa "
-                + "«on» u «off» como entrada, por si quieres decidir con un «Si». Al lanzarlo, el "
-                + "iPhone pasa un momento por Atajos y vuelve solo.",
-            destructive: "Abrir Atajos",
-            isDestructive: false
-        ) { open in
-            guard open, let url = URL(string: "shortcuts://create-shortcut") else { return }
-            UIApplication.shared.open(url)
-        }
+        presentSettings(.global, page: SettingsPages.shortcutsPageIndex)
     }
 
     private var weatherPopover: WeatherPopover?
+    private var calendarPopover: CalendarPopover?
+
+    /// El calendario del mes, colgando de la hora.
+    private func presentCalendar(anchor: CGPoint) {
+        dismissCalendar()
+        let popover = CalendarPopover(anchor: anchor, in: CGRect(origin: .zero, size: logicalSize))
+        popover.onDismiss = { [weak self] in self?.dismissCalendar() }
+        canvas.addSubview(popover)
+        calendarPopover = popover
+        applyContentsScale(to: popover)
+    }
+
+    private func dismissCalendar() {
+        calendarPopover?.removeFromSuperview()
+        calendarPopover = nil
+    }
 
     private func presentWeather(anchor: CGPoint) {
         dismissWeather()
@@ -2221,6 +2240,45 @@ final class DesktopViewController: UIViewController {
         weatherPopover = popover
         applyContentsScale(to: popover)
         services.weather.refresh()
+    }
+
+    // MARK: - Mira el iPhone
+
+    private var phoneNotice: PhoneNotice?
+    private var phoneNoticeTask: Task<Void, Never>?
+
+    /// Avisa en el monitor de que hay que mirar la pantalla del iPhone. Ver
+    /// `PhoneNotice`.
+    func showPhoneNotice(_ text: String) {
+        let notice = phoneNotice ?? PhoneNotice()
+        notice.text = text
+        let size = notice.fittingSize(maxWidth: min(560, logicalSize.width - 40))
+        let top = services.desktop.isFullScreen ? 12 : Tokens.Metric.topBarHeight + 12
+        notice.frame = pixelAligned(CGRect(
+            x: (logicalSize.width - size.width) / 2, y: top, width: size.width, height: size.height
+        ))
+        if phoneNotice == nil {
+            notice.alpha = 0
+            canvas.addSubview(notice)
+            applyContentsScale(to: notice)
+            phoneNotice = notice
+            UIView.animate(withDuration: 0.2) { notice.alpha = 1 }
+        }
+        canvas.bringSubviewToFront(notice)
+
+        phoneNoticeTask?.cancel()
+        phoneNoticeTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(7))
+            guard !Task.isCancelled, let self, let notice = self.phoneNotice else { return }
+            self.phoneNotice = nil
+            UIView.animate(withDuration: 0.3, animations: { notice.alpha = 0 }) { _ in
+                notice.removeFromSuperview()
+            }
+        }
+    }
+
+    @objc private func folderPickerRequested() {
+        showPhoneNotice("Elige la carpeta en la pantalla del iPhone")
     }
 
     private func dismissWeather() {
@@ -2337,6 +2395,7 @@ final class DesktopViewController: UIViewController {
         if let overview, overview.handleKey(event) { return }
         if let contextMenu, contextMenu.handleKey(event) { return }
         if let weatherPopover, weatherPopover.handleKey(event) { return }
+        if let calendarPopover, calendarPopover.handleKey(event) { return }
         if let prompt, prompt.handleKey(event) { return }
         if let quickLook, quickLook.handleKey(event) { return }
         if let hostEditor, hostEditor.handleKey(event) { return }

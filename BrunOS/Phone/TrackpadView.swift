@@ -43,7 +43,11 @@ final class TrackpadUIView: UIView {
         didSet {
             layer.cornerRadius = isFullScreen ? 0 : Tokens.Metric.paneCornerRadius
             layer.borderWidth = isFullScreen ? 0 : 1
-            backgroundColor = isFullScreen ? Tokens.Color.background : Tokens.Color.panel
+            // **A pantalla completa, negro fijo.** Es el modo mando, que va
+            // apagado (ver `RemoteModeView`). Con el color de fondo de la
+            // interfaz, que sigue al iPhone, en modo claro salía casi blanco:
+            // Bruno veía el iPhone «entero en blanco» (24-sep-2026).
+            backgroundColor = isFullScreen ? .black : Tokens.Color.panel
         }
     }
 

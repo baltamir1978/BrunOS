@@ -71,7 +71,14 @@ final class FileService {
         let current = Self.key(of: currentProvider)
         self.providers = providers
         currentIndex = providers.firstIndex { Self.key(of: $0) == current } ?? 0
+        NotificationCenter.default.post(name: Self.providersDidChange, object: nil)
     }
+
+    /// La lista de ubicaciones ha cambiado: una añadida, quitada o
+    /// renombrada. Las barras laterales de Ficheros lo escuchan; antes,
+    /// renombrar desde Ajustes no se veía hasta que otra cosa las repintaba
+    /// (Bruno, 24-sep-2026).
+    static let providersDidChange = Notification.Name("BrunOSFileProvidersDidChange")
 
     /// Qué ubicación es, más allá del objeto: `rebuild()` los crea de nuevo.
     static func key(of provider: any FileProvider) -> String {

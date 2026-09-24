@@ -44,6 +44,9 @@ struct RemoteModeView: View {
         }
         // Tocar en cualquier sitio lo hace desaparecer antes.
         .onTapGesture { withAnimation { showsHint = false } }
+        // El modo mando va apagado: oscuro siempre, también con el iPhone en
+        // claro (si no, el aviso salía como un recuadro claro sobre negro).
+        .environment(\.colorScheme, .dark)
     }
 
     private var hint: some View {

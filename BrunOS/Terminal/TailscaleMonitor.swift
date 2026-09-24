@@ -108,6 +108,9 @@ final class TailscaleMonitor {
         ]
         guard let url = components?.url else { return }
         lastToggle = .waiting
+        AppServices.shared.desktopViewController?.showPhoneNotice(
+            "El iPhone pasa un momento por Atajos para Tailscale y vuelve solo"
+        )
         UIApplication.shared.open(url, options: [:]) { [weak self] opened in
             MainActor.assumeIsolated {
                 if !opened { self?.lastToggle = .missingShortcut }
