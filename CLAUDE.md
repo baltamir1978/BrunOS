@@ -10,6 +10,55 @@ emergencia, teclado, dictado y ajustes.
 
 ---
 
+## ⚠ PARA COMPILAR EN EL MAC — rama `claude/bold-newton-nxodpq` (PR #2, 24-sep-2026, noche)
+
+Escrito en una sesión de Linux **sin Xcode ni compilador**. Nada de esto se ha compilado. Se
+probó fuera de Swift sólo lo que se podía (Python y Chromium, ver cada CLAUDE.md). Son cuatro
+bloques, un commit cada uno:
+
+1. **Bloqueador con las listas de uBlock** (`FilterLists.swift`, `FilterListConverter.swift`,
+   `ContentBlocker.swift` reescrito, `BlockerCollapse.js`). Ver `BrunOS/Browser/CLAUDE.md` ›
+   «Bloqueador».
+2. **Avisos de cookies** con las reglas de «I Still Don't Care About Cookies»
+   (`CookieNoticeBlocker.swift`, la galleta de `BrowserChrome`). Mismo CLAUDE.md › «Avisos de
+   cookies».
+3. **Fotos**, la quinta app del dock, Cmd+5 (`BrunOS/Photos/PhotosPane.swift`,
+   `DockIcon.drawPhotos`, «Abrir en Fotos» en Ficheros). Ver `BrunOS/Photos/CLAUDE.md`.
+4. **Pantalla completa de vídeo** en el navegador (`FullscreenBridge.js`,
+   `BrowserPane.setVideoFullScreen`, `DesktopViewController.setVideoFullScreen`). Ver
+   `BrunOS/Browser/CLAUDE.md` › «Pantalla completa de vídeo».
+
+**Pasos:**
+
+1. `git pull` de la rama y `./Tools/build.sh`. Arreglar lo que no compile **sin cambiar el
+   diseño**. Mantener **cero warnings**.
+2. **Borrar `BrunOS/Resources/Blocklists/`** del Mac: ya no se usa (las listas se bajan en el
+   iPhone), y XcodeGen la metería en el bundle. `Tools/fetch-blocklists.sh` ya no existe, y
+   `testflight.sh` ya no pide las listas.
+3. Probar en el simulador lo que se pueda: que el bloqueador baje y compile las listas (Ajustes ›
+   Bloqueo de anuncios, la línea de estado); Fotos con una carpeta de imágenes y un vídeo; la
+   galleta; YouTube con F o su botón de pantalla completa, y Esc.
+4. **Avisar a Bruno antes de subir a TestFlight** (regla de siempre).
+
+**Lo más probable que no compile, o que falle** (mirar primero):
+
+- `ContentBlocker`: `store.getAvailableContentRuleListIdentifiers` con `withCheckedContinuation`;
+  el `Timer` de `scheduleSync` con `MainActor.assumeIsolated`; el `Task.detached` de `rebuild`
+  que devuelve `FilterListConverter.Output`.
+- `FilterListConverter`: es Swift puro sin UI. Si algo de Swift 6 protesta, los `static let` y las
+  tuplas `(raw:rule:)`.
+- `CookieNoticeBlocker`: `JSContext` para leer `rules.js` y `WKContentWorld.world(name:)`.
+- `PhotosPane`: `AVAssetImageGenerator.image(at:)` dentro de una función `nonisolated static`,
+  `isolated deinit`, el `NSCache` y los cierres de `AVPlayer` con `MainActor.assumeIsolated`.
+- `BrowserTab`: `evaluateJavaScript(_:in:in:)` con `in: .page` y los tres manejadores nuevos
+  (`CollapseRelay`, `CookieRelay`, `FullscreenRelay`), todos con el mismo patrón que
+  `MediaHintRelay`.
+- **WebKit puede rechazar una lista entera** (`WKErrorDomain`): el error sale en Ajustes y el
+  `userInfo` en el log. Lo más dudoso son los `resource-type` y `load-type` que genera el
+  conversor. La primera compilación son unas 160.000 reglas en 4 listas: puede tardar.
+- La pantalla completa de vídeo sólo se activa si la página la pide menos de 5 s después de un
+  clic o una tecla (`lastUserInput`). Si YouTube tarda más, ahí está el ajuste.
+
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
 **Última build subida: 2609241450 (24-sep-2026, tarde)**: todo lo de la tarde (modo mando
