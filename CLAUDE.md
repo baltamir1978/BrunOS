@@ -12,6 +12,9 @@ emergencia, teclado, dictado y ajustes.
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
+**Última build subida: 2609241157 (24-sep-2026, mediodía)**, con todo: lo de la nube (abajo) y
+los arreglos de «Lo que Bruno vio en la 2609240858». **Nada de esto probado en el iPhone.**
+
 **Para seguir en el Mac** (rama `claude/admiring-mendel-ncfej4`, ya juntada con `main`). Todo lo de la
 tarde del 24-sep se escribió en una sesión de Linux **sin Xcode ni compilador**; sólo se pasó un
 análisis de sintaxis (tree-sitter) y una revisión a mano del diff. Por orden:
@@ -102,9 +105,6 @@ conviene no confundir "está escrito" con "funciona":
   divisores arrastrables y el teclado en pantalla.
 - **Si el espacio lógico sale nítido** a todas las escalas: el lienzo se escala con un
   `CGAffineTransform` y, si el factor estuviera mal, se vería borroso o cortado.
-
-**Hay arreglos sin subir** (ver «Lo que Bruno vio en la 2609240858»). **Bruno pidió no subir
-todavía.**
 
 **24-sep-2026 (tarde), escrito desde una sesión en Linux, SIN COMPILAR**: no había Xcode, sólo un
 análisis de sintaxis con tree-sitter. **Lo primero al volver al Mac es `./Tools/build.sh`** y
