@@ -130,8 +130,8 @@ pueden estar viejas. Al confirmar algo, se quita de aquí.
 - La vista previa de PDF: **salía mal** (sin ajustarse, una página, borrosa); rehecha sin subir.
 
 **Escritorio y entrada**
-- **El ratón va peor que en la 2609241352** (Bruno, 24-sep). Entre las dos builds, en el iPhone
-  sólo cambió el modo mando a negro forzado; vuelto a seguir el modo del iPhone, sin subir.
+- **El ratón iba peor y se atascaba antes del borde** (Bruno, 24-sep, en la 2609241450): mandaba
+  `GCMouse` en vez del puntero indirecto (ver «El ratón se atascaba en el borde»); sin subir.
 - El hueco entre ventanas, de 8 a 4 puntos, y el tercer encaje en una esquina que hace sitio;
   sin subir.
 - El dictado, el teclado en pantalla y el overscan.
@@ -418,6 +418,14 @@ Ahora `IndirectPointerSource` manda la **posición normalizada** (0…1) y el cu
 exactamente ahí: el borde del iPhone es el borde del monitor, a la vez. La velocidad la pone iOS
 (Accesibilidad › Control del puntero › Velocidad de seguimiento); la sensibilidad y la aceleración
 de BrunOS quedan para el trackpad táctil y para `GCMouse`, que sigue siendo relativo.
+
+**Volvió a atascarse el 24-sep-2026** (Bruno, en la 2609241450). Causa probable: `MouseRouter`
+**prefería `GCMouse`** en cuanto entregaba algo, y desde que `KeyboardRouter` lee los
+modificadores con `GCKeyboard` (sesión de la nube), GameController está en marcha y `GCMouse`
+entrega desplazamientos que salen del puntero de iOS, que se para en el borde del iPhone. Ahora
+**manda el puntero indirecto siempre que entregue**, y `GCMouse` queda para cuando no hay
+AssistiveTouch. Ajustes › Ratón y teclado › «Fuente activa» dice cuál manda: con AssistiveTouch
+tiene que poner «puntero indirecto».
 
 **Sin probar en el iPhone.** Si la posición que da el puntero indirecto no cubre la pantalla
 entera (por ejemplo, si iOS la limita al área segura), el cursor no llegaría a los bordes del

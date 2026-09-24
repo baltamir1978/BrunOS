@@ -36,9 +36,9 @@ struct PointerSettings: Codable, Equatable, Sendable {
 
 /// Elige sola entre las dos fuentes de ratón y reenvía lo que llegue.
 ///
-/// Prefiere `GCMouse` porque da movimiento en bruto. Si `GCMouse` no entrega
-/// nada pero el puntero indirecto sí, se pasa a él. La decisión no es de una vez
-/// para siempre: se rehace cada vez que una fuente empieza o deja de entregar.
+/// Prefiere el puntero indirecto, que da la posición absoluta (ver
+/// `preferred`). La decisión no es de una vez para siempre: se rehace cada vez
+/// que una fuente empieza o deja de entregar.
 @MainActor
 final class MouseRouter: MouseSourceDelegate {
 
@@ -69,10 +69,19 @@ final class MouseRouter: MouseSourceDelegate {
         indirectSource.stop()
     }
 
-    /// La fuente que manda: GCMouse si entrega, si no el puntero indirecto.
+    /// La fuente que manda: **el puntero indirecto si entrega**, y si no
+    /// `GCMouse`.
+    ///
+    /// Antes era al revés, cuando `GCMouse` no veía el ratón de AssistiveTouch
+    /// y daba igual. Desde que `KeyboardRouter` lee los modificadores con
+    /// `GCKeyboard`, GameController está en marcha y `GCMouse` también
+    /// entrega: desplazamientos que salen del puntero de iOS, que se para en
+    /// el borde del iPhone. Mandaba él y **el cursor volvía a atascarse sin
+    /// llegar al borde del monitor** (Bruno, 24-sep-2026). El indirecto da la
+    /// posición absoluta: borde del iPhone = borde del monitor.
     private var preferred: (any MouseSource)? {
-        if gcSource.isDelivering { return gcSource }
         if indirectSource.isDelivering { return indirectSource }
+        if gcSource.isDelivering { return gcSource }
         return nil
     }
 
