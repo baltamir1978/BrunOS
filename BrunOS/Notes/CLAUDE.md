@@ -29,3 +29,5 @@ compilar ni probar.**
   apunta.
 - **No se guarda en disco**: por ahí pasan contraseñas y tokens del terminal. 50 como mucho, se
   pierde al cerrar la app y se puede vaciar. La clave privada que se pega en Ajustes no entra.
+
+**Visto funcionando en el iPhone** por Bruno el 24-sep-2026, en la 2609241157.
