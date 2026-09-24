@@ -143,42 +143,36 @@ Bruno prefiere acumular y probarlo todo junto; conviene no confundir «está esc
 «funciona». **Esta es la lista buena**: las marcas «sin probar» repartidas por los CLAUDE.md
 pueden estar viejas. Al confirmar algo, se quita de aquí.
 
+**Sólo en la build siguiente a la 2609241727** (sin subir)
+- El ratón por la posición absoluta, con el 6 % de arriba estirado: los cuatro bordes, sin
+  chocar con el del iPhone. El diagnóstico tiene que decir «puntero indirecto» y 0–100 % en los
+  dos ejes.
+
 **Navegador**
-- **Bloqueador con las listas de uBlock** (24-sep; compila y compila las listas en el
-  simulador): que baje y compile las listas en el iPhone, que desaparezcan los recuadros grises y
-  cuánto tarda la primera vez. Ver `BrunOS/Browser/CLAUDE.md`.
-- **Avisos de cookies** con las reglas de «I Still Don't Care About Cookies» y la galleta de la
-  barra (24-sep; compila).
-- Descargas de vídeo de la página, el gestor ⤓ y los HLS; «Descargar vídeo» en RedGifs.
-- El login de Reddit (y cualquier otro): sin la hoja de contraseñas, que tapaba el trackpad;
-  la lógica de contraseñas está quitada entera (Bruno las escribe a mano).
-- Plex.
-- **Pantalla completa de vídeo** en YouTube y Plex (24-sep; compila): el botón y la F de
-  YouTube, Esc para salir, y que la barra del vídeo no saque el dock.
-- El botón de historial en la barra y el indicador de zoom («125 %» un segundo).
+- «Descargar vídeo» con el botón derecho en un RedGifs dentro de Reddit, y en redgifs.com.
+- Descargas de vídeo de la página (el botón de medios), el gestor ⤓ y los HLS.
+- La pantalla completa de vídeo en YouTube y Plex: el botón, la F de YouTube, Esc para salir, y
+  que la barra del vídeo no saque el dock. Y Plex en general.
+- El botón de historial en la barra y el «125 %» del zoom.
+- Que no queden recuadros grises donde había anuncios.
 
-**Fotos** (24-sep, escrito en Linux; compila)
-- La app entera: rejilla, miniaturas (también por SFTP/SMB), visor, vídeo con su barra, pase de
-  diapositivas, «Abrir en Fotos» desde Ficheros, el icono y Cmd+5.
-
-**Terminal**
-- tmux y vim con ratón.
-- Seleccionar arrastrando: **marcaba lejísimos del cursor** (filas visibles frente a filas del
-  historial); arreglado en la 2609241652.
-- `known_hosts` ante una clave que cambie, y la reconexión tras una caída real.
-- Entrar con clave ed25519, e importar una clave cifrada.
+**Fotos** (Cmd+5)
+- Rejilla y miniaturas (también por SFTP/SMB), visor, vídeo con su barra, pase de diapositivas,
+  «Abrir en Fotos» desde Ficheros y el icono del dock.
 
 **Ficheros**
-- SMB propio contra un servidor de verdad, y el vídeo por SFTP/SMB mientras llega.
-- La vista previa de PDF: **salía mal** (sin ajustarse, una página, borrosa); rehecha en la 2609241652.
+- La vista previa de PDF: nitidez (dibujada por BrunOS), y de imágenes y texto.
+- SMB propio contra un servidor de verdad; el vídeo por SFTP/SMB mientras llega.
 
-**Escritorio y entrada**
-- **El ratón iba peor y se atascaba antes del borde** (Bruno, 24-sep, en la 2609241450): mandaba
-  `GCMouse` en vez del puntero indirecto (ver «El ratón se atascaba en el borde»); en la 2609241652.
-- El hueco entre ventanas, de 8 a 4 puntos, y el tercer encaje en una esquina que hace sitio;
-  en la 2609241652.
-- El dictado, el teclado en pantalla y el overscan.
-- Las escalas nuevas: 1,25×, 1,75× y 2,25×.
+**Terminal**
+- El scroll en el mismo sentido que el navegador; tmux y vim con ratón (y la rueda dentro).
+- `known_hosts` ante una clave que cambie, la reconexión tras una caída real, entrar con clave
+  ed25519 e importar una cifrada.
+
+**Escritorio**
+- Los marcos de las ventanas sin línea doble en las esquinas.
+- El hueco de 4 puntos entre ventanas y el tercer encaje en una esquina que hace sitio.
+- El dictado, el teclado en pantalla, el overscan y las escalas 1,25×, 1,75× y 2,25×.
 
 **Confirmado por Bruno el 24-sep, en la 2609241652**: el login de Reddit, el bloqueador con las
 listas de uBlock, los avisos de cookies (parece), la selección del terminal y la rueda y las
