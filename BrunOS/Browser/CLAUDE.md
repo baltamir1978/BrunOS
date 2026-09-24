@@ -422,3 +422,11 @@ vídeo va en `position: absolute; inset: 0` y el vídeo con `object-fit: contain
 controles de YouTube abajo a todo lo ancho, y al salir todo vuelve a su sitio (captura vista).
 **Trampa**: `height: 100%` en los contenedores no vale; YouTube tiene uno con relleno por
 proporción y el vídeo salía de 1950 de alto.
+
+**Y cortado en el iPhone** (Bruno, en la 2609241832: «corta la imagen, los subtítulos no se ven»).
+En iOS, `100vh` es el alto de la pantalla entera, no el de la página: reproducido en el simulador
+de iOS con YouTube real (`innerHeight` 812, vídeo de 874 y controles en el 815, fuera). En macOS
+no pasa, por eso la primera prueba no lo vio. Ahora el elemento a pantalla completa se mide en
+píxeles con `innerWidth`/`innerHeight` (`fit()`, y otra vez con cada `resize`). En el simulador:
+vídeo de 402×812 con franjas negras, subtítulos visibles y controles dentro. **Probar siempre en
+el simulador de iOS, no sólo en macOS**, lo que dependa del viewport.

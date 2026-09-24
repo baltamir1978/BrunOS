@@ -37,7 +37,6 @@
         style.textContent = `
             [${ATTRIBUTE}] {
                 position: fixed !important; inset: 0 !important;
-                width: 100vw !important; height: 100vh !important;
                 max-width: none !important; max-height: none !important;
                 min-width: 0 !important; min-height: 0 !important;
                 margin: 0 !important; padding: 0 !important; border: 0 !important;
@@ -90,11 +89,25 @@
         }
     }
 
+    /// **El tamaño, en píxeles del hueco que se ve**, no con `100vw`/`100vh`.
+    /// En iOS, `100vh` es el alto de la pantalla entera y no el de la página:
+    /// en el simulador, 874 frente a 812 de `innerHeight`, y los controles y
+    /// los subtítulos de YouTube quedaban por debajo de lo visible (Bruno lo
+    /// vio cortado, 24-sep-2026). Se vuelve a medir si cambia el tamaño.
+    function fit() {
+        if (!current) return;
+        current.style.setProperty('width', window.innerWidth + 'px', 'important');
+        current.style.setProperty('height', window.innerHeight + 'px', 'important');
+    }
+    window.addEventListener('resize', fit);
+
     function mark(element, on) {
         if (on) {
             element.setAttribute(ATTRIBUTE, '');
         } else {
             element.removeAttribute(ATTRIBUTE);
+            element.style.removeProperty('width');
+            element.style.removeProperty('height');
         }
         for (let node = element.parentElement; node; node = node.parentElement) {
             if (on) node.setAttribute(ANCESTOR, ''); else node.removeAttribute(ANCESTOR);
@@ -151,6 +164,7 @@
         if (current) mark(current, false);
         current = element;
         mark(element, true);
+        fit();
         notify(true);
         fire(element);
         // Que la página vuelva a medir su reproductor: YouTube coloca el
