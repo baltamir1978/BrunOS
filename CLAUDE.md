@@ -32,7 +32,10 @@ del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, e
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
 
-**Última build subida: 2609241916 (24-sep-2026, noche)**, la octava del día: todo funcionando
+**Última build subida: 2609250831 (25-sep-2026, mañana)**: lo de «Pendiente de probar» (ZIP,
+Reddit, zoom por debajo de 100 %, dock y Notas en RTF). **Sin probar en el iPhone.**
+
+**Anterior: 2609241916 (24-sep-2026, noche)**, la octava del día: todo funcionando
 según Bruno, que cerró las pruebas. Lo siguiente es trabajo nuevo: ver «Pendientes».
 
 **Anterior: 2609241832 (24-sep-2026, tarde)**, la séptima del día: el ratón por la
@@ -144,7 +147,7 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
-## Pendiente de probar (desde la 2609241916, sin subir)
+## Pendiente de probar (en la 2609250831)
 
 - **ZIP** en Ficheros: comprimir uno y varios, descomprimir con doble clic y con el botón
   derecho, en local y por SFTP/SMB, y Cancelar.
