@@ -30,9 +30,13 @@ del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, e
   listas de anuncios, en cambio, son reglas declarativas y no ejecutan código (el conversor tira
   los scriptlets `##+js`).
 
-## ⚠ ESTADO ACTUAL — LEER PRIMERO (24-sep-2026, tarde)
+## ⚠ ESTADO ACTUAL — LEER PRIMERO (29-sep-2026, tarde)
 
-**Última build subida: 2609250831 (25-sep-2026, mañana)**: lo de «Pendiente de probar» (ZIP,
+**Última build subida: 2609291957 (29-sep-2026, tarde)**: los seis arreglos visuales de la rama
+`claude/gracious-wozniak-c23hmp` (ver «Escrito el 29-sep-2026»), fusionada en `main`. Compila
+sin errores ni warnings. **Sin probar en el iPhone.**
+
+**Anterior: 2609250831 (25-sep-2026, mañana)**: lo de «Pendiente de probar» (ZIP,
 Reddit, zoom por debajo de 100 %, dock y Notas en RTF). **Sin probar en el iPhone.**
 
 **Anterior: 2609241916 (24-sep-2026, noche)**, la octava del día: todo funcionando
@@ -147,11 +151,11 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
-## Escrito el 29-sep-2026 (nube, sin compilar ni subir)
+## Escrito el 29-sep-2026 (subido en la 2609291957)
 
-Seis arreglos visuales que pidió Bruno, en la rama `claude/gracious-wozniak-c23hmp`. **Sin Xcode**:
-sólo análisis de sintaxis. Lo menos seguro al compilar: la mano del cursor (`PointerController.hand`,
-mide la punta del índice en la imagen) y el `completion` nuevo de `BrowserTab.send`.
+Seis arreglos visuales que pidió Bruno, escritos en la nube en la rama
+`claude/gracious-wozniak-c23hmp`. Fusionada en `main` el mismo día: **compila sin errores ni
+warnings** y se subió a TestFlight. Falta probarlo en el iPhone.
 
 - **El cursor cambia en el navegador**: mano sobre un enlace o lo que tenga `cursor: pointer`, y la
   I en un campo de texto. El `hover` de `ClickInjector.js` devuelve `{cursor}` (`cursorFor`, con
@@ -168,7 +172,16 @@ mide la punta del índice en la imagen) y el `completion` nuevo de `BrowserTab.s
 - **El dock ya no se corta por la derecha**: `baseWidth` contaba un hueco del separador de menos
   y la barra acababa 10 puntos antes que el icono de Ajustes.
 
-## Pendiente de probar (en la 2609250831)
+## Pendiente de probar (en la 2609291957)
+
+- **El cursor en el navegador**: la mano sobre enlaces (que apunte con la punta del índice) y la I
+  en campos de texto; la flecha al salir a la barra o los favoritos.
+- **El fondo desde el iPhone**, con el monitor puesto, y «Elegir una foto…».
+- **Notas**: los botones de formato de la cabecera, y que se enciendan según el cursor.
+- **Tailscale** con el logo de nueve puntos, conectado y sin conectar.
+- **El dock** entero, sin cortar el icono de Ajustes, y sin el «brunOS_» en el escritorio vacío.
+
+De la 2609250831, también sin confirmar:
 
 - **ZIP** en Ficheros: comprimir uno y varios, descomprimir con doble clic y con el botón
   derecho, en local y por SFTP/SMB, y Cancelar.
