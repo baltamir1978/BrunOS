@@ -220,6 +220,8 @@ final class PointerController {
 
     private let layer = CALayer()
     private let shapeLayer = CAShapeLayer()
+    /// La mano de los enlaces es una imagen, no un trazo: ver `hand`.
+    private let handLayer = CALayer()
     private var displayLink: CADisplayLink?
     /// La posición que falta por pintar.
     ///
@@ -391,6 +393,10 @@ final class PointerController {
         case resizeDiagonalDown
         /// ⤢, las otras dos esquinas.
         case resizeDiagonalUp
+        /// La mano con el índice, sobre un enlace o un botón de una web.
+        case link
+        /// La barra de texto (I), sobre un campo donde se puede escribir.
+        case text
     }
 
     var shape: Shape = .arrow {
@@ -404,7 +410,22 @@ final class PointerController {
     }
 
     private func applyShape() {
+        handLayer.isHidden = shape != .link
+        shapeLayer.isHidden = shape == .link
         switch shape {
+        case .link:
+            let hand = Self.hand
+            layer.bounds = CGRect(origin: .zero, size: hand.image?.size ?? CGSize(width: 18, height: 20))
+            handLayer.frame = layer.bounds
+            handLayer.contents = hand.image?.cgImage
+            // La punta del índice es la que apunta.
+            layer.anchorPoint = hand.hotspot
+        case .text:
+            let path = Self.textPath
+            path.apply(CGAffineTransform(translationX: 5, y: 10))
+            shapeLayer.path = path.cgPath
+            layer.bounds = CGRect(x: 0, y: 0, width: 10, height: 20)
+            layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         case .arrow:
             shapeLayer.path = Self.arrowPath.cgPath
             layer.bounds = CGRect(x: 0, y: 0, width: 14, height: 22)
@@ -440,6 +461,78 @@ final class PointerController {
         return path
     }
 
+    /// La I de texto, centrada en el origen: un palo con remates arriba y abajo.
+    private static var textPath: UIBezierPath {
+        let points: [CGPoint] = [
+            CGPoint(x: -4, y: -9), CGPoint(x: 4, y: -9), CGPoint(x: 4, y: -7.5),
+            CGPoint(x: 0.9, y: -7.5), CGPoint(x: 0.9, y: 7.5), CGPoint(x: 4, y: 7.5),
+            CGPoint(x: 4, y: 9), CGPoint(x: -4, y: 9), CGPoint(x: -4, y: 7.5),
+            CGPoint(x: -0.9, y: 7.5), CGPoint(x: -0.9, y: -7.5), CGPoint(x: -4, y: -7.5),
+        ]
+        let path = UIBezierPath()
+        path.move(to: points[0])
+        for point in points.dropFirst() { path.addLine(to: point) }
+        path.close()
+        return path
+    }
+
+    /// La mano de los enlaces, con el símbolo `hand.point.up.left.fill`: claro
+    /// con reborde negro, como la flecha. Se dibuja una vez, a 4 píxeles por
+    /// punto, para que no se pixele a ninguna escala del monitor.
+    ///
+    /// **El punto que apunta se mide en la imagen**, no se supone: es la fila
+    /// más alta con tinta, en el centro de lo que hay en ella (la punta del
+    /// índice). Así no depende del dibujo exacto del símbolo en cada iOS.
+    private static let hand: (image: UIImage?, hotspot: CGPoint) = {
+        let configuration = UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)
+        guard let symbol = UIImage(systemName: "hand.point.up.left.fill", withConfiguration: configuration)
+        else { return (nil, .zero) }
+        let outline: CGFloat = 1
+        let size = CGSize(width: ceil(symbol.size.width + outline * 2), height: ceil(symbol.size.height + outline * 2))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 4
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            let black = symbol.withTintColor(UIColor.black.withAlphaComponent(0.85), renderingMode: .alwaysOriginal)
+            for dx in [-outline, 0, outline] {
+                for dy in [-outline, 0, outline] where dx != 0 || dy != 0 {
+                    black.draw(at: CGPoint(x: outline + dx, y: outline + dy))
+                }
+            }
+            symbol.withTintColor(Tokens.Color.text.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)),
+                                 renderingMode: .alwaysOriginal)
+                .draw(at: CGPoint(x: outline, y: outline))
+        }
+        return (image, hotspot(of: image))
+    }()
+
+    /// La punta de arriba de la imagen, en proporción (0…1) para `anchorPoint`.
+    private static func hotspot(of image: UIImage) -> CGPoint {
+        guard let cgImage = image.cgImage else { return CGPoint(x: 0.35, y: 0) }
+        let width = cgImage.width, height = cgImage.height
+        var alpha = [UInt8](repeating: 0, count: width * height)
+        let drawn = alpha.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue
+            ) else { return false }
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { return CGPoint(x: 0.35, y: 0) }
+        // La memoria va de arriba abajo: la fila 0 es la de arriba.
+        for row in 0..<height {
+            let columns = (0..<width).filter { alpha[row * width + $0] > 128 }
+            guard let first = columns.first, let last = columns.last else { continue }
+            return CGPoint(
+                x: (CGFloat(first + last) / 2 + 0.5) / CGFloat(width),
+                y: (CGFloat(row) + 0.5) / CGFloat(height)
+            )
+        }
+        return CGPoint(x: 0.35, y: 0)
+    }
+
     /// ↔ centrada en el origen; las otras direcciones se sacan girándola.
     private static var doubleArrowPath: UIBezierPath {
         let points: [CGPoint] = [
@@ -465,6 +558,10 @@ final class PointerController {
         shapeLayer.lineWidth = 1
         shapeLayer.lineJoin = .round
         layer.addSublayer(shapeLayer)
+        handLayer.contentsScale = 4
+        handLayer.contentsGravity = .resize
+        handLayer.minificationFilter = .trilinear
+        layer.addSublayer(handLayer)
         applyShape()
 
         layer.shadowColor = UIColor.black.cgColor

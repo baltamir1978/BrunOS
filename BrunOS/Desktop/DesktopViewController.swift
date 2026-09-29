@@ -19,7 +19,6 @@ final class DesktopViewController: UIViewController {
     private let wallpaperLayer = CALayer()
     /// Lienzo en coordenadas lógicas. Todo lo demás cuelga de aquí.
     private let canvas = UIView()
-    private let emptyLabel = UILabel()
 
     /// Tamaño del escritorio en puntos lógicos, incluida la barra.
     private var logicalSize: CGSize = .zero
@@ -48,10 +47,6 @@ final class DesktopViewController: UIViewController {
         dock.onSettings = { [weak self] in
             self?.presentSettings(.global)
         }
-
-        emptyLabel.attributedText = TopBar.brandText(size: 44)
-        emptyLabel.textAlignment = .center
-        canvas.addSubview(emptyLabel)
 
         services.desktopViewController = self
         services.weather.start()
@@ -279,11 +274,6 @@ final class DesktopViewController: UIViewController {
             width: logicalSize.width,
             height: Tokens.Metric.topBarHeight
         )
-        emptyLabel.frame = CGRect(
-            x: 0, y: 0,
-            width: logicalSize.width,
-            height: logicalSize.height
-        )
 
         hostEditor?.frame = CGRect(origin: .zero, size: logicalSize)
         quickLook?.frame = CGRect(origin: .zero, size: logicalSize)
@@ -325,7 +315,6 @@ final class DesktopViewController: UIViewController {
         services.pointer.bounds = CGRect(origin: .zero, size: logicalSize)
 
         let frames = paneFrames(tiled: workspace.layout.frames(in: area, gap: gap), in: workspace)
-        emptyLabel.isHidden = !frames.isEmpty
 
         // Un panel sin marco (el maximizado tapa a los demás) sale de la
         // jerarquía: no consume nada mientras no se ve, pero conserva su estado.
@@ -1750,6 +1739,12 @@ final class DesktopViewController: UIViewController {
         services.pointer.shape = cursorShape(at: position)
     }
 
+    /// Vuelve a decidir la forma sin que se mueva el ratón: la página contesta
+    /// qué hay debajo después del movimiento (ver `BrowserTab.hoverCursor`).
+    func refreshCursorShape() {
+        updateCursorShape(at: services.pointer.position)
+    }
+
     private func cursorShape(at position: CGPoint) -> PointerController.Shape {
         if case .resizing(_, let edges, _, _) = windowDrag { return Self.shape(for: edges) }
         if let divider = activeDivider { return Self.shape(for: divider.axis) }
@@ -1764,7 +1759,18 @@ final class DesktopViewController: UIViewController {
         if let divider = divider(at: position, frames: tiledFrames()) {
             return Self.shape(for: divider.axis)
         }
-        return .arrow
+
+        // Lo que pida el panel de debajo, salvo que tape el dock o la barra.
+        if !dockAutoHidden || dockRevealed,
+           dock.contains(point: CGPoint(x: position.x - dock.frame.minX, y: position.y - dock.frame.minY)) {
+            return .arrow
+        }
+        if !services.desktop.isFullScreen || topBarRevealed, topBar.frame.contains(position) { return .arrow }
+        guard let hit = paneHit(at: position, frames: currentFrames()),
+              let pane = services.desktop.active.pane(hit.key)
+        else { return .arrow }
+        let local = CGPoint(x: position.x - hit.value.minX, y: position.y - hit.value.minY)
+        return pane.cursorShape(at: local) ?? .arrow
     }
 
     private static func shape(for edges: Edges) -> PointerController.Shape {

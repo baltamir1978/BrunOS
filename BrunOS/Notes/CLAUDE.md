@@ -14,8 +14,9 @@ en el iPhone**.
   del último cambio y al irse a segundo plano. Todas las ventanas de Notas comparten el almacén.
   **Comprobado en el simulador de iOS**: migración con el fijado, negrita y enlace tras releer,
   renombrado y un `.txt` de fuera con el mismo id al releer.
-- **Texto enriquecido**: negrita, cursiva y subrayado (Cmd+B, Cmd+I, Cmd+U, y en el botón
-  derecho), sobre lo seleccionado o para lo que se escriba. **Enlaces**: las direcciones se
+- **Texto enriquecido**: negrita, cursiva y subrayado (Cmd+B, Cmd+I, Cmd+U, en el botón
+  derecho y, desde el 29-sep-2026, en **botones a la derecha de la cabecera** del editor, con
+  enlace; se encienden en ámbar con lo que hay puesto donde está el cursor, `activeFormats`), sobre lo seleccionado o para lo que se escriba. **Enlaces**: las direcciones se
   vuelven enlace solas en el párrafo que se escribe (`NSDataDetector`); Cmd+K pone uno a mano;
   un clic lo abre en el navegador (con Mayús, no, para poder seleccionar). **Helvetica Neue**, no
   IBM Plex: Plex no trae cursiva, y Helvetica la abre cualquier editor de RTF. **Los colores no se

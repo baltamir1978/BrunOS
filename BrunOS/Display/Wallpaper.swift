@@ -294,7 +294,9 @@ final class WallpaperStore {
 
     // MARK: - Miniaturas
 
-    private var thumbnails: [String: UIImage] = [:]
+    /// Fuera de la observación: la rellena `thumbnail`, que el selector del
+    /// iPhone llama desde `body`, y cambiar algo observado ahí repinta en bucle.
+    @ObservationIgnored private var thumbnails: [String: UIImage] = [:]
 
     /// Una miniatura del fondo, para el selector de los ajustes.
     ///

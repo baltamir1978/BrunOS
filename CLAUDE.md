@@ -147,6 +147,27 @@ Compila con **BUILD SUCCEEDED y sin un solo warning** en código propio, y arran
 de iPhone 17 con iOS 27.0. El simulador **no sabe** simular una pantalla externa, así que lo del
 monitor sólo se puede comprobar en el iPhone.
 
+## Escrito el 29-sep-2026 (nube, sin compilar ni subir)
+
+Seis arreglos visuales que pidió Bruno, en la rama `claude/gracious-wozniak-c23hmp`. **Sin Xcode**:
+sólo análisis de sintaxis. Lo menos seguro al compilar: la mano del cursor (`PointerController.hand`,
+mide la punta del índice en la imagen) y el `completion` nuevo de `BrowserTab.send`.
+
+- **El cursor cambia en el navegador**: mano sobre un enlace o lo que tenga `cursor: pointer`, y la
+  I en un campo de texto. El `hover` de `ClickInjector.js` devuelve `{cursor}` (`cursorFor`, con
+  el CSS y, si es `auto`, lo que haría un navegador); `BrowserTab.hoverCursor` lo guarda y avisa, y
+  el escritorio pregunta al panel con `Pane.cursorShape(at:)`. El último movimiento de una ráfaga
+  ya no se pierde por el límite de 30 por segundo (`trailingHover`).
+- **Fuera el «brunOS_» del fondo** del escritorio vacío (`emptyLabel`). El de la barra se queda.
+- **El fondo, también desde el iPhone**: el enlace estaba dentro del bloque que sólo sale con
+  monitor, y con monitor el iPhone está en negro: era inalcanzable. Ahora siempre, con las mismas
+  miniaturas que el monitor y **«Elegir una foto…»** de la fototeca (`PhotosPicker`, sin permiso).
+- **Notas**: botones de negrita, cursiva, subrayado y enlace en la cabecera del editor.
+- **Tailscale** con su logo de nueve puntos: la «T» en blanco (el color del texto) si está
+  conectado, los nueve en gris si no.
+- **El dock ya no se corta por la derecha**: `baseWidth` contaba un hueco del separador de menos
+  y la barra acababa 10 puntos antes que el icono de Ajustes.
+
 ## Pendiente de probar (en la 2609250831)
 
 - **ZIP** en Ficheros: comprimir uno y varios, descomprimir con doble clic y con el botón

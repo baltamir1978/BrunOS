@@ -13,7 +13,8 @@ final class TopBar: UIView {
     private let brandLabel = UILabel()
     private let titleLabel = UILabel()
     private let resolutionLabel = UILabel()
-    /// Tailscale: el icono en verde si parece conectado, en gris si no.
+    /// Tailscale: su logo de nueve puntos, con la «T» encendida si parece
+    /// conectado y todo en gris si no. Ver `tailscaleLogo`.
     private let tailscaleLabel = UILabel()
     /// El tiempo: icono y temperatura, como en la barra de macOS.
     private let weatherLabel = UILabel()
@@ -147,14 +148,61 @@ final class TopBar: UIView {
         return result
     }
 
+    /// El logo de Tailscale, como en su icono de la barra de menús de macOS:
+    /// una rejilla de 3 × 3 puntos. Conectado, la «T» (la fila del medio y el
+    /// de abajo en el centro) va en el color del texto —blanca en oscuro— y
+    /// el resto apagado; desconectado, los nueve en gris.
+    ///
+    /// Se dibuja a mano: no hay símbolo del sistema con esa forma, y el logo
+    /// de Tailscale no se puede traer al repositorio.
+    private static func tailscaleLogo(connected: Bool) -> NSTextAttachment {
+        let attachment = NSTextAttachment(image: tailscaleImage(connected: connected, style: DesktopTheme.style))
+        attachment.bounds = CGRect(origin: CGPoint(x: 0, y: -2), size: attachment.image?.size ?? .zero)
+        return attachment
+    }
+
+    /// `updateStatus` corre con cada cambio de título: la imagen se hace una
+    /// vez por estado y modo.
+    private static var tailscaleImages: [String: UIImage] = [:]
+
+    private static func tailscaleImage(connected: Bool, style userStyle: UIUserInterfaceStyle) -> UIImage {
+        let key = "\(connected)|\(userStyle.rawValue)"
+        if let cached = tailscaleImages[key] { return cached }
+        let style = UITraitCollection(userInterfaceStyle: userStyle)
+        let bright = Tokens.Color.text.resolvedColor(with: style)
+        let grey = Tokens.Color.textSecondary.resolvedColor(with: style)
+        // Desconectado, los nueve iguales: grises, pero que se vean.
+        let dim = connected ? bright.withAlphaComponent(0.3) : grey.withAlphaComponent(0.7)
+        let lit: Set<Int> = connected ? [3, 4, 5, 7] : []
+
+        let dot: CGFloat = 3.4
+        let step: CGFloat = 4.8
+        let side = dot + step * 2
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 4
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { context in
+            for index in 0..<9 {
+                let rect = CGRect(x: CGFloat(index % 3) * step, y: CGFloat(index / 3) * step, width: dot, height: dot)
+                context.cgContext.setFillColor((lit.contains(index) ? bright : dim).cgColor)
+                context.cgContext.fillEllipse(in: rect)
+            }
+        }
+        tailscaleImages[key] = image
+        return image
+    }
+
     private func updateStatus() {
         let tailscale = AppServices.shared.tailscale
         let waiting = tailscale.lastToggle == .waiting
-        tailscaleLabel.attributedText = Self.symbolText(
-            "point.3.connected.trianglepath.dotted",
-            color: tailscale.isLikelyUp ? UIColor(hex: 0x4FA85C) : Tokens.Color.textSecondary,
-            text: waiting ? "…" : nil
-        )
+        let logo = NSMutableAttributedString()
+        logo.append(NSAttributedString(attachment: Self.tailscaleLogo(connected: tailscale.isLikelyUp)))
+        if waiting {
+            logo.append(NSAttributedString(string: " …", attributes: [
+                .font: Tokens.mono(12), .foregroundColor: Tokens.Color.textSecondary,
+            ]))
+        }
+        tailscaleLabel.attributedText = logo
 
         let weather = AppServices.shared.weather
         if let forecast = weather.forecast {

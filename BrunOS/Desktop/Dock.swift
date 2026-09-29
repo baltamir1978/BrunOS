@@ -179,10 +179,18 @@ final class Dock: UIView {
     }
 
     /// El ancho de la barra sin agrandar nada.
+    ///
+    /// Entre las apps y los ajustes no va el `spacing` de siempre sino el
+    /// separador, con `separatorGap` a cada lado, como lo coloca
+    /// `layoutIcons`. Antes se contaba un hueco de menos y la barra acababa
+    /// 10 puntos antes que el icono de ajustes, cortado por la derecha
+    /// (Bruno, 29-sep-2026).
     private var baseWidth: CGFloat {
         let count = CGFloat(allItems.count)
-        return count * Self.itemSize + (count - 1) * Self.spacing
-            + 2 * (Self.separatorGap - Self.spacing) + 1 + 2 * Self.padding
+        let separator = settingsItem != nil && !items.isEmpty
+            ? 2 * Self.separatorGap + 1 - Self.spacing
+            : 0
+        return count * Self.itemSize + max(0, count - 1) * Self.spacing + separator + 2 * Self.padding
     }
 
     private var baseBarFrame: CGRect {

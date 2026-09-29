@@ -32,11 +32,16 @@ protocol Pane: AnyObject {
     /// vacía de su barra, como la barra de título de una ventana de macOS.
     /// Nunca un botón, una pestaña o la barra de direcciones.
     func isDragArea(_ point: CGPoint) -> Bool
+
+    /// La forma del cursor en ese punto, o `nil` para la flecha: la mano
+    /// sobre un enlace del navegador, por ejemplo.
+    func cursorShape(at point: CGPoint) -> PointerController.Shape?
 }
 
 extension Pane {
     func insertText(_ text: String) {}
     func isDragArea(_ point: CGPoint) -> Bool { false }
+    func cursorShape(at point: CGPoint) -> PointerController.Shape? { nil }
 }
 
 /// Evento de puntero en coordenadas locales del panel.

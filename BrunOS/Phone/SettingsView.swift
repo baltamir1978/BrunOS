@@ -78,13 +78,16 @@ struct SettingsView: View {
                 .onChange(of: overscan) { _, newValue in
                     services.externalDisplay.setOverscan(newValue)
                 }
+            }
 
-                NavigationLink {
-                    WallpaperPicker()
-                } label: {
-                    LabeledContent("Fondo", value: services.wallpaper.current.label)
-                        .font(.brunosMono(14))
-                }
+            // Fuera del bloque del monitor: con el monitor puesto el iPhone
+            // está en negro y estos ajustes no se ven, así que era imposible
+            // llegar aquí (Bruno, 29-sep-2026).
+            NavigationLink {
+                WallpaperPicker()
+            } label: {
+                LabeledContent("Fondo", value: services.wallpaper.current.label)
+                    .font(.brunosMono(14))
             }
 
             // Esto sí vale sin monitor: no depende de la pantalla concreta.

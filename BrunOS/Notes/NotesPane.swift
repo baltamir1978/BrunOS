@@ -55,6 +55,27 @@ final class NotesPane: UIView, Pane {
     private var externalFrame: CGRect = .zero
     private var clipButtons: [(frame: CGRect, action: () -> Void, title: String)] = []
 
+    /// Los botones de formato de la cabecera del editor, como en Notas de
+    /// macOS: los mismos que Cmd+B, Cmd+I, Cmd+U y Cmd+K. Sólo con una nota
+    /// abierta; en el portapapeles no hay formato.
+    private enum FormatButton: CaseIterable {
+        case bold, italic, underline, link
+
+        var symbol: String {
+            switch self {
+            case .bold: "bold"
+            case .italic: "italic"
+            case .underline: "underline"
+            case .link: "link"
+            }
+        }
+    }
+    private var formatFrames: [FormatButton: CGRect] = [:]
+    private var hoveredFormat: FormatButton?
+    /// Los que salían encendidos en el último dibujo: se repinta sólo si
+    /// cambian, no con cada movimiento del cursor de texto.
+    private var drawnFormats: Set<FormatButton> = []
+
     var title: String {
         switch mode {
         case .notes: noteID.flatMap { services.notes.note($0)?.title } ?? "Notas"
@@ -195,6 +216,17 @@ final class NotesPane: UIView, Pane {
         ]
         newFrame = CGRect(x: Self.sidebarWidth - 34, y: (Self.headerHeight - 26) / 2, width: 26, height: 26)
 
+        formatFrames = [:]
+        if editingNote {
+            var x = bounds.width - 10
+            for button in FormatButton.allCases.reversed() {
+                x -= 28
+                formatFrames[button] = CGRect(x: x, y: (Self.headerHeight - 26) / 2, width: 26, height: 26)
+                x -= 2
+                if button == .link { x -= 8 }
+            }
+        }
+
         var top = Self.headerHeight + 44
         externalFrame = .zero
         if mode == .clipboard, services.clipboard.hasUnseenExternal {
@@ -228,10 +260,11 @@ final class NotesPane: UIView, Pane {
                             hovering: hoveringControls, scale: layer.contentsScale)
         drawSymbol("square.and.pencil", in: newFrame, color: Tokens.Color.text.withAlphaComponent(0.8), size: 13)
 
-        // Título de lo abierto, en la cabecera del editor.
+        // Título de lo abierto, en la cabecera del editor, hasta los botones.
+        let titleRight = formatFrames.values.map(\.minX).min().map { $0 - 12 } ?? bounds.width - 16
         (title as NSString).draw(
             in: CGRect(x: Self.sidebarWidth + 16, y: (Self.headerHeight - 20) / 2,
-                       width: bounds.width - Self.sidebarWidth - 32, height: 20),
+                       width: max(0, titleRight - Self.sidebarWidth - 16), height: 20),
             withAttributes: [
                 .font: Tokens.sans(14, weight: .semibold),
                 .foregroundColor: Tokens.Color.text,
@@ -239,6 +272,7 @@ final class NotesPane: UIView, Pane {
             ]
         )
 
+        drawFormatButtons(in: context)
         drawSegments(in: context)
 
         context.saveGState()
@@ -412,6 +446,59 @@ final class NotesPane: UIView, Pane {
         }
     }
 
+    private func drawFormatButtons(in context: CGContext) {
+        let active = activeFormats()
+        drawnFormats = active
+        for (button, frame) in formatFrames {
+            let isOn = active.contains(button)
+            if isOn || hoveredFormat == button {
+                let fill = isOn ? Tokens.Color.accent.withAlphaComponent(0.2) : Tokens.Color.text.withAlphaComponent(0.08)
+                context.setFillColor(fill.desktopCGColor)
+                context.addPath(UIBezierPath(roundedRect: frame, cornerRadius: 6).cgPath)
+                context.fillPath()
+            }
+            drawSymbol(button.symbol, in: frame,
+                       color: isOn ? Tokens.Color.accent : Tokens.Color.text.withAlphaComponent(0.8), size: 13)
+        }
+    }
+
+    /// Lo que está puesto donde está el cursor: en lo seleccionado si hay
+    /// selección (mirando su principio), y si no, en lo que se va a escribir.
+    private func activeFormats() -> Set<FormatButton> {
+        guard editingNote else { return [] }
+        let storage = textView.textStorage
+        var attributes = typingAttributes
+        var hasLink = false
+        if selection.length > 0, selection.location < storage.length {
+            attributes = storage.attributes(at: selection.location, effectiveRange: nil)
+            hasLink = attributes[.link] != nil
+        } else if selection.location > 0, selection.location <= storage.length {
+            hasLink = storage.attribute(.link, at: selection.location - 1, effectiveRange: nil) != nil
+        }
+        var result: Set<FormatButton> = []
+        let traits = (attributes[.font] as? UIFont ?? NoteStyle.baseFont).fontDescriptor.symbolicTraits
+        if traits.contains(.traitBold) { result.insert(.bold) }
+        if traits.contains(.traitItalic) { result.insert(.italic) }
+        if attributes[.underlineStyle] != nil { result.insert(.underline) }
+        if hasLink { result.insert(.link) }
+        return result
+    }
+
+    /// Repinta la cabecera si lo encendido ha cambiado.
+    private func refreshFormatButtons() {
+        guard activeFormats() != drawnFormats else { return }
+        setNeedsDisplay()
+    }
+
+    private func performFormat(_ button: FormatButton) {
+        switch button {
+        case .bold: toggle(.traitBold)
+        case .italic: toggle(.traitItalic)
+        case .underline: toggleUnderline()
+        case .link: addLink()
+        }
+    }
+
     private func drawSymbol(_ name: String, in frame: CGRect, color: UIColor, size: CGFloat = 12) {
         let configuration = UIImage.SymbolConfiguration(pointSize: size, weight: .medium)
         guard let image = UIImage.crispSymbol(name, configuration: configuration, scale: layer.contentsScale)?
@@ -468,6 +555,7 @@ final class NotesPane: UIView, Pane {
     /// Coloca el cursor y pinta la selección. El cursor parpadea con una
     /// animación de la capa, sin temporizador.
     private func refreshCaret() {
+        refreshFormatButtons()
         selectionViews.forEach { $0.removeFromSuperview() }
         selectionViews = []
 
@@ -521,7 +609,9 @@ final class NotesPane: UIView, Pane {
     /// El formato que se aplicará a lo que se escriba, si se ha cambiado con
     /// Cmd+B, Cmd+I o Cmd+U sin nada seleccionado. Se olvida al mover el
     /// cursor, como en cualquier editor.
-    private var typingStyle: [NSAttributedString.Key: Any]?
+    private var typingStyle: [NSAttributedString.Key: Any]? {
+        didSet { refreshFormatButtons() }
+    }
 
     /// Con qué formato sale lo que se escribe: el de lo que hay justo antes
     /// del cursor (sin su enlace), o el pedido con los atajos.
@@ -639,6 +729,7 @@ final class NotesPane: UIView, Pane {
             storage.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: selection)
         }
         saveContent()
+        refreshFormatButtons()
     }
 
     /// Cmd+K: un enlace en lo seleccionado, o la dirección escrita como enlace.
@@ -659,6 +750,7 @@ final class NotesPane: UIView, Pane {
                 self.textView.textStorage.addAttribute(.link, value: url, range: range)
             }
             self.saveContent()
+            self.refreshFormatButtons()
         }
     }
 
@@ -855,6 +947,7 @@ final class NotesPane: UIView, Pane {
     func isDragArea(_ point: CGPoint) -> Bool {
         guard point.y < Self.headerHeight else { return false }
         if newFrame.insetBy(dx: -4, dy: -4).contains(point) { return false }
+        if formatFrames.values.contains(where: { $0.insetBy(dx: -2, dy: -4).contains(point) }) { return false }
         return WindowControls.button(at: point, x: Self.controlsX, midY: Self.controlsMidY) == nil
     }
 
@@ -868,9 +961,11 @@ final class NotesPane: UIView, Pane {
             }
             let inControls = WindowControls.groupContains(location, x: Self.controlsX, midY: Self.controlsMidY)
             let row = rowFrames.firstIndex { $0.contains(location) }
-            if inControls != hoveringControls || row != hoveredRow {
+            let format = formatFrames.first { $0.value.contains(location) }?.key
+            if inControls != hoveringControls || row != hoveredRow || format != hoveredFormat {
                 hoveringControls = inControls
                 hoveredRow = row
+                hoveredFormat = format
                 setNeedsDisplay()
             }
             // El aviso de lo nuevo del portapapeles se mira al pasar por
@@ -887,6 +982,10 @@ final class NotesPane: UIView, Pane {
             }
             if newFrame.insetBy(dx: -4, dy: -4).contains(location) {
                 newNote()
+                return
+            }
+            if let format = formatFrames.first(where: { $0.value.contains(location) })?.key {
+                performFormat(format)
                 return
             }
             if let segment = modeFrames.first(where: { $0.value.contains(location) })?.key {

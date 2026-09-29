@@ -663,6 +663,10 @@ final class BrowserPane: UIView, Pane {
             guard let self, let tab else { return }
             self.pageRequestedFullScreen(on, from: tab)
         }
+        tab.onCursorChange = { [weak self, weak tab] in
+            guard let self, self.activeTab === tab else { return }
+            AppServices.shared.desktopViewController?.refreshCursorShape()
+        }
         tabs.append(tab)
         content.addSubview(tab.webView)
         return tab
@@ -1209,6 +1213,22 @@ final class BrowserPane: UIView, Pane {
             suggestions.isHidden = true
         }
         refreshChrome()
+    }
+
+    /// La mano sobre un enlace y la I sobre un campo, como pida la página.
+    /// Fuera del contenido (la barra, las sugerencias, los favoritos), la
+    /// flecha.
+    func cursorShape(at point: CGPoint) -> PointerController.Shape? {
+        guard let tab = activeTab, content.frame.contains(point),
+              !suggestions.contains(point),
+              bookmarksBar.isHidden || !bookmarksBar.frame.contains(point),
+              !(isFinding && findBar.frame.contains(point)),
+              !(downloadToast.alpha > 0.5 && downloadToast.frame.contains(point))
+        else {
+            activeTab?.resetHoverCursor()
+            return nil
+        }
+        return tab.hoverCursor
     }
 
     func handlePointer(_ event: PointerEvent) {

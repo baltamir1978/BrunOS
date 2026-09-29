@@ -33,6 +33,10 @@ final class BrowserTab: NSObject {
     /// Lo último que dijo `describe()` sobre lo que hay bajo el cursor.
     private(set) var hoveredLink: String?
 
+    /// La forma que pide la página bajo el cursor: la mano en un enlace, la I
+    /// en un campo. La contesta el `hover` de `ClickInjector.js`.
+    private(set) var hoverCursor: PointerController.Shape = .arrow
+
     /// Cuándo se usó por última vez, para decidir a quién descargar.
     private(set) var lastUsed = Date()
 
@@ -529,16 +533,50 @@ final class BrowserTab: NSObject {
     ///
     /// El movimiento llega a cada fotograma de la pantalla externa. Mandarlo
     /// todo a JavaScript ahoga la página y el cursor empieza a arrastrarse.
+    ///
+    /// El último movimiento de una ráfaga no se pierde (`trailingHover`): si
+    /// no, al parar el ratón justo encima de un enlace el cursor se quedaba
+    /// con la forma de lo que había unos puntos antes.
     func hover(at point: CGPoint) {
         let now = Date()
-        guard now.timeIntervalSince(lastHoverTime) > 0.033 else { return }
         // Medio punto no cambia lo que hay debajo, y cada aviso es una
         // búsqueda en la página entera.
         guard abs(point.x - lastHoverPoint.x) >= 1 || abs(point.y - lastHoverPoint.y) >= 1 else { return }
+        trailingHover?.cancel()
+        guard now.timeIntervalSince(lastHoverTime) > 0.033 else {
+            trailingHover = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(40))
+                guard !Task.isCancelled else { return }
+                self?.hover(at: point)
+            }
+            return
+        }
         lastHoverTime = now
         lastHoverPoint = point
-        send("hover", [point.x, point.y])
+        send("hover", [point.x, point.y]) { [weak self] value in
+            guard let self else { return }
+            let shape: PointerController.Shape = switch (value as? [String: Any])?["cursor"] as? String {
+            case "pointer": .link
+            case "text": .text
+            default: .arrow
+            }
+            guard shape != hoverCursor else { return }
+            hoverCursor = shape
+            onCursorChange?()
+        }
     }
+
+    /// Sale del contenido de la página: la forma vuelve a la flecha.
+    func resetHoverCursor() {
+        trailingHover?.cancel()
+        lastHoverPoint = CGPoint(x: -1, y: -1)
+        hoverCursor = .arrow
+    }
+
+    /// Avisa cuando la página pide otra forma de cursor. La respuesta llega
+    /// después del movimiento, y con el ratón quieto nadie volvería a mirar.
+    var onCursorChange: (() -> Void)?
+    private var trailingHover: Task<Void, Never>?
 
     func scroll(at point: CGPoint, delta: CGVector) {
         send("wheel", [point.x, point.y, -delta.dx, -delta.dy])
@@ -1111,21 +1149,29 @@ final class BrowserTab: NSObject {
     /// Manda un evento al inyector y, si cae en un iframe, se lo pasa al del
     /// iframe con las coordenadas que ha calculado el de fuera. Anidados,
     /// tantas veces como haga falta (con un tope).
-    private func send(_ operation: String, _ arguments: [Any], in frame: WKFrameInfo? = nil, depth: Int = 0) {
+    /// `completion` recibe lo que devuelva la operación en el marco que la
+    /// atiende al final, después de los reenvíos a iframes.
+    private func send(
+        _ operation: String, _ arguments: [Any], in frame: WKFrameInfo? = nil, depth: Int = 0,
+        completion: (@MainActor (Any?) -> Void)? = nil
+    ) {
         guard let data = try? JSONSerialization.data(withJSONObject: arguments) else { return }
         let json = String(decoding: data, as: UTF8.self)
             .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
             .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
         let script = "window.__brunos.op('\(operation)', \(json));"
         webView.evaluateJavaScript(script, in: frame, in: world) { [weak self] result in
+            guard case .success(let value) = result else { return }
             guard depth < 6, let self,
-                  case .success(let value) = result,
                   let forward = value as? [String: Any],
                   let target = forward["frame"] as? [String: Any],
                   let next = forward["args"] as? [Any],
                   let info = self.frame(for: target)
-            else { return }
-            self.send(operation, next, in: info, depth: depth + 1)
+            else {
+                completion?(value)
+                return
+            }
+            self.send(operation, next, in: info, depth: depth + 1, completion: completion)
         }
     }
 

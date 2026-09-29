@@ -440,3 +440,12 @@ de texto de iOS, que agranda la letra de las páginas anchas; con `100%` sale ig
 Va en `installDesktopHints`, con dos cosas más: `screen` mide lo que la ventana (decía 402×874, la
 del iPhone) y `matchMedia` contesta «ratón» a `pointer`/`hover` desde JavaScript (el CSS no se puede
 cambiar). Comprobado en el simulador con el script tal cual.
+
+## La forma del cursor (29-sep-2026)
+
+El `hover` del inyector devuelve `{cursor: 'pointer' | 'text' | 'default'}` (`cursorFor`): manda
+el `cursor` del CSS, que se hereda; con `auto`, la mano en un `a[href]`/`area[href]` y la I en un
+campo donde se escribe. Llega a Swift por el `completion` de `send`, **también a través de los
+iframes** (lo devuelve el marco que atiende al final). `BrowserTab.hoverCursor` lo guarda y
+`onCursorChange` pide al escritorio que vuelva a mirar, porque la respuesta llega después del
+movimiento. Fuera del contenido de la página (barra, sugerencias, favoritos), la flecha.

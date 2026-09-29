@@ -152,9 +152,12 @@ function focusIfEditable(element) {
 ///
 /// Sin esto no funcionan los menús desplegables ni nada que reaccione al pasar
 /// por encima. La frecuencia la limita Swift, no esta función.
+///
+/// Devuelve `{cursor}` con la forma que pide lo que hay debajo (ver
+/// `cursorFor`), para que BrunOS cambie la flecha por la mano en un enlace.
 function hover(x, y) {
     const target = deepElementFromPoint(x, y);
-    if (!target) return false;
+    if (!target) return { cursor: 'default' };
 
     const base = makeMouseInit(x, y, 0, null);
     base.buttons = 0;
@@ -176,7 +179,35 @@ function hover(x, y) {
 
     target.dispatchEvent(new PointerEvent('pointermove', makePointerInit(base)));
     target.dispatchEvent(new MouseEvent('mousemove', base));
-    return true;
+    return { cursor: cursorFor(target) };
+}
+
+/// La forma del cursor sobre un elemento: `pointer` (la mano), `text` (la I)
+/// o `default` (la flecha).
+///
+/// Manda el `cursor` del CSS, que se hereda, así que el del propio elemento
+/// ya trae el de sus antepasados. Con `auto`, lo que haría un navegador: la
+/// mano en un enlace y la I en un campo donde se escribe.
+function cursorFor(element) {
+    let css = 'auto';
+    try { css = window.getComputedStyle(element).cursor || 'auto'; } catch (error) {}
+    if (css === 'pointer') return 'pointer';
+    if (css === 'text' || css === 'vertical-text') return 'text';
+    if (css !== 'auto') return 'default';
+
+    let node = element;
+    while (node && node.nodeType === 1) {
+        const tag = node.tagName;
+        if ((tag === 'A' || tag === 'AREA') && node.hasAttribute('href')) return 'pointer';
+        if (tag === 'TEXTAREA' || node.isContentEditable) return 'text';
+        if (tag === 'INPUT') {
+            const type = (node.getAttribute('type') || 'text').toLowerCase();
+            const typing = ['text', 'search', 'email', 'url', 'tel', 'password', 'number'];
+            return typing.indexOf(type) >= 0 ? 'text' : 'default';
+        }
+        node = node.parentElement || (node.getRootNode() || {}).host;
+    }
+    return 'default';
 }
 
 function leaveHovered(base) {
