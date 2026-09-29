@@ -23,9 +23,9 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | | Estado |
 | --- | --- |
 | **Pantalla externa** a resolución nativa, con escalas de 1× a 3× (de cuarto en cuarto entre 1× y 2,5×), overscan y perfiles por monitor | ✅ |
-| **Ratón y teclado** Bluetooth, cursor propio que no se atasca en los bordes, atajos | ✅ |
+| **Ratón y teclado** Bluetooth, cursor propio que no se atasca en los bordes (con la mano sobre los enlaces y la I en los campos de texto del navegador), atajos | ✅ la mano, sin rodaje |
 | **Escritorio** con ventanas flotantes o en mosaico estilo i3, todas las apps a la vez, dock con varias ventanas por app, encajar en mitades y cuartos, pantalla completa, Exposé (Cmd+E) y cambio de ventana con Cmd+º | ✅ |
-| **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él | ✅ |
+| **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él; el fondo se elige en el monitor o en el iPhone, también una foto de la fototeca | ✅ la foto, sin rodaje |
 | **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
 | **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios con las listas de uBlock Origin, avisos de cookies fuera, descargas e iframes pulsables (reCAPTCHA, pagos, logins) | ✅ |
 | **Favoritos** con barra propia, iconos de cada sitio, sugerencias al escribir, modo lectura e historial (Cmd+Y y botón en la barra) | ✅ |
