@@ -33,8 +33,9 @@ iPhone con el monitor y la dio por buena. Su historia, build a build, está en `
 
 ### Pendiente de probar (0.2.0)
 
-Todo escrito en la nube, **sin compilar** (rama `claude/trusting-feynman-65cc7l`, PR #4). Lo
-primero en el Mac: `./Tools/build.sh` y cero warnings. Quitar cada cosa de aquí al confirmarla.
+Escrito en la nube (rama `claude/trusting-feynman-65cc7l`, PR #4) y fusionado en `main` el
+30-sep-2026: **compila a la primera, sin errores ni warnings**. Sin subir a TestFlight y sin
+probar en el iPhone. Quitar cada cosa de aquí al confirmarla.
 
 - La barra superior sin ventanas no rotula nada (antes, «Sin paneles»).
 - **Supr**: en la barra de direcciones y en Buscar **escribía un carácter invisible** (el
@@ -62,8 +63,8 @@ primero en el Mac: `./Tools/build.sh` y cero warnings. Quitar cada cosa de aquí
   - **B3**: Terminal › Apariencia › Historial (2.000, 5.000 o 10.000 líneas; 5.000 por
     defecto, antes 10.000 fijas), para las pestañas nuevas.
   - **B4**: las miniaturas de Ficheros, en `NSCache` de 40 MB; si suelta una, se vuelve a pedir.
-  - **D1**: **la primera compilación en el Mac deja `Package.resolved` en la raíz** (copiado
-    del que ya tenía el proyecto): revisar las versiones y subirlo. Desde entonces `build.sh` y
+  - **D1**: `Package.resolved` ya está en la raíz y en el repositorio (30-sep; revisado:
+    Citadel 0.11.1, `swift-nio-ssh` 0.3.5 de Joannis, SwiftTerm 1.20.0, AMSMB2 4.0.3). Desde entonces `build.sh` y
     `testflight.sh` compilan sólo con esas versiones (`-disableAutomaticPackageResolution`).
     Si `xcodebuild` protesta por la resolución, es que `project.yml` pide algo que no está en
     `Package.resolved`.
