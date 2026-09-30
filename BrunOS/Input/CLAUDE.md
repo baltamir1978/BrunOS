@@ -24,6 +24,14 @@ rueda** sin cambiar la fuente.
 - **Diagnóstico** (Ajustes › Ratón y teclado): fuente activa, eventos por segundo de cada una y
   alcance del indirecto en cada eje. Es lo primero que hay que pedirle a Bruno si algo falla.
 
+## AssistiveTouch es imprescindible
+
+**Probado por Bruno (30-sep-2026): sin AssistiveTouch, `GCMouse` no da movimiento en iPhone**,
+aunque la cabecera no excluya el iPhone. En iPhone el ratón sólo existe como accesibilidad: el
+puntero de iOS, que choca con los bordes, y el clic convertido en toque no se pueden quitar. Una
+app tampoco puede esconder ni mover ese puntero (lo dice Madeira, willfaust/Madeira#37). Lo que
+se hace está en `BrunOS/Phone/CLAUDE.md` («Los bordes, de la app»).
+
 ## El toque de AssistiveTouch es el botón
 
 Con AssistiveTouch, el botón izquierdo llega como **un toque en la pantalla del iPhone** donde

@@ -187,11 +187,9 @@ enum SettingsPages {
                 ),
                 SettingsGroup(
                     "Ratón",
-                    footer: "Con AssistiveTouch, el cursor del monitor sigue la posición del puntero "
-                        + "en el iPhone: el borde del teléfono es el borde del monitor, y no se "
-                        + "atasca. La velocidad se ajusta en iOS: Accesibilidad › Control del puntero "
-                        + "› Velocidad de seguimiento. La sensibilidad y la aceleración de aquí valen "
-                        + "para el trackpad del iPhone y para GCMouse.",
+                    footer: "El cursor del monitor lo mueve GCMouse, con la sensibilidad y la "
+                        + "aceleración de aquí (también valen para el trackpad del iPhone). "
+                        + "AssistiveTouch hace falta igual: sin él, el iPhone no entrega el ratón.",
                     rows: [
                         SettingsRow("Fuente activa", .value(services.mouse.activeSourceName)),
                         SettingsRow("Sensibilidad", .choice(
@@ -202,8 +200,33 @@ enum SettingsPages {
                                     .toggle(pointer.acceleration) { value in update { $0.acceleration = value } }),
                     ]
                 ),
+                SettingsGroup(
+                    "El clic en el iPhone",
+                    footer: "Con AssistiveTouch, cada clic es un toque en el iPhone, donde esté su "
+                        + "puntero, que se para en los bordes del teléfono. Si ahí está el botón de "
+                        + "AssistiveTouch, el clic abre su menú. Para que no pase: Ajustes del iPhone "
+                        + "› Accesibilidad › Tocar › AssistiveTouch › desactiva «Mostrar siempre el "
+                        + "menú» (con el ratón conectado, el botón desaparece; el menú se puede poner "
+                        + "en un botón del ratón en «Personalizar botones adicionales»), y deja "
+                        + "apagados Dwell y las esquinas activas. BrunOS ya esconde la barra de "
+                        + "estado y aplaza los gestos de los bordes mientras hay monitor.\n"
+                        + "Bloquear el puntero es una prueba: se lo pide a iOS, que en iPhone "
+                        + "seguramente no lo acepte. Si lo acepta, el puntero del iPhone deja de "
+                        + "moverse y todo llega por GCMouse.",
+                    rows: [
+                        SettingsRow("Bloquear el puntero del iPhone", subtitle: "Prueba",
+                                    .toggle(DesktopPreferences.tryPointerLock) {
+                                        DesktopPreferences.tryPointerLock = $0
+                                    }),
+                        SettingsRow("Estado del bloqueo", .value(
+                            !DesktopPreferences.tryPointerLock ? "sin pedir"
+                                : PhoneRootViewController.isPointerLocked == true ? "bloqueado"
+                                : "iOS no lo acepta"
+                        )),
+                    ]
+                ),
                 SettingsGroup("Atajos", rows: [
-                    SettingsRow("Navegador · Terminal · Ficheros", .value("Cmd + 1 · 2 · 3")),
+                    SettingsRow("Navegador · Terminal · Ficheros · Notas · Fotos", .value("Cmd + 1 … 5")),
                     SettingsRow("Mover el foco", .value("Cmd + Opción + flechas")),
                     SettingsRow("Mover el panel", .value("Cmd + Mayús + flechas")),
                     SettingsRow("Maximizar el panel", .value("Cmd + Intro")),

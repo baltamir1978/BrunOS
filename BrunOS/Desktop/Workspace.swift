@@ -194,6 +194,20 @@ enum DesktopPreferences {
         set { UserDefaults.standard.set(newValue, forKey: "desktop.newPanesFloat") }
     }
 
+    /// Pedirle a iOS que bloquee su puntero en modo mando (prueba, 30-sep-2026).
+    /// En iPhone casi seguro que no lo acepta: Jump Desktop no lo ofrece en
+    /// iPhone. Si lo aceptara, el puntero de AssistiveTouch dejaría de moverse
+    /// y el ratón llegaría sólo por `GCMouse`, botones incluidos.
+    static let pointerLockDidChange = Notification.Name("BrunOSPointerLockDidChange")
+
+    static var tryPointerLock: Bool {
+        get { UserDefaults.standard.bool(forKey: "mouse.tryPointerLock") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "mouse.tryPointerLock")
+            NotificationCenter.default.post(name: pointerLockDidChange, object: nil)
+        }
+    }
+
     /// Avisa de que ha cambiado la transparencia del dock o de la barra.
     static let translucencyDidChange = Notification.Name("BrunOSTranslucencyDidChange")
 

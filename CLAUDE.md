@@ -56,6 +56,11 @@ Lo que Bruno pidió al probar la 2609301421. Compila sin warnings y se vio en el
   a medio píxel y, con el filtro `.nearest`, las letras salían dentadas. Ahora van a píxel
   entero (`pixelAlignCards`, también el calendario y el menú; `PixelSnappingStackView` en la
   barra).
+- **El clic de AssistiveTouch en los bordes del iPhone** (Bruno: a veces pulsaba su menú): en
+  modo mando se esconden la barra de estado y el indicador de inicio y se aplazan los gestos de
+  los bordes; la explicación de «Mostrar siempre el menú» y un interruptor de prueba para
+  bloquear el puntero, en Ajustes › Ratón y teclado › «El clic en el iPhone». Mirar qué dice
+  «Estado del bloqueo» al activarlo.
 
 ### Ideas aparcadas
 

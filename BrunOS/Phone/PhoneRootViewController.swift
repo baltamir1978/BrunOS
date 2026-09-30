@@ -43,10 +43,44 @@ final class PhoneRootViewController: UIViewController {
             name: ExternalDisplayManager.didChangeNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            forName: DesktopPreferences.pointerLockDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.setNeedsUpdateOfPrefersPointerLocked() }
+        }
 
         // Aquí se declara el contenido de la pantalla externa. El sistema decide
         // cuándo presentarlo; la app tiene que funcionar igual sin monitor.
         services.externalDisplay.register(from: self)
+    }
+
+    // MARK: - Modo mando: que los bordes no sean del sistema
+
+    /// Con monitor, el iPhone es superficie táctil y el clic de AssistiveTouch
+    /// cae donde esté su puntero, que se para en los bordes del teléfono. Ahí
+    /// arriba estaba la barra de estado, abajo el indicador de inicio, y un clic
+    /// arrastrado desde un borde podía abrir el Centro de Control o mandar a
+    /// Inicio (Bruno, 30-sep-2026). Con los bordes aplazados, el primer gesto
+    /// es de la app y el sistema pide un segundo.
+    private var isRemoteMode: Bool { services.externalDisplay.currentProfile != nil }
+
+    override var prefersStatusBarHidden: Bool { isRemoteMode }
+    override var prefersHomeIndicatorAutoHidden: Bool { isRemoteMode }
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { isRemoteMode ? .all : [] }
+    override var prefersPointerLocked: Bool { isRemoteMode && DesktopPreferences.tryPointerLock }
+
+    private func updateSystemPreferences() {
+        setNeedsStatusBarAppearanceUpdate()
+        setNeedsUpdateOfHomeIndicatorAutoHidden()
+        setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
+        setNeedsUpdateOfPrefersPointerLocked()
+    }
+
+    /// Si iOS ha bloqueado el puntero de esta escena: `nil` si no lo sabe.
+    static var isPointerLocked: Bool? {
+        UIApplication.shared.connectedScenes
+            .first { $0.delegate is PhoneSceneDelegate }?
+            .pointerLockState?.isLocked
     }
 
     /// **Al quitar el cable, iOS no siempre desconecta la escena externa
@@ -88,6 +122,7 @@ final class PhoneRootViewController: UIViewController {
     /// Y hay que recuperar el primer respondedor, que se lo había llevado la
     /// hoja: sin él, el teclado físico no llega a ninguna parte.
     @objc private func externalDisplayChanged() {
+        updateSystemPreferences()
         guard services.externalDisplay.currentProfile != nil else { return }
         guard let presented = presentedViewController,
               !(presented is UIDocumentPickerViewController)
