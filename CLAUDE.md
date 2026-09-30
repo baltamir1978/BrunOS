@@ -44,7 +44,7 @@ en el repositorio (Citadel 0.11.1, `swift-nio-ssh` 0.3.5 de Joannis, SwiftTerm 1
 
 Lo que Bruno pidió al probar la 2609301421. Compila sin warnings y se vio en el simulador a
 1,5× (escritorio montado en la pantalla del iPhone con un arnés provisional, no versionado).
-**Sin subir.** Quitar cada cosa de aquí al confirmarla.
+**Subido en la 2609301513** (30-sep-2026, tarde). Quitar cada cosa de aquí al confirmarla.
 
 - **Transparencia con deslizador** (Bruno lo pidió): de 0 a 100 %, dock y barra por separado
   (`SettingsRow.Control.slider`). Lo guardado con los cuatro niveles de antes se recoge. Ajustes
