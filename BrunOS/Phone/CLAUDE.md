@@ -28,8 +28,9 @@ trackpad y nada más; el aviso de entrada se va a los 6 s y no acepta toques.
   desarrollador no hay log ni informes de fallo.
 - **Los bordes, de la app** (30-sep-2026): el puntero de AssistiveTouch se para en los bordes del
   iPhone y el clic cae ahí. En modo mando `PhoneRootViewController` esconde la barra de estado y el
-  indicador de inicio y aplaza los gestos de todos los bordes (`preferredScreenEdgesDeferring
-  SystemGestures`), para que un clic arrastrado no abra el Centro de Control ni mande a Inicio.
+  indicador de inicio y aplaza los gestos de todos los bordes
+  (`preferredScreenEdgesDeferringSystemGestures`), para que un clic arrastrado no abra el Centro
+  de Control ni mande a Inicio.
   Se recalcula en `externalDisplayChanged`. El botón de AssistiveTouch no lo puede esconder la
   app: lo hace Bruno con «Mostrar siempre el menú» apagado (explicado en Ajustes › Ratón y
   teclado).
