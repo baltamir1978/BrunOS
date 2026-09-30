@@ -66,6 +66,13 @@ probó Bruno y dio todo por bueno: «está todo ok». **Ahora es la 0.2.0** (`MA
   (Opaca, Poca, Media, Mucha). `BarBackdrop` (desenfoque + tinte) es el fondo de los dos. Por
   defecto, como estaban: dock en Media, barra Opaca.
 - **Exportar favoritos (punto 3)**: ver `BrunOS/Browser/CLAUDE.md`.
+- **El tiempo con varias ciudades (punto 6)**: hasta 6 (`WeatherService.places`, en
+  `weather.places`; la ciudad única de antes, `weather.place`, se recoge al arrancar). Se pide el
+  tiempo de todas, la elegida primero. **Alternar desde la barra**: botón derecho sobre el icono
+  (lista con la elegida marcada y «Añadir ciudad…») o la rueda encima (una por golpe, con 0,35 s
+  de pausa). En el desplegable, pestañas con la temperatura de cada una, ← → y la rueda para
+  pasar, y «Añadir» / «Quitar» arriba a la derecha. Con más de una, la barra dice también el
+  nombre («21° Madrid»).
 
 La 2609300854 llevaba lo de «Escrito el 30-sep-2026»: cursor en ventanas flotantes, página de
 inicio sin franja y con la ayuda, cabecera de Notas, menú contextual nítido, ZIP de un fichero,
@@ -444,7 +451,7 @@ estaba, abre otra ventana** (24-sep-2026: Bruno volvía a pulsar el icono espera
   corre, el iPhone pasa un momento por Atajos y el monitor enseña la pantalla duplicada.
 - **El tiempo**: Open-Meteo, gratis y sin clave. No WeatherKit: habría que activarlo en el App ID
   desde el portal y añadir un permiso a la firma. La ciudad se elige por nombre (búsqueda de
-  Open-Meteo; si hay varias, un menú), no por ubicación: el aviso de permiso saldría en la
+  Open-Meteo; si hay varias, un menú; desde el 30-sep, varias ciudades), no por ubicación: el aviso de permiso saldría en la
   pantalla del iPhone, en negro. Coordenadas redondeadas a dos decimales. Se actualiza cada 20
   minutos y al abrir el desplegable.
 - **El desplegable salía de un color plano y sin nada que pulsar** (Bruno, 24-sep, en la

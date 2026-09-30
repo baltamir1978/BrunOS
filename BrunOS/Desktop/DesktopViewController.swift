@@ -2343,13 +2343,27 @@ final class DesktopViewController: UIViewController {
     /// Clics en la barra superior. Devuelve `true` si consumió el evento.
     private func handleTopBar(_ kind: PointerEvent.Kind, at position: CGPoint) -> Bool {
         guard topBar.frame.contains(position) else { return false }
-        guard case .down = kind else {
+        let pointInBar = CGPoint(x: position.x - topBar.frame.minX, y: position.y - topBar.frame.minY)
+
+        // La rueda sobre el tiempo pasa de ciudad, sin abrir nada.
+        if case .scroll(let delta) = kind, topBar.hit(at: pointInBar) == .weather {
+            cycleWeatherPlace(delta: delta)
+            return true
+        }
+        guard case .down(let button) = kind else {
             // El resto de eventos sobre la barra se traga igualmente: no tiene
             // sentido que un clic empiece arriba y acabe en un panel.
             return true
         }
 
-        let pointInBar = CGPoint(x: position.x - topBar.frame.minX, y: position.y - topBar.frame.minY)
+        // Botón derecho sobre el tiempo: la lista de ciudades para ir a una.
+        if button == .right, topBar.hit(at: pointInBar) == .weather {
+            let frame = topBar.itemFrame(.weather)
+            presentContextMenu(weatherMenu(anchor: CGPoint(x: frame.midX, y: topBar.frame.maxY)),
+                               at: CGPoint(x: frame.minX, y: topBar.frame.maxY))
+            return true
+        }
+
         switch topBar.hit(at: pointInBar) {
         case .brand:
             presentLauncher()
@@ -2429,7 +2443,7 @@ final class DesktopViewController: UIViewController {
         dismissWeather()
         let popover = WeatherPopover(anchor: anchor, in: CGRect(origin: .zero, size: logicalSize))
         popover.onDismiss = { [weak self] in self?.dismissWeather() }
-        popover.onChangePlace = { [weak self] in
+        popover.onAddPlace = { [weak self] in
             self?.dismissWeather()
             self?.askWeatherPlace(anchor: anchor)
         }
@@ -2488,9 +2502,38 @@ final class DesktopViewController: UIViewController {
         weatherPopover = nil
     }
 
-    /// Pide la ciudad por nombre y, si hay varias con ese nombre, deja elegir.
+    /// Las ciudades del tiempo, con la que se ve marcada, y añadir otra.
+    private func weatherMenu(anchor: CGPoint) -> [ContextMenu.Entry] {
+        let weather = services.weather
+        var entries = weather.places.enumerated().map { (index, place) -> ContextMenu.Entry in
+            let degrees = weather.forecast(for: place).map { " · \(WeatherService.degrees($0.temperature))" } ?? ""
+            return ContextMenu.Entry(
+                title: place.name + degrees,
+                symbol: index == weather.selectedIndex ? "checkmark" : "mappin.and.ellipse"
+            ) { weather.select(index) }
+        }
+        entries.append(ContextMenu.Entry(
+            title: weather.places.isEmpty ? "Elegir ciudad…" : "Añadir ciudad…",
+            symbol: "plus",
+            isEnabled: weather.places.count < WeatherService.maxPlaces
+        ) { [weak self] in self?.askWeatherPlace(anchor: anchor) })
+        return entries
+    }
+
+    /// Una ciudad por golpe de rueda: sin la pausa, un solo giro se saltaba
+    /// varias.
+    private func cycleWeatherPlace(delta: CGVector) {
+        guard abs(delta.dy) > 20, Date().timeIntervalSince(lastWeatherCycle) > 0.35 else { return }
+        lastWeatherCycle = Date()
+        services.weather.cycle(by: delta.dy > 0 ? -1 : 1)
+    }
+
+    private var lastWeatherCycle = Date.distantPast
+
+    /// Pide una ciudad por nombre y, si hay varias con ese nombre, deja elegir.
+    /// Se añade a las que hubiera.
     private func askWeatherPlace(anchor: CGPoint) {
-        presentPrompt(title: "Ciudad para el tiempo", value: services.weather.place?.name ?? "") { [weak self] name in
+        presentPrompt(title: "Añadir una ciudad al tiempo", value: "") { [weak self] name in
             guard self != nil, let name = name?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return }
             Task { [weak self] in
                 let places = (try? await WeatherService.search(name)) ?? []
@@ -2504,7 +2547,7 @@ final class DesktopViewController: UIViewController {
                         isDestructive: false
                     ) { _ in }
                 case 1:
-                    self.services.weather.setPlace(places[0])
+                    self.services.weather.add(places[0])
                     self.presentWeather(anchor: anchor)
                 default:
                     let entries = places.map { place in
@@ -2512,7 +2555,7 @@ final class DesktopViewController: UIViewController {
                             title: place.detail.isEmpty ? place.name : "\(place.name) · \(place.detail)",
                             symbol: "mappin.and.ellipse"
                         ) { [weak self] in
-                            self?.services.weather.setPlace(place)
+                            self?.services.weather.add(place)
                             self?.presentWeather(anchor: anchor)
                         }
                     }

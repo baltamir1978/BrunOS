@@ -8,9 +8,11 @@ import UIKit
 /// gratis, sin clave ni cuenta, y sólo recibe las coordenadas de la ciudad
 /// elegida (redondeadas a dos decimales, un par de kilómetros).
 ///
-/// **Por qué una ciudad y no la ubicación**: pedir la ubicación saca el aviso
-/// de permiso en la pantalla del iPhone, que con monitor está en negro. La
-/// ciudad se elige una vez, por nombre, y se guarda.
+/// **Por qué ciudades y no la ubicación**: pedir la ubicación saca el aviso
+/// de permiso en la pantalla del iPhone, que con monitor está en negro. Las
+/// ciudades se eligen por nombre y se guardan; se alterna entre ellas desde la
+/// barra (botón derecho o rueda sobre el icono) y desde las pestañas del
+/// desplegable.
 @MainActor
 final class WeatherService {
 
@@ -21,6 +23,9 @@ final class WeatherService {
         var detail: String
         var latitude: Double
         var longitude: Double
+
+        /// Dos resultados con las mismas coordenadas son la misma ciudad.
+        var id: String { "\(latitude),\(longitude)" }
     }
 
     struct Hour: Equatable {
@@ -56,37 +61,70 @@ final class WeatherService {
         case failed(String)
     }
 
-    private(set) var place: Place? {
+    // MARK: - Ciudades
+
+    /// Las ciudades, en el orden en que se añadieron (Bruno, 30-sep-2026: el
+    /// tiempo de varios sitios, alternando desde la barra).
+    private(set) var places: [Place] = [] {
         didSet {
-            if let place, let data = try? JSONEncoder().encode(place) {
-                UserDefaults.standard.set(data, forKey: Self.placeKey)
+            if let data = try? JSONEncoder().encode(places) {
+                UserDefaults.standard.set(data, forKey: Self.placesKey)
             }
         }
     }
 
-    private(set) var state: State = .noPlace {
-        didSet { NotificationCenter.default.post(name: Self.didChange, object: nil) }
+    /// La que se ve en la barra y en el desplegable.
+    private(set) var selectedIndex = 0 {
+        didSet { UserDefaults.standard.set(selectedIndex, forKey: Self.selectedKey) }
     }
 
-    /// Lo último bueno, para no quedarse en blanco mientras se actualiza.
+    /// Más no caben como pestañas en el desplegable.
+    static let maxPlaces = 6
+
+    var place: Place? {
+        places.indices.contains(selectedIndex) ? places[selectedIndex] : nil
+    }
+
+    /// El pronóstico de la ciudad elegida, aunque sea de la vez anterior:
+    /// mejor eso que quedarse en blanco mientras se actualiza.
     var forecast: Forecast? {
-        if case .ready(let forecast) = state { return forecast }
-        return lastForecast
+        place.flatMap { forecasts[$0.id] }
     }
-    private var lastForecast: Forecast?
 
-    private static let placeKey = "weather.place"
+    func forecast(for place: Place) -> Forecast? {
+        forecasts[place.id]
+    }
+
+    var state: State {
+        guard let place else { return .noPlace }
+        if let forecast = forecasts[place.id] { return .ready(forecast) }
+        if failed.contains(place.id) { return .failed("No se pudo consultar el tiempo") }
+        return .loading
+    }
+
+    private var forecasts: [String: Forecast] = [:]
+    private var failed: Set<String> = []
+
+    /// Antes había una sola ciudad, en `weather.place`: se recoge al arrancar.
+    private static let legacyPlaceKey = "weather.place"
+    private static let placesKey = "weather.places"
+    private static let selectedKey = "weather.selected"
     /// Cada cuánto se vuelve a pedir: el tiempo no cambia a cada minuto.
     private static let refreshInterval: TimeInterval = 20 * 60
     private var refreshTimer: Timer?
     private var task: Task<Void, Never>?
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: Self.placeKey),
-           let saved = try? JSONDecoder().decode(Place.self, from: data) {
-            place = saved
-            state = .loading
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: Self.placesKey),
+           let saved = try? JSONDecoder().decode([Place].self, from: data) {
+            places = saved
+        } else if let data = defaults.data(forKey: Self.legacyPlaceKey),
+                  let saved = try? JSONDecoder().decode(Place.self, from: data) {
+            places = [saved]
+            defaults.removeObject(forKey: Self.legacyPlaceKey)
         }
+        selectedIndex = min(max(0, defaults.integer(forKey: Self.selectedKey)), max(0, places.count - 1))
     }
 
     /// Arranca las actualizaciones. Lo llama el escritorio al aparecer.
@@ -100,31 +138,68 @@ final class WeatherService {
         refreshTimer = timer
     }
 
-    func setPlace(_ place: Place) {
-        self.place = place
-        lastForecast = nil
+    /// Añade una ciudad y la deja elegida. Si ya estaba, sólo la elige.
+    func add(_ place: Place) {
+        if let index = places.firstIndex(where: { $0.id == place.id }) {
+            select(index)
+            return
+        }
+        guard places.count < Self.maxPlaces else { return }
+        places.append(place)
+        selectedIndex = places.count - 1
         refresh()
     }
 
+    func remove(at index: Int) {
+        guard places.indices.contains(index) else { return }
+        let removed = places.remove(at: index)
+        forecasts[removed.id] = nil
+        failed.remove(removed.id)
+        if selectedIndex >= index, selectedIndex > 0 { selectedIndex -= 1 }
+        notify()
+    }
+
+    func select(_ index: Int) {
+        guard places.indices.contains(index), index != selectedIndex else { return }
+        selectedIndex = index
+        notify()
+    }
+
+    /// La siguiente o la anterior, dando la vuelta.
+    func cycle(by delta: Int) {
+        guard places.count > 1 else { return }
+        select((selectedIndex + delta + places.count) % places.count)
+    }
+
+    /// Pide el tiempo de todas las ciudades, la elegida la primera.
     func refresh() {
         guard let place else {
-            state = .noPlace
+            notify()
             return
         }
         task?.cancel()
-        if lastForecast == nil { state = .loading }
+        let order = [place] + places.filter { $0.id != place.id }
+        notify()
         task = Task { [weak self] in
-            do {
-                let forecast = try await Self.fetch(place)
-                guard !Task.isCancelled else { return }
-                self?.lastForecast = forecast
-                self?.state = .ready(forecast)
-            } catch is CancellationError {
-            } catch {
-                guard !Task.isCancelled else { return }
-                self?.state = .failed("No se pudo consultar el tiempo")
+            for place in order {
+                do {
+                    let forecast = try await Self.fetch(place)
+                    guard !Task.isCancelled else { return }
+                    self?.forecasts[place.id] = forecast
+                    self?.failed.remove(place.id)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self?.failed.insert(place.id)
+                }
+                self?.notify()
             }
         }
+    }
+
+    private func notify() {
+        NotificationCenter.default.post(name: Self.didChange, object: nil)
     }
 
     // MARK: - Open-Meteo
@@ -307,12 +382,15 @@ final class WeatherService {
 final class WeatherPopover: UIView {
 
     var onDismiss: (() -> Void)?
-    /// Pulsaron «Cambiar ciudad».
-    var onChangePlace: (() -> Void)?
+    /// Pulsaron «Añadir ciudad».
+    var onAddPlace: (() -> Void)?
 
     private let card = CardView()
-    private var changeFrame: CGRect = .zero
+    private var addFrame: CGRect = .zero
+    private var removeFrame: CGRect = .zero
     private var refreshFrame: CGRect = .zero
+    /// Una pestaña por ciudad, si hay más de una.
+    private var tabFrames: [CGRect] = []
 
     static let width: CGFloat = 330
 
@@ -361,7 +439,12 @@ final class WeatherPopover: UIView {
     private static let amber = Tokens.Color.accent
 
     private var contentHeight: CGFloat {
-        weather.forecast == nil ? 150 : 430
+        (weather.forecast == nil ? 150 : 430) + tabsShift
+    }
+
+    /// Lo que bajan el resto de cosas cuando hay pestañas.
+    private var tabsShift: CGFloat {
+        weather.places.count > 1 ? 32 : 0
     }
 
     @objc private func weatherChanged() {
@@ -403,21 +486,43 @@ final class WeatherPopover: UIView {
             text(detail, at: CGPoint(x: 16, y: 35), size: 11, color: Self.dimmed, width: 190)
         }
 
-        // Enlaces arriba a la derecha.
+        // Enlaces arriba a la derecha: añadir otra ciudad y quitar ésta.
         let linkAttributes: [NSAttributedString.Key: Any] = [
             .font: Tokens.sans(11.5, weight: .semibold), .foregroundColor: Self.amber,
         ]
-        let change = place == nil ? "Elegir ciudad" : "Cambiar ciudad"
-        let changeSize = (change as NSString).size(withAttributes: linkAttributes)
-        changeFrame = CGRect(x: Self.width - 16 - changeSize.width, y: 16, width: changeSize.width, height: changeSize.height)
-        (change as NSString).draw(at: changeFrame.origin, withAttributes: linkAttributes)
+        var right = Self.width - 16
+        if place != nil {
+            let remove = "Quitar"
+            let size = (remove as NSString).size(withAttributes: linkAttributes)
+            removeFrame = CGRect(x: right - size.width, y: 16, width: size.width, height: size.height)
+            (remove as NSString).draw(at: removeFrame.origin, withAttributes: linkAttributes)
+            right = removeFrame.minX - 14
+        } else {
+            removeFrame = .zero
+        }
+        if weather.places.count < WeatherService.maxPlaces {
+            let add = place == nil ? "Elegir ciudad" : "Añadir"
+            let size = (add as NSString).size(withAttributes: linkAttributes)
+            addFrame = CGRect(x: right - size.width, y: 16, width: size.width, height: size.height)
+            (add as NSString).draw(at: addFrame.origin, withAttributes: linkAttributes)
+        } else {
+            addFrame = .zero
+        }
+
+        drawTabs(in: context)
+
+        // Lo de debajo, igual que con una sola ciudad, más abajo si hay
+        // pestañas. Las zonas pulsables se apuntan sumando lo mismo.
+        context.saveGState()
+        defer { context.restoreGState() }
+        context.translateBy(x: 0, y: tabsShift)
 
         guard let forecast = weather.forecast else {
             refreshFrame = .zero
             let message = switch weather.state {
             case .noPlace: "Elige tu ciudad para ver el tiempo."
             case .loading: "Consultando el tiempo…"
-            case .failed(let reason): reason + ". Pulsa «Cambiar ciudad» o espera un rato."
+            case .failed(let reason): reason + ". Se vuelve a probar en un rato."
             case .ready: ""
             }
             text(message, at: CGPoint(x: 16, y: 70), size: 13, color: Self.dimmed)
@@ -480,13 +585,49 @@ final class WeatherPopover: UIView {
         }
 
         // Pie: de dónde salen los datos y cuándo.
-        let footerY = contentHeight - 26
+        let footerY = contentHeight - tabsShift - 26
         text("Open-Meteo · \(forecast.fetched.formatted(date: .omitted, time: .shortened))",
              at: CGPoint(x: 16, y: footerY), size: 10.5, color: Self.dimmed, width: 200)
         let refresh = "Actualizar"
         let refreshSize = (refresh as NSString).size(withAttributes: linkAttributes)
         refreshFrame = CGRect(x: Self.width - 16 - refreshSize.width, y: footerY, width: refreshSize.width, height: refreshSize.height)
         (refresh as NSString).draw(at: refreshFrame.origin, withAttributes: linkAttributes)
+        // Se dibuja desplazado, pero se pulsa en coordenadas de la tarjeta.
+        refreshFrame.origin.y += tabsShift
+    }
+
+    /// Las pestañas de las ciudades, bajo el nombre. Cada una con su
+    /// temperatura si ya se sabe, para comparar de un vistazo.
+    private func drawTabs(in context: CGContext) {
+        let places = weather.places
+        guard places.count > 1 else {
+            tabFrames = []
+            return
+        }
+        let font = Tokens.sans(11.5, weight: .medium)
+        let titles = places.map { place in
+            weather.forecast(for: place).map { "\(place.name) \(WeatherService.degrees($0.temperature))" } ?? place.name
+        }
+        let spacing: CGFloat = 6
+        let available = Self.width - 32
+        let natural = titles.map { ($0 as NSString).size(withAttributes: [.font: font]).width + 18 }
+        let fits = natural.reduce(0, +) + spacing * CGFloat(places.count - 1) <= available
+        let even = (available - spacing * CGFloat(places.count - 1)) / CGFloat(places.count)
+
+        var x: CGFloat = 16
+        tabFrames = []
+        for (index, title) in titles.enumerated() {
+            let frame = CGRect(x: x, y: 56, width: fits ? natural[index] : even, height: 22)
+            tabFrames.append(frame)
+            x = frame.maxX + spacing
+            let selected = index == weather.selectedIndex
+            context.setFillColor((selected ? Self.amber.withAlphaComponent(0.22) : Tokens.Color.text.withAlphaComponent(0.07)).desktopCGColor)
+            context.addPath(UIBezierPath(roundedRect: frame, cornerRadius: 11).cgPath)
+            context.fillPath()
+            text(title, at: CGPoint(x: frame.minX + 9, y: frame.minY + 3), size: 11.5,
+                 weight: selected ? .semibold : .medium, color: selected ? Self.primary : Self.dimmed,
+                 width: frame.width - 18, align: .center)
+        }
     }
 
     private func separator(at y: CGFloat, in context: CGContext) {
@@ -497,14 +638,23 @@ final class WeatherPopover: UIView {
     // MARK: - Entrada
 
     func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint) -> Bool {
+        if case .scroll(let delta) = kind {
+            // La rueda pasa de ciudad, como la del calendario pasa de mes.
+            if abs(delta.dy) > 20 { weather.cycle(by: delta.dy > 0 ? -1 : 1) }
+            return true
+        }
         guard case .down = kind else { return true }
         guard card.frame.contains(point) else {
             onDismiss?()
             return true
         }
         let local = CGPoint(x: point.x - card.frame.minX, y: point.y - card.frame.minY)
-        if changeFrame.insetBy(dx: -6, dy: -6).contains(local) {
-            onChangePlace?()
+        if let tab = tabFrames.firstIndex(where: { $0.insetBy(dx: -2, dy: -4).contains(local) }) {
+            weather.select(tab)
+        } else if addFrame.insetBy(dx: -6, dy: -6).contains(local) {
+            onAddPlace?()
+        } else if removeFrame.insetBy(dx: -6, dy: -6).contains(local) {
+            weather.remove(at: weather.selectedIndex)
         } else if refreshFrame.insetBy(dx: -6, dy: -6).contains(local) {
             weather.refresh()
         }
@@ -512,7 +662,13 @@ final class WeatherPopover: UIView {
     }
 
     func handleKey(_ event: KeyEvent) -> Bool {
-        if event.phase == .down, event.key.keyCode == .keyboardEscape { onDismiss?() }
+        guard event.phase == .down else { return true }
+        switch event.key.keyCode {
+        case .keyboardEscape: onDismiss?()
+        case .keyboardLeftArrow: weather.cycle(by: -1)
+        case .keyboardRightArrow: weather.cycle(by: 1)
+        default: break
+        }
         return true
     }
 }

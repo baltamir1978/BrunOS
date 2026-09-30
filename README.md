@@ -34,7 +34,7 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | ✅ |
 | **Notas** en RTF (una por fichero, visibles en Archivos), con negrita, cursiva, subrayado y enlaces (atajos y botones en la cabecera), e historial del portapapeles (Cmd+4) | ✅ |
 | **Fotos**: las fotos y los vídeos de una carpeta de cualquier ubicación, en rejilla, con visor con zoom, reproductor y pase de diapositivas (Cmd+5) | ✅ |
-| **Barra superior** con Tailscale (estado cada 10 s y conectar por Atajos), el tiempo en un desplegable (Open-Meteo) y un calendario del mes al pulsar la hora | ✅ |
+| **Barra superior** con Tailscale (estado cada 10 s y conectar por Atajos), el tiempo de varias ciudades en un desplegable (Open-Meteo; botón derecho o rueda sobre el icono para cambiar de ciudad) y un calendario del mes al pulsar la hora | ✅ |
 
 Todo lo de la tabla está probado con un monitor de verdad.
 

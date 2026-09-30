@@ -219,10 +219,13 @@ final class TopBar: UIView {
 
         let weather = AppServices.shared.weather
         if let forecast = weather.forecast {
+            // Con varias ciudades, también cuál: si no, 21° no dice de dónde.
+            let degrees = WeatherService.degrees(forecast.temperature)
+            let city = weather.places.count > 1 ? weather.place.map { " \($0.name)" } ?? "" : ""
             weatherLabel.attributedText = Self.symbolText(
                 WeatherService.symbol(for: forecast.code, isDay: forecast.isDay),
                 color: Tokens.Color.text,
-                text: WeatherService.degrees(forecast.temperature)
+                text: degrees + city
             )
         } else {
             weatherLabel.attributedText = Self.symbolText(
