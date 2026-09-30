@@ -21,7 +21,7 @@ configFiles:
 
 settings:
   base:
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "0.2.0"
     CURRENT_PROJECT_VERSION: 1
     SWIFT_VERSION: "6.0"
     # Modo de lenguaje Swift 6: concurrencia estricta desde el primer día.

@@ -30,12 +30,16 @@ del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, e
   listas de anuncios, en cambio, son reglas declarativas y no ejecutan código (el conversor tira
   los scriptlets `##+js`).
 
-## ⚠ ESTADO ACTUAL — LEER PRIMERO (29-sep-2026, tarde)
+## ⚠ ESTADO ACTUAL — LEER PRIMERO (30-sep-2026)
 
-**Última build subida: 2609300854 (30-sep-2026, mañana)**: lo de «Escrito el 30-sep-2026»
-(cursor en ventanas flotantes, página de inicio sin franja y con la ayuda, cabecera de Notas,
-menú contextual nítido, ZIP de un fichero, página de inicio propia e importar favoritos).
-**Sin probar en el iPhone.**
+**La 0.1.0 está cerrada** (etiqueta `v0.1.0`). Su última build, **2609300854** (30-sep-2026), la
+probó Bruno y dio todo por bueno: «está todo ok». **Ahora es la 0.2.0** (`MARKETING_VERSION` en
+`project.yml`), para funciones nuevas. Lo que se escriba a partir de aquí va a una lista nueva de
+«Pendiente de probar», como siempre.
+
+La 2609300854 llevaba lo de «Escrito el 30-sep-2026»: cursor en ventanas flotantes, página de
+inicio sin franja y con la ayuda, cabecera de Notas, menú contextual nítido, ZIP de un fichero,
+página de inicio propia e importar favoritos.
 
 **Anterior: 2609291957 (29-sep-2026, tarde)**: los seis arreglos visuales de la rama
 `claude/gracious-wozniak-c23hmp` (ver «Escrito el 29-sep-2026»).
@@ -215,12 +219,10 @@ Todo compila sin errores ni warnings. **Nada probado en el iPhone.**
   **importar favoritos** del HTML que exportan Safari, Chrome y Firefox en Favoritos (selector del
   iPhone, como el de las carpetas). Ver `BrunOS/Browser/CLAUDE.md`.
 
-## Pendiente de probar
+## Pruebas de la 0.1.0: cerradas (30-sep-2026, con la 2609300854)
 
-- Todo lo de «Escrito el 30-sep-2026».
-- **El fondo desde el iPhone**, con el monitor puesto, y «Elegir una foto…».
-- **Descomprimir** por SFTP/SMB y Cancelar (en local, bien).
-- **Reddit con la letra normal**, y que el resto de webs no cambie para mal.
+Bruno lo probó en el iPhone con el monitor y lo dio todo por bueno, también lo que quedaba de
+builds anteriores (el fondo desde el iPhone, descomprimir, Reddit).
 
 ## Pruebas: cerradas (24-sep-2026, con la 2609241916)
 
