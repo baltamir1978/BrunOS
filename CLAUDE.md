@@ -32,9 +32,13 @@ del dock, Cmd+5) y la **pantalla completa de vídeo** del navegador. Cada uno, e
 
 ## ⚠ ESTADO ACTUAL — LEER PRIMERO (29-sep-2026, tarde)
 
-**Última build subida: 2609291957 (29-sep-2026, tarde)**: los seis arreglos visuales de la rama
-`claude/gracious-wozniak-c23hmp` (ver «Escrito el 29-sep-2026»), fusionada en `main`. Compila
-sin errores ni warnings. **Sin probar en el iPhone.**
+**Última build subida: 2609300854 (30-sep-2026, mañana)**: lo de «Escrito el 30-sep-2026»
+(cursor en ventanas flotantes, página de inicio sin franja y con la ayuda, cabecera de Notas,
+menú contextual nítido, ZIP de un fichero, página de inicio propia e importar favoritos).
+**Sin probar en el iPhone.**
+
+**Anterior: 2609291957 (29-sep-2026, tarde)**: los seis arreglos visuales de la rama
+`claude/gracious-wozniak-c23hmp` (ver «Escrito el 29-sep-2026»).
 
 **Anterior: 2609250831 (25-sep-2026, mañana)**: lo de «Pendiente de probar» (ZIP,
 Reddit, zoom por debajo de 100 %, dock y Notas en RTF). **Sin probar en el iPhone.**
@@ -192,7 +196,7 @@ El dock (entero, transparencia, agrandamiento, rebote), Tailscale con los nueve 
 escritorio sin «brunOS_», Notas (botones de formato, RTF), comprimir ZIP y el zoom de los visores
 por debajo de 100 %.
 
-## Escrito el 30-sep-2026, sin subir
+## Escrito el 30-sep-2026 (subido en la 2609300854)
 
 Todo compila sin errores ni warnings. **Nada probado en el iPhone.**
 
