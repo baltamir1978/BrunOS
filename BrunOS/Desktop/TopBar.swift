@@ -247,7 +247,8 @@ final class TopBar: UIView {
     // MARK: - Contenido
 
     func update(desktop: DesktopModel, profile: DisplayProfile?, blockedCount: Int?) {
-        titleLabel.text = desktop.active.focusedPane?.title ?? "Sin paneles"
+        // Sin ventanas no se rotula nada: «Sin paneles» no decía nada útil.
+        titleLabel.text = desktop.active.focusedPane?.title ?? ""
         resolutionLabel.text = profile?.summary ?? "sin pantalla"
 
         if let blockedCount {

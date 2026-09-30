@@ -37,6 +37,18 @@ probó Bruno y dio todo por bueno: «está todo ok». **Ahora es la 0.2.0** (`MA
 `project.yml`), para funciones nuevas. Lo que se escriba a partir de aquí va a una lista nueva de
 «Pendiente de probar», como siempre.
 
+**Plan de la 0.2.0** (Bruno, 30-sep-2026; **sin empezar**, se arranca cuando él lo diga):
+
+1. La tecla **Supr** del teclado externo, que funcione bien en todos los paneles.
+2. **Modo presentación**: PowerPoint/Keynote/PDF y Excel a pantalla completa en el monitor,
+   pasando diapositivas u hojas desde la pantalla táctil del iPhone.
+3. **Exportar favoritos** al mismo HTML con el que se importan.
+4. **Optimizar velocidad y memoria** en toda la interfaz (medir y proponer antes de hacer).
+5. **Ratón con `GCMouse` más natural**: revisar aceleración, curva y rueda, sin cambiar la
+   fuente (manda `GCMouse`).
+
+Hecho ya: la barra superior sin ventanas no rotula nada (antes, «Sin paneles»). Sin subir.
+
 La 2609300854 llevaba lo de «Escrito el 30-sep-2026»: cursor en ventanas flotantes, página de
 inicio sin franja y con la ayuda, cabecera de Notas, menú contextual nítido, ZIP de un fichero,
 página de inicio propia e importar favoritos.
