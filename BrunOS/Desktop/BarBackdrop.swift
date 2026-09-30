@@ -4,10 +4,24 @@ import UIKit
 /// máximo). Se elige en Ajustes › General con un deslizador, cada uno por su
 /// lado (Bruno, 30-sep-2026; antes eran cuatro niveles fijos).
 enum BarTransparency {
+    /// El dock de siempre (24-sep-2026), la «Media» de antes. Hasta aquí sólo
+    /// baja el tinte; a partir de aquí se desvanece también el desenfoque.
+    static let knee = 0.65 / 0.9
+
     /// Cuánto tapa el tinte del color de los paneles, encima del desenfoque.
-    /// A 0,72 es el dock de siempre (24-sep-2026).
     static func tintAlpha(_ amount: Double) -> CGFloat {
-        1 - 0.9 * CGFloat(min(max(amount, 0), 1))
+        let amount = min(max(amount, 0), 1)
+        if amount <= knee { return 1 - 0.9 * CGFloat(amount) }
+        return CGFloat(0.35 * (1 - amount) / (1 - knee))
+    }
+
+    /// Cuánto se ve el desenfoque. **Al 100 %, nada**: con el material del
+    /// sistema entero, «Mucha» seguía bastante opaca (Bruno, 30-sep-2026),
+    /// porque el propio material lleva un velo esmerilado.
+    static func materialAlpha(_ amount: Double) -> CGFloat {
+        let amount = min(max(amount, 0), 1)
+        if amount <= knee { return 1 }
+        return CGFloat((1 - amount) / (1 - knee))
     }
 
     /// Los cuatro niveles de antes (Opaca, Poca, Media, Mucha), para recoger lo
@@ -48,7 +62,11 @@ final class BarBackdrop: UIView {
         // como un salto al mover el deslizador. Opaca no lleva: no se vería.
         let opaque = amount <= 0.001
         if !opaque, blur.effect == nil { blur.effect = UIBlurEffect(style: .systemThinMaterial) }
-        blur.isHidden = opaque
+        let material = BarTransparency.materialAlpha(amount)
+        blur.isHidden = opaque || material <= 0.001
+        // Bajar la opacidad del desenfoque mezcla lo desenfocado con lo nítido:
+        // es la forma de tener menos desenfoque con un material del sistema.
+        blur.alpha = material
         // Un color dinámico con otra opacidad sigue siendo dinámico: cambia
         // solo con el modo, sin pasar por `applyTheme`.
         tint.backgroundColor = fill.withAlphaComponent(BarTransparency.tintAlpha(amount))

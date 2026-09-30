@@ -34,9 +34,9 @@ trackpad y nada más; el aviso de entrada se va a los 6 s y no acepta toques.
   Se recalcula en `externalDisplayChanged`. El botón de AssistiveTouch no lo puede esconder la
   app: lo hace Bruno con «Mostrar siempre el menú» apagado (explicado en Ajustes › Ratón y
   teclado).
-- **Bloquear el puntero** (`prefersPointerLocked`, interruptor de prueba en Ajustes › Ratón y
-  teclado, con el estado que da `pointerLockState`): en iPhone casi seguro que iOS no lo acepta
-  (Jump Desktop no lo ofrece en iPhone). Si lo aceptara, el ratón llegaría sólo por `GCMouse`.
+- **Bloquear el puntero** (`prefersPointerLocked`): **probado en la 2609301513, iOS no lo acepta
+  en iPhone** (Bruno, 30-sep-2026; Jump Desktop tampoco lo ofrece en iPhone). Se quitó el
+  interruptor de prueba. No volver a intentarlo.
 - **Atenuar**: brillo al mínimo (`ScreenDimmer`) y un velo que no recibe toques; el brillo se
   devuelve al salir de la app.
 - **Selectores del iPhone**: un solo `fileImporter` que cambia de tipo (`PickerKind`: carpetas o

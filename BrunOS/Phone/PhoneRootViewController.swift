@@ -43,11 +43,6 @@ final class PhoneRootViewController: UIViewController {
             name: ExternalDisplayManager.didChangeNotification,
             object: nil
         )
-        NotificationCenter.default.addObserver(
-            forName: DesktopPreferences.pointerLockDidChange, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.setNeedsUpdateOfPrefersPointerLocked() }
-        }
 
         // Aquí se declara el contenido de la pantalla externa. El sistema decide
         // cuándo presentarlo; la app tiene que funcionar igual sin monitor.
@@ -67,20 +62,14 @@ final class PhoneRootViewController: UIViewController {
     override var prefersStatusBarHidden: Bool { isRemoteMode }
     override var prefersHomeIndicatorAutoHidden: Bool { isRemoteMode }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { isRemoteMode ? .all : [] }
-    override var prefersPointerLocked: Bool { isRemoteMode && DesktopPreferences.tryPointerLock }
+
+    // `prefersPointerLocked` se probó en la 2609301513: en iPhone, iOS no lo
+    // acepta (Bruno, 30-sep-2026). Jump Desktop tampoco lo ofrece en iPhone.
 
     private func updateSystemPreferences() {
         setNeedsStatusBarAppearanceUpdate()
         setNeedsUpdateOfHomeIndicatorAutoHidden()
         setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
-        setNeedsUpdateOfPrefersPointerLocked()
-    }
-
-    /// Si iOS ha bloqueado el puntero de esta escena: `nil` si no lo sabe.
-    static var isPointerLocked: Bool? {
-        UIApplication.shared.connectedScenes
-            .first { $0.delegate is PhoneSceneDelegate }?
-            .pointerLockState?.isLocked
     }
 
     /// **Al quitar el cable, iOS no siempre desconecta la escena externa

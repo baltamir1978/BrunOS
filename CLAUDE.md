@@ -40,27 +40,22 @@ en el repositorio (Citadel 0.11.1, `swift-nio-ssh` 0.3.5 de Joannis, SwiftTerm 1
 (`-disableAutomaticPackageResolution`). Si `xcodebuild` protesta por la resolución, es que
 `project.yml` pide algo que no está en `Package.resolved`.
 
+### Visto bien por Bruno en la 2609301513 (30-sep-2026)
+
+El deslizador de transparencia (`SettingsRow.Control.slider`, con `settingsCapture` para que
+siga al cursor fuera de la ventana), la raya de la barra, el texto del tiempo a píxel entero
+(`pixelAlignCards`, `PixelSnappingStackView`) y los bordes del iPhone en modo mando (barra de
+estado e indicador de inicio escondidos, gestos de los bordes aplazados, «Mostrar siempre el
+menú» de AssistiveTouch apagado). **El bloqueo del puntero, iOS no lo acepta en iPhone**: se
+quitó el interruptor.
+
 ### Pendiente de probar (0.2.0)
 
-Lo que Bruno pidió al probar la 2609301421. Compila sin warnings y se vio en el simulador a
-1,5× (escritorio montado en la pantalla del iPhone con un arnés provisional, no versionado).
-**Subido en la 2609301513** (30-sep-2026, tarde). Quitar cada cosa de aquí al confirmarla.
+**Subido en la 2609301604** (30-sep-2026). Quitar cada cosa de aquí al confirmarla.
 
-- **Transparencia con deslizador** (Bruno lo pidió): de 0 a 100 %, dock y barra por separado
-  (`SettingsRow.Control.slider`). Lo guardado con los cuatro niveles de antes se recoge. Ajustes
-  se queda con el ratón mientras el botón sigue pulsado (`settingsCapture`), así que el
-  deslizador sigue al cursor aunque se salga de la ventana.
-- **La línea blanca bajo la barra** con mucha transparencia: el separador se transparenta ahora
-  con la barra.
-- **El texto del tiempo se veía fatal**: a 1,5× el desplegable y las etiquetas de la barra caían
-  a medio píxel y, con el filtro `.nearest`, las letras salían dentadas. Ahora van a píxel
-  entero (`pixelAlignCards`, también el calendario y el menú; `PixelSnappingStackView` en la
-  barra).
-- **El clic de AssistiveTouch en los bordes del iPhone** (Bruno: a veces pulsaba su menú): en
-  modo mando se esconden la barra de estado y el indicador de inicio y se aplazan los gestos de
-  los bordes; la explicación de «Mostrar siempre el menú» y un interruptor de prueba para
-  bloquear el puntero, en Ajustes › Ratón y teclado › «El clic en el iPhone». Mirar qué dice
-  «Estado del bloqueo» al activarlo.
+- **El 100 % de transparencia seguía bastante opaco** (Bruno): el material del sistema lleva su
+  propio velo. Ahora, hasta el 72 % (la «Media» de siempre) igual que antes; de ahí al 100 % se
+  desvanecen el tinte y el desenfoque (`materialAlpha`), y al 100 % no queda nada.
 
 ### Ideas aparcadas
 

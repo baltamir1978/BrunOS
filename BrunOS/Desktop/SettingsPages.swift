@@ -209,20 +209,10 @@ enum SettingsPages {
                         + "menú» (con el ratón conectado, el botón desaparece; el menú se puede poner "
                         + "en un botón del ratón en «Personalizar botones adicionales»), y deja "
                         + "apagados Dwell y las esquinas activas. BrunOS ya esconde la barra de "
-                        + "estado y aplaza los gestos de los bordes mientras hay monitor.\n"
-                        + "Bloquear el puntero es una prueba: se lo pide a iOS, que en iPhone "
-                        + "seguramente no lo acepte. Si lo acepta, el puntero del iPhone deja de "
-                        + "moverse y todo llega por GCMouse.",
+                        + "estado y aplaza los gestos de los bordes mientras hay monitor.",
                     rows: [
-                        SettingsRow("Bloquear el puntero del iPhone", subtitle: "Prueba",
-                                    .toggle(DesktopPreferences.tryPointerLock) {
-                                        DesktopPreferences.tryPointerLock = $0
-                                    }),
-                        SettingsRow("Estado del bloqueo", .value(
-                            !DesktopPreferences.tryPointerLock ? "sin pedir"
-                                : PhoneRootViewController.isPointerLocked == true ? "bloqueado"
-                                : "iOS no lo acepta"
-                        )),
+                        SettingsRow("Mostrar siempre el menú", subtitle: "Lo recomendado en AssistiveTouch",
+                                    .value("desactivado")),
                     ]
                 ),
                 SettingsGroup("Atajos", rows: [

@@ -83,7 +83,9 @@ aviso del iPhone (`PhoneNotice`) no es modal: no se queda el ratón, sólo va en
   nueva ventana de la app de delante.
 - **Transparencia, agrandamiento y rebote**: el fondo es `BarBackdrop` (desenfoque del sistema y
   tinte), con la cantidad en Ajustes › General › Transparencia (deslizador de 0 a 100 %, un
-  solo material para que no salte al moverlo), igual que la barra superior. Los
+  solo material para que no salte al moverlo), igual que la barra superior. Hasta el 72 % sólo
+  baja el tinte; de ahí al 100 % se desvanece también el desenfoque (`materialAlpha`): con el
+  material entero, el 100 % seguía bastante opaco (Bruno, 30-sep-2026). Los
   iconos crecen hasta ×1,25 (sutil, Bruno no lo quería enorme) con caída en coseno² hasta 2 iconos
   a cada lado, **medida desde las posiciones sin agrandar** (si no, tiembla). Cada icono se dibuja
   una vez a tamaño máximo y sólo se escala. `Dock.contains(point:)` cuenta lo que sobresale.
