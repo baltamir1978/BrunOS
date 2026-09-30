@@ -343,7 +343,32 @@ enum SettingsPages {
             let zooms: [CGFloat] = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5]
             let zoomIndex = zooms.enumerated()
                 .min { abs($0.element - BrowserZoom.default) < abs($1.element - BrowserZoom.default) }?.offset ?? 2
+            let home = BrowserHomePage.address
+            var homeRows = [
+                SettingsRow("Página de inicio", .choice(
+                    ["BrunOS", "Una dirección"],
+                    selected: home == nil ? 0 : 1
+                ) { index in
+                    if index == 0 {
+                        BrowserHomePage.address = nil
+                    } else {
+                        askHomePage()
+                    }
+                }),
+            ]
+            if let home {
+                homeRows.append(SettingsRow(
+                    "Dirección",
+                    subtitle: home,
+                    .buttons([SettingsButton("Cambiar…") { askHomePage() }])
+                ))
+            }
             return [
+                SettingsGroup(
+                    footer: "Lo que abre una pestaña nueva (Cmd+T). La de BrunOS lleva los favoritos "
+                        + "y la ayuda de toda la app, con los atajos de cada una.",
+                    rows: homeRows
+                ),
                 SettingsGroup(
                     footer: "Lo que se escribe en la barra y no parece una dirección se busca aquí.",
                     rows: [
@@ -369,6 +394,20 @@ enum SettingsPages {
         }
     }
 
+    /// Pide la dirección de la página de inicio. Si se cancela sin haber
+    /// ninguna, se queda la de BrunOS.
+    private static func askHomePage() {
+        desktop?.presentPrompt(
+            title: "Dirección de la página de inicio",
+            value: BrowserHomePage.address ?? "https://"
+        ) { text in
+            if let text, let url = BrowserTab.url(from: text), url.scheme == "http" || url.scheme == "https" {
+                BrowserHomePage.address = url.absoluteString
+            }
+            NotificationCenter.default.post(name: .brunosSettingsChanged, object: nil)
+        }
+    }
+
     private static var bookmarks: SettingsPage {
         SettingsPage(title: "Favoritos", symbol: "star.fill", tint: orange) {
             let history = services.history
@@ -383,6 +422,20 @@ enum SettingsPages {
                     ]
                 ),
             ]
+
+            groups.append(SettingsGroup(
+                footer: "Safari: Archivo › Exportar › Favoritos. Chrome y Firefox: en su gestor de "
+                    + "marcadores, Exportar. Guarda el fichero en iCloud Drive y elígelo en el iPhone. "
+                    + "Las carpetas se aplanan, la lista de lectura de Safari se salta y no se repite "
+                    + "ninguno que ya esté.",
+                rows: [
+                    SettingsRow("Importar de otro navegador", subtitle: "El fichero HTML de favoritos", .buttons([
+                        SettingsButton("Elegir fichero…") {
+                            NotificationCenter.default.post(name: .brunosPickBookmarks, object: nil)
+                        },
+                    ])),
+                ]
+            ))
 
             let pages = history.bookmarks
             groups.append(SettingsGroup(

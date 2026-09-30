@@ -178,6 +178,7 @@ final class SettingsWindow: UIView {
             WallpaperStore.didChangeNotification,
             ExternalDisplayManager.didChangeNotification,
             .brunosSettingsChanged,
+            BrowserHistory.bookmarksDidChange,
         ]
         for name in names {
             observers.append(NotificationCenter.default.addObserver(

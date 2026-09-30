@@ -1604,11 +1604,18 @@ final class FilesPane: UIView, Pane {
         }
     }
 
-    /// Descomprime un ZIP en una carpeta con su nombre, junto a él.
+    /// Descomprime un ZIP junto a él, como la Utilidad de Archivo de macOS:
+    /// **si trae una sola cosa** (un fichero o una carpeta), sale tal cual; si
+    /// trae varias, en una carpeta con el nombre del ZIP. Antes iba siempre a
+    /// una carpeta, y un ZIP de un fichero dejaba el fichero metido en otra
+    /// (Bruno, 30-sep-2026).
+    ///
+    /// Se descomprime en el temporal y luego se mueve (o se sube), así que
+    /// hasta el final no aparece nada a medias en la carpeta.
     private func extract(_ item: FileItem) {
         let provider = self.provider
         let directory = path
-        let folderName = freeName((item.name as NSString).deletingPathExtension)
+        let zipBase = (item.name as NSString).deletingPathExtension
 
         runArchiveTask(label: "Descomprimiendo") { work, report in
             let zip: URL
@@ -1619,30 +1626,57 @@ final class FilesPane: UIView, Pane {
                 zip = work.appending(path: item.name)
                 try await provider.download(item.path, to: zip)
             }
-            let local = provider is LocalProvider
-            let output = local
-                ? URL(fileURLWithPath: (directory as NSString).appendingPathComponent(folderName), isDirectory: true)
-                : work.appending(path: folderName, directoryHint: .isDirectory)
+            let output = work.appending(path: "extraido", directoryHint: .isDirectory)
             try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
             let total = try ZipArchive.entryCount(zip)
-            do {
-                try await Self.cancellable {
-                    var done = 0
-                    try ZipArchive.extract(zip, into: output) { name in
-                        let progress = FileService.Progress(filesDone: done, filesTotal: total, current: name)
-                        done += 1
-                        Task { @MainActor in report(progress, "Descomprimiendo") }
-                    }
+            try await Self.cancellable {
+                var done = 0
+                try ZipArchive.extract(zip, into: output) { name in
+                    let progress = FileService.Progress(filesDone: done, filesTotal: total, current: name)
+                    done += 1
+                    Task { @MainActor in report(progress, "Descomprimiendo") }
                 }
-            } catch {
-                // Lo que se quedó a medias no sirve: fuera.
-                if local { try? FileManager.default.removeItem(at: output) }
-                throw error
             }
-            if !local {
-                let folder = FileItem(name: folderName, path: output.path, isDirectory: true, size: 0, modified: nil)
+
+            // Lo que mete el Finder de macOS y no es contenido.
+            for junk in ["__MACOSX", ".DS_Store"] {
+                try? FileManager.default.removeItem(at: output.appending(path: junk))
+            }
+            let top = try FileManager.default.contentsOfDirectory(
+                at: output, includingPropertiesForKeys: [.isDirectoryKey]
+            )
+            // Uno solo, con un nombre libre en la carpeta; si no, todo en una
+            // carpeta con el nombre del ZIP.
+            let source: URL
+            let name: String
+            if top.count == 1, let only = top.first {
+                source = only
+                name = self.freeName(only.lastPathComponent)
+            } else {
+                source = output
+                name = self.freeName(zipBase)
+            }
+            let values = try? source.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+            let isDirectory = values?.isDirectory ?? false
+
+            if provider is LocalProvider {
+                try FileManager.default.moveItem(
+                    at: source,
+                    to: URL(fileURLWithPath: (directory as NSString).appendingPathComponent(name), isDirectory: isDirectory)
+                )
+            } else {
+                // `transfer` sube con el nombre que tenga: se le pone antes.
+                let named = work.appending(path: "subir", directoryHint: .isDirectory).appending(path: name)
+                try FileManager.default.createDirectory(
+                    at: named.deletingLastPathComponent(), withIntermediateDirectories: true
+                )
+                try FileManager.default.moveItem(at: source, to: named)
+                let upload = FileItem(
+                    name: name, path: named.path, isDirectory: isDirectory,
+                    size: Int64(values?.fileSize ?? 0), modified: nil
+                )
                 try await self.services.files.transfer(
-                    [folder], from: LocalProvider(), to: provider, into: directory, move: false
+                    [upload], from: LocalProvider(), to: provider, into: directory, move: false
                 ) { progress in report(progress, "Subiendo") }
             }
         }

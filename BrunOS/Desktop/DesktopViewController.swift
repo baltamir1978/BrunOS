@@ -79,6 +79,12 @@ final class DesktopViewController: UIViewController {
         )
         NotificationCenter.default.addObserver(
             self,
+            selector: #selector(bookmarksPickerRequested),
+            name: .brunosPickBookmarks,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
             selector: #selector(refreshLayout),
             name: WallpaperStore.didChangeNotification,
             object: nil
@@ -833,6 +839,7 @@ final class DesktopViewController: UIViewController {
             self?.quickLook = nil
         }
         canvas.addSubview(view)
+        applyContentsScale(to: view)
         quickLook = view
     }
 
@@ -851,6 +858,9 @@ final class DesktopViewController: UIViewController {
             self?.contextMenu = nil
         }
         canvas.addSubview(menu)
+        // Lo que se abre encima llega después de maquetar: sin esto nacía con
+        // la densidad de la pantalla y se veía borroso (Bruno, 30-sep-2026).
+        applyContentsScale(to: menu)
         contextMenu = menu
     }
 
@@ -880,6 +890,7 @@ final class DesktopViewController: UIViewController {
             completion(result)
         }
         canvas.addSubview(window)
+        applyContentsScale(to: window)
         prompt = window
     }
 
@@ -905,6 +916,7 @@ final class DesktopViewController: UIViewController {
             completion(result != nil)
         }
         canvas.addSubview(window)
+        applyContentsScale(to: window)
         prompt = window
     }
 
@@ -1073,6 +1085,7 @@ final class DesktopViewController: UIViewController {
             }
         }
         canvas.addSubview(window)
+        applyContentsScale(to: window)
         historyWindow = window
         applyContentsScale(to: window)
     }
@@ -1132,6 +1145,7 @@ final class DesktopViewController: UIViewController {
             self?.settingsPaneEntry?.1.refresh()
         }
         canvas.addSubview(editor)
+        applyContentsScale(to: editor)
         hostEditor = editor
     }
 
@@ -1227,6 +1241,7 @@ final class DesktopViewController: UIViewController {
             self?.launcher = nil
         }
         canvas.addSubview(launcher)
+        applyContentsScale(to: launcher)
         launcher.frame = CGRect(origin: .zero, size: logicalSize)
         self.launcher = launcher
         applyContentsScale(to: launcher)
@@ -2098,6 +2113,7 @@ final class DesktopViewController: UIViewController {
         view.onPick = { [weak self] id in self?.pickWindow(id) }
         view.onDismiss = { [weak self] in self?.dismissOverview() }
         canvas.addSubview(view)
+        applyContentsScale(to: view)
         overview = view
         applyContentsScale(to: view)
         // Delante del cursor no: el cursor es una capa aparte, siempre encima.
@@ -2388,6 +2404,7 @@ final class DesktopViewController: UIViewController {
         let popover = CalendarPopover(anchor: anchor, in: CGRect(origin: .zero, size: logicalSize))
         popover.onDismiss = { [weak self] in self?.dismissCalendar() }
         canvas.addSubview(popover)
+        applyContentsScale(to: popover)
         calendarPopover = popover
         applyContentsScale(to: popover)
     }
@@ -2406,6 +2423,7 @@ final class DesktopViewController: UIViewController {
             self?.askWeatherPlace(anchor: anchor)
         }
         canvas.addSubview(popover)
+        applyContentsScale(to: popover)
         weatherPopover = popover
         applyContentsScale(to: popover)
         services.weather.refresh()
@@ -2448,6 +2466,10 @@ final class DesktopViewController: UIViewController {
 
     @objc private func folderPickerRequested() {
         showPhoneNotice("Elige la carpeta en la pantalla del iPhone")
+    }
+
+    @objc private func bookmarksPickerRequested() {
+        showPhoneNotice("Elige el fichero de favoritos en la pantalla del iPhone")
     }
 
     private func dismissWeather() {

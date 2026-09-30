@@ -233,7 +233,8 @@ comprimir (`NSFileCoordinator` con `.forUploading`) mete un solo fichero dentro 
 - **Seguridad**: rutas con `..` o absolutas no se extraen (*zip slip*); tampoco `__MACOSX` ni
   `.DS_Store`. Nombres en UTF-8 y en forma compuesta (NFC).
 - **En el panel**: botón derecho › Comprimir / Comprimir N elementos (uno se llama como él, varios
-  «Archivo.zip», sin pisar nada) y Descomprimir, también con doble clic, a una carpeta con su
+  «Archivo.zip», sin pisar nada) y Descomprimir, también con doble clic (desde el 30-sep-2026, **como la Utilidad de Archivo
+  de macOS: si el ZIP trae una sola cosa sale tal cual**; si trae varias, a una carpeta con su
   nombre. Lo remoto se baja a un temporal, se trabaja allí y se sube con la copia de siempre. Va
   con la barra de la copia (rótulo propio en `Progress.label`) y su Cancelar, que para también
   el trabajo de fondo (`cancellable`, con `withTaskCancellationHandler`).

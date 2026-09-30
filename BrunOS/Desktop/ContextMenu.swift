@@ -25,10 +25,21 @@ final class ContextMenu: UIView {
     private var hoveredIndex: Int?
 
     private static let rowHeight: CGFloat = 28
-    private static let width: CGFloat = 210
+    private static let minWidth: CGFloat = 210
+    private static let font = Tokens.sans(13)
+    /// Del borde de la fila al texto: el hueco del icono.
+    private static let textInset: CGFloat = 34
+
+    /// **El ancho sale del título más largo**: con 210 fijos, «Usar como fondo
+    /// de escritorio» y los nombres de las ventanas se cortaban.
+    private let width: CGFloat
 
     init(entries: [Entry], at point: CGPoint, in bounds: CGRect) {
         self.entries = entries
+        let longest = entries.map {
+            ($0.title as NSString).size(withAttributes: [.font: Self.font]).width
+        }.max() ?? 0
+        self.width = min(max(Self.minWidth, ceil(longest) + Self.textInset + 16 + 10), bounds.width - 16)
         super.init(frame: bounds)
 
         backgroundColor = .clear
@@ -48,14 +59,14 @@ final class ContextMenu: UIView {
         // pantalla**: si no cabe hacia abajo o hacia la derecha, se vuelca al
         // otro lado, como hace cualquier menú.
         let height = CGFloat(entries.count) * Self.rowHeight + 10
-        let x = point.x + Self.width > bounds.maxX ? point.x - Self.width : point.x
+        let x = max(8, point.x + width > bounds.maxX ? point.x - width : point.x)
         let y = point.y + height > bounds.maxY ? point.y - height : point.y
-        card.frame = CGRect(x: x, y: y, width: Self.width, height: height)
+        card.frame = CGRect(x: x, y: max(8, y), width: width, height: height)
 
         rowFrames = entries.indices.map { index in
             CGRect(
                 x: 5, y: 5 + CGFloat(index) * Self.rowHeight,
-                width: Self.width - 10, height: Self.rowHeight
+                width: width - 10, height: Self.rowHeight
             )
         }
     }
@@ -95,15 +106,25 @@ final class ContextMenu: UIView {
                 image.draw(at: CGPoint(x: frame.minX + 10, y: frame.midY - image.size.height / 2))
             }
 
+            let font = Self.font
             (entry.title as NSString).draw(
-                at: CGPoint(x: frame.minX + 34, y: frame.midY - 8),
+                in: CGRect(x: frame.minX + Self.textInset, y: frame.midY - font.lineHeight / 2,
+                           width: frame.width - Self.textInset - 10, height: font.lineHeight),
                 withAttributes: [
-                    .font: Tokens.sans(13),
+                    .font: font,
                     .foregroundColor: color,
+                    .paragraphStyle: Self.truncating,
                 ]
             )
         }
     }
+
+    /// Si aun así no cabe (más ancho que la pantalla), «…» al final.
+    private static let truncating: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byTruncatingTail
+        return style
+    }()
 
     /// Devuelve `true` si consumió el evento.
     func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint) -> Bool {

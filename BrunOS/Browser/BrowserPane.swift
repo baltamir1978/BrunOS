@@ -583,7 +583,8 @@ final class BrowserPane: UIView, Pane {
         let tab = makeTab()
         activate(tabs.count - 1)
 
-        if let url {
+        // Sin dirección, la página de inicio que se haya elegido en Ajustes.
+        if let url = url ?? BrowserHomePage.address {
             // Las cookies guardadas, antes de la primera petición: si no, la
             // primera página de cada arranque volvería a pedir el aviso.
             Task { [weak tab] in

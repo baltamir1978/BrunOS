@@ -8,7 +8,10 @@ struct PhoneRootView: View {
 
     @State private var dictation = DictationController()
     @State private var showingSettings = false
-    @State private var showingFolderPicker = false
+    @State private var showingPicker = false
+    /// Qué se está eligiendo: SwiftUI sólo atiende un `fileImporter` por
+    /// vista, así que es uno solo que cambia de tipo.
+    @State private var pickerKind: PickerKind = .folder
     @State private var isDimmed = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -37,16 +40,26 @@ struct PhoneRootView: View {
             SettingsView()
         }
         .fileImporter(
-            isPresented: $showingFolderPicker,
-            allowedContentTypes: [.folder],
+            isPresented: $showingPicker,
+            allowedContentTypes: pickerKind == .folder ? [.folder] : [.html],
             allowsMultipleSelection: false
         ) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }
-            _ = try? services.files.externalFolders.add(url)
-            services.files.rebuild()
+            switch pickerKind {
+            case .folder:
+                _ = try? services.files.externalFolders.add(url)
+                services.files.rebuild()
+            case .bookmarks:
+                importBookmarks(from: url)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .brunosPickFolder)) { _ in
-            showingFolderPicker = true
+            pickerKind = .folder
+            showingPicker = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .brunosPickBookmarks)) { _ in
+            pickerKind = .bookmarks
+            showingPicker = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .brunosShowSettings)) { _ in
             // Con monitor, los ajustes están en el monitor: abrirlos aquí
@@ -71,6 +84,34 @@ struct PhoneRootView: View {
             if phase != .active, isDimmed { isDimmed = false }
         }
         .tint(.brunosAccent)
+    }
+
+    private enum PickerKind { case folder, bookmarks }
+
+    /// Lee el HTML de favoritos elegido y cuenta el resultado en el monitor,
+    /// que es donde se pidió (o en el iPhone, si no hay monitor).
+    private func importBookmarks(from url: URL) {
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        let data = (try? Data(contentsOf: url)) ?? Data()
+        let html = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+        let found = BookmarkImporter.parse(html)
+        let added = services.history.importBookmarks(found)
+        let message: String = if found.isEmpty {
+            "En ese fichero no hay favoritos: tiene que ser el HTML que exporta el navegador."
+        } else if added == 0 {
+            "Los \(found.count) favoritos del fichero ya estaban."
+        } else if added == found.count {
+            "Añadidos \(added) favoritos."
+        } else {
+            "Añadidos \(added) de \(found.count); los demás ya estaban."
+        }
+        services.desktopViewController?.presentConfirm(
+            title: added > 0 ? "Favoritos importados" : "No se ha añadido nada",
+            message: message,
+            destructive: "Entendido",
+            isDestructive: false
+        ) { _ in }
     }
 
     private var phoneInterface: some View {
@@ -224,6 +265,9 @@ extension Notification.Name {
     /// Añadir una carpeta externa. El selector de iOS es modal del sistema y
     /// sólo puede salir en el iPhone, aunque se pida desde el monitor.
     static let brunosPickFolder = Notification.Name("BrunOSPickFolder")
+    /// Importar favoritos: el mismo selector, para el HTML que exportan los
+    /// navegadores.
+    static let brunosPickBookmarks = Notification.Name("BrunOSPickBookmarks")
 }
 
 /// Aviso de que el ratón no va a funcionar hasta activar AssistiveTouch.

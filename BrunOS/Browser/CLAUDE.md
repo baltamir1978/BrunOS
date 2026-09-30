@@ -469,3 +469,17 @@ Sólo en la página de inicio. Las webs de verdad no se tocan: a anchos de escri
 propia lógica (Wikipedia en un panel estrecho se va a 1120 px y encoge) y reescribirles el
 viewport las pasaba a su versión de móvil. Si algún día se ve el mismo hueco en una web oscura,
 el origen es éste.
+
+## Página de inicio propia e importar favoritos (30-sep-2026)
+
+Los dos en Ajustes del navegador, pedidos por Bruno.
+
+- **Página de inicio** (General): la de BrunOS o una dirección (`BrowserHomePage`, en
+  `UserDefaults`). La usa `BrowserPane.newTab` cuando no se le pasa dirección.
+- **Importar favoritos** (Favoritos › «Elegir fichero…»): el HTML de Netscape que exportan todos
+  los navegadores. El selector es el `fileImporter` del iPhone, el mismo que el de las carpetas
+  (**SwiftUI sólo atiende uno por vista**: es uno solo que cambia de tipo, `PickerKind`), y el
+  monitor avisa con `PhoneNotice`. `BookmarkImporter` aplana las carpetas, **salta la lista de
+  lectura de Safari** (carpeta `com.apple.ReadingList`), ignora lo que no sea http(s) y los
+  repetidos; `BrowserHistory.importBookmarks` los añade al final. Probado con un fichero como el
+  de Safari y otro como el de Chrome; sin probar con uno de verdad en el iPhone.

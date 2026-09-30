@@ -19,6 +19,9 @@ struct WallpaperPicker: View {
     @State private var importError: String?
 
     var body: some View {
+        // La etiqueta de `PhotosPicker` es un cierre `Sendable`: el estado se
+        // saca antes, que desde dentro no se puede leer.
+        let pickerTitle = isImporting ? "Preparando la foto…" : "Elegir una foto…"
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(Array(services.wallpaper.available.enumerated()), id: \.offset) { _, wallpaper in
@@ -35,7 +38,7 @@ struct WallpaperPicker: View {
             // `PhotosPicker` corre fuera de la app: no pide permiso para leer
             // la fototeca, sólo entrega la foto que se elige.
             PhotosPicker(selection: $photo, matching: .images) {
-                Label(isImporting ? "Preparando la foto…" : "Elegir una foto…", systemImage: "photo.on.rectangle")
+                Label(pickerTitle, systemImage: "photo.on.rectangle")
                     .font(.brunosSans(15))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)

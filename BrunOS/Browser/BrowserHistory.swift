@@ -119,6 +119,20 @@ final class BrowserHistory {
         saveBookmarks()
     }
 
+    /// Añade los favoritos de otro navegador al final, sin repetir los que ya
+    /// estaban. Devuelve cuántos eran nuevos.
+    @discardableResult
+    func importBookmarks(_ imported: [BookmarkImporter.Bookmark]) -> Int {
+        var known = Set(bookmarks.map(\.url))
+        var added = 0
+        for bookmark in imported where known.insert(bookmark.url).inserted {
+            bookmarks.append(Page(url: bookmark.url, title: bookmark.title, visited: Date()))
+            added += 1
+        }
+        if added > 0 { saveBookmarks() }
+        return added
+    }
+
     private func saveBookmarks() {
         save()
         NotificationCenter.default.post(name: Self.bookmarksDidChange, object: nil)

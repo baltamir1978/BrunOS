@@ -186,26 +186,37 @@ warnings** y se subió a TestFlight. Falta probarlo en el iPhone.
   Bruno: una tarjeta por app con sus atajos. Si cambia un atajo, cambiarlo también en
   `BrowserTab.helpHTML()`.
 
-## Pendiente de probar (en la 2609291957)
+## Visto bien por Bruno (30-sep-2026)
 
-- **El cursor en el navegador**: la mano sobre enlaces (que apunte con la punta del índice) y la I
-  en campos de texto; la flecha al salir a la barra o los favoritos.
+El dock (entero, transparencia, agrandamiento, rebote), Tailscale con los nueve puntos, el
+escritorio sin «brunOS_», Notas (botones de formato, RTF), comprimir ZIP y el zoom de los visores
+por debajo de 100 %.
+
+## Escrito el 30-sep-2026, sin subir
+
+Todo compila sin errores ni warnings. **Nada probado en el iPhone.**
+
+- Lo de «Visto por Bruno en la 2609291957» (arriba): cursor en ventanas flotantes, la I sobre
+  texto, la página de inicio sin franja y con la ayuda, la cabecera de Notas en crema.
+- **El menú del botón derecho salía borroso y con los textos cortados** (Bruno, 30-sep): se
+  añadía al lienzo después de maquetar y nacía con la densidad de la pantalla, y el ancho era de
+  210 puntos fijos. Ahora el ancho sale del título más largo, y a **todas las ventanas que se
+  abren encima** (menú, diálogos, historial, editor de máquinas, lanzador, Exposé, tiempo,
+  calendario, vista previa) se les pone la densidad del lienzo al añadirlas.
+  **Regla: lo que se añada a `canvas` fuera de la maquetación, con `applyContentsScale` justo
+  después.**
+- **Descomprimir un ZIP de un solo fichero lo metía en una carpeta.** Ahora como la Utilidad de
+  Archivo de macOS: una sola cosa sale tal cual; varias, en una carpeta con el nombre del ZIP.
+- **Ajustes del navegador**: la página de inicio (la de BrunOS o una dirección) en General, e
+  **importar favoritos** del HTML que exportan Safari, Chrome y Firefox en Favoritos (selector del
+  iPhone, como el de las carpetas). Ver `BrunOS/Browser/CLAUDE.md`.
+
+## Pendiente de probar
+
+- Todo lo de «Escrito el 30-sep-2026».
 - **El fondo desde el iPhone**, con el monitor puesto, y «Elegir una foto…».
-- **Notas**: los botones de formato de la cabecera, y que se enciendan según el cursor.
-- **Tailscale** con el logo de nueve puntos, conectado y sin conectar.
-- **El dock** entero, sin cortar el icono de Ajustes, y sin el «brunOS_» en el escritorio vacío.
-
-De la 2609250831, también sin confirmar:
-
-- **ZIP** en Ficheros: comprimir uno y varios, descomprimir con doble clic y con el botón
-  derecho, en local y por SFTP/SMB, y Cancelar.
-- **Reddit con la letra normal** (sin el autoajuste de texto de iOS), y que el resto de webs no
-  cambie para mal.
-- **El zoom de los visores por debajo de 100 %** (25, 50, 75 %).
-- **El dock**: transparencia, agrandamiento sutil (×1,25) con el cursor, el nombre encima y el
-  rebote al abrir.
-- **Notas en RTF** en `Documentos/Notas` (las de antes, migradas), negrita, cursiva, subrayado y
-  enlaces (ver `BrunOS/Notes/CLAUDE.md`).
+- **Descomprimir** por SFTP/SMB y Cancelar (en local, bien).
+- **Reddit con la letra normal**, y que el resto de webs no cambie para mal.
 
 ## Pruebas: cerradas (24-sep-2026, con la 2609241916)
 
