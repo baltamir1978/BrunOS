@@ -140,10 +140,12 @@ final class DesktopViewController: UIViewController {
 
         let inset = profile.overscan.rawValue
         let full = CGSize(width: logicalWidth, height: pixels.height / profile.scale.rawValue)
+        let previousSize = logicalSize
         logicalSize = CGSize(
             width: full.width * (1 - 2 * inset),
             height: full.height * (1 - 2 * inset)
         )
+        refitFloatingWindows(from: previousSize)
 
         canvas.transform = .identity
         canvas.bounds = CGRect(origin: .zero, size: logicalSize)
@@ -180,6 +182,35 @@ final class DesktopViewController: UIViewController {
         }
 
         layoutCanvas()
+    }
+
+    /// **Al cambiar la escala, las ventanas se quedan en la pantalla.** Pasar
+    /// de 1× a 1,5× en un 4K deja el escritorio en 2560 × 1440 puntos en vez
+    /// de 3840 × 2160, y las flotantes, con sus coordenadas de antes, se
+    /// salían casi todas (Bruno, 30-sep-2026). Cada una conserva su tamaño
+    /// (así se ve más grande, que es a lo que se sube la escala), su centro
+    /// queda en la misma proporción de la pantalla y, si no cabe, se encoge y
+    /// se mete entre la barra y el dock. Vale también para el overscan y para
+    /// cambiar de monitor. El mosaico ya se reparte solo.
+    private func refitFloatingWindows(from previous: CGSize) {
+        guard previous.width > 0, previous.height > 0, previous != logicalSize else { return }
+        let area = tileArea
+        guard area.width > 0, area.height > 0 else { return }
+        let sx = logicalSize.width / previous.width
+        let sy = logicalSize.height / previous.height
+        services.desktop.active.refitFloatingFrames { frame in
+            let width = min(frame.width, area.width)
+            let height = min(frame.height, area.height)
+            let x = frame.midX * sx - width / 2
+            let y = frame.midY * sy - height / 2
+            return CGRect(
+                x: min(max(x, area.minX), area.maxX - width).rounded(),
+                y: min(max(y, area.minY), area.maxY - height).rounded(),
+                width: width.rounded(),
+                height: height.rounded()
+            )
+        }
+        scheduleSessionSave()
     }
 
     /// Cuánto estira el lienzo: puntos de UIKit por punto lógico. Lo necesita

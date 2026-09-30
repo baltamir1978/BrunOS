@@ -106,6 +106,8 @@ aviso del iPhone (`PhoneNotice`) no es modal: no se queda el ratón, sólo va en
   margen, sólo si hay ventana al otro lado.
 - **Ajustes es una ventana más** (`SettingsPane`, con `SettingsWindow` en modo `embedded`): una a
   la vez, `PaneKind.of` da `nil` (no es app del dock), no se recuerda al arrancar.
+- **Si cambia el tamaño del escritorio** (escala, overscan, otro monitor), `refitFloatingWindows`
+  recoloca las flotantes y minimizadas: mismo tamaño, centro en proporción y dentro de `tileArea`.
 - **Al arrancar** vuelve el escritorio de la última vez (`SessionStore`, `desktop-session.json`):
   marcos (en proporción si cambia la escala), minimizadas, foco, pestañas (sólo carga la que se
   ve), máquinas del terminal (reconecta) y carpeta de Ficheros. Se guarda 2 s después de cada

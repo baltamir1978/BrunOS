@@ -56,7 +56,11 @@ sale igual en una pantalla por AirPlay que por cable.
 
 ### Pendiente de probar (0.2.0)
 
-Nada. Quitar cada cosa de aquí al confirmarla.
+**Sin subir.** Quitar cada cosa de aquí al confirmarla.
+
+- **Al cambiar la escala las ventanas se salían** (Bruno, TV 4K de 1× a 1,5×): ahora cada flotante
+  (y cada minimizada) conserva su tamaño, su centro queda en la misma proporción de la pantalla y
+  se mete entre la barra y el dock, encogiéndose si no cabe (`refitFloatingWindows`).
 
 ### Ideas aparcadas
 

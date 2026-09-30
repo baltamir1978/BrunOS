@@ -59,6 +59,17 @@ final class Workspace {
         floating[id] = frame
     }
 
+    /// Recoloca todas las flotantes, también las minimizadas (vuelven a su
+    /// marco al restaurarlas). Para cuando el escritorio cambia de tamaño.
+    func refitFloatingFrames(_ refit: (CGRect) -> CGRect) {
+        for (id, frame) in floating {
+            floating[id] = refit(frame)
+        }
+        minimized = minimized.map { entry in
+            (entry.id, entry.pane, entry.frame.map(refit))
+        }
+    }
+
     /// Pone una ventana flotante delante de todas.
     func raise(_ id: PaneID) {
         guard floating[id] != nil, floatingOrder.last != id else { return }
