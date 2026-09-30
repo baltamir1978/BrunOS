@@ -34,8 +34,10 @@ iPhone con el monitor y la dio por buena. Su historia, build a build, está en `
 ### Pendiente de probar (0.2.0)
 
 Escrito en la nube (rama `claude/trusting-feynman-65cc7l`, PR #4) y fusionado en `main` el
-30-sep-2026: **compila a la primera, sin errores ni warnings**. Sin subir a TestFlight y sin
-probar en el iPhone. Quitar cada cosa de aquí al confirmarla.
+30-sep-2026: **compila a la primera, sin errores ni warnings**. Visto en el simulador con el
+escritorio montado en la pantalla del iPhone (arnés provisional, no versionado): las cinco apps,
+dock, barra, Exposé, Ajustes › Transparencia, el tiempo con dos ciudades y su menú. Sin probar
+en el iPhone. Quitar cada cosa de aquí al confirmarla.
 
 - La barra superior sin ventanas no rotula nada (antes, «Sin paneles»).
 - **Supr**: en la barra de direcciones y en Buscar **escribía un carácter invisible** (el
@@ -49,7 +51,8 @@ probar en el iPhone. Quitar cada cosa de aquí al confirmarla.
   Media, Mucha), con `BarBackdrop`. Por defecto como estaban: dock en Media, barra Opaca.
 - **Exportar favoritos**: ver `BrunOS/Browser/CLAUDE.md`.
 - **El tiempo con varias ciudades**: ver `BrunOS/Desktop/CLAUDE.md` («La barra superior»). La
-  ciudad única de antes (`weather.place`) se recoge al arrancar.
+  ciudad única de antes (`weather.place`) se recoge al arrancar. Quitar, también desde el menú
+  del botón derecho.
 - **Optimización A y C** (ver «Plan de optimización»). Qué mirar al probar:
   - **A1**: arrastrar y redimensionar ventanas, también hasta tapar el dock (entonces sí maqueta
     entero) y al soltar en un borde para encajar.

@@ -122,6 +122,11 @@ final class WeatherService {
         } else if let data = defaults.data(forKey: Self.legacyPlaceKey),
                   let saved = try? JSONDecoder().decode(Place.self, from: data) {
             places = [saved]
+            // En el `init` no salta el `didSet`: sin guardarlo aquí, la
+            // ciudad de antes se perdía en el segundo arranque.
+            if let data = try? JSONEncoder().encode(places) {
+                defaults.set(data, forKey: Self.placesKey)
+            }
             defaults.removeObject(forKey: Self.legacyPlaceKey)
         }
         selectedIndex = min(max(0, defaults.integer(forKey: Self.selectedKey)), max(0, places.count - 1))

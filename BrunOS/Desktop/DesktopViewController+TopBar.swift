@@ -119,7 +119,7 @@ extension DesktopViewController {
         weatherPopover = nil
     }
 
-    /// Las ciudades del tiempo, con la que se ve marcada, y añadir otra.
+    /// Las ciudades del tiempo, con la que se ve marcada, añadir otra y quitar la que se ve.
     func weatherMenu(anchor: CGPoint) -> [ContextMenu.Entry] {
         let weather = services.weather
         var entries = weather.places.enumerated().map { (index, place) -> ContextMenu.Entry in
@@ -134,6 +134,16 @@ extension DesktopViewController {
             symbol: "plus",
             isEnabled: weather.places.count < WeatherService.maxPlaces
         ) { [weak self] in self?.askWeatherPlace(anchor: anchor) })
+        // Quitar, en el mismo sitio que añadir (Bruno, 30-sep-2026). Quita la
+        // que se ve, como el «Quitar» del desplegable.
+        if let place = weather.place {
+            let index = weather.selectedIndex
+            entries.append(ContextMenu.Entry(
+                title: "Quitar \(place.name)",
+                symbol: "minus.circle",
+                isDestructive: true
+            ) { weather.remove(at: index) })
+        }
         return entries
     }
 

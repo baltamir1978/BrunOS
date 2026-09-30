@@ -124,8 +124,10 @@ tiempo, resolución (lleva a Ajustes › Pantalla), batería y hora (abre el cal
   permiso de firma). Ciudades por nombre, no por ubicación (el aviso de permiso saldría en el
   iPhone, en negro); coordenadas a dos decimales. **Hasta 6 ciudades** (`WeatherService.places`);
   botón derecho o rueda sobre el icono para cambiar; en el desplegable, pestañas, ← → y
-  Añadir/Quitar. Cada 20 minutos y al abrir el desplegable. Colores de la interfaz (el cielo fijo
-  del Golden Gate no le cuadraba a Bruno).
+  Añadir/Quitar, y **también en el menú del botón derecho** (Bruno: quitar tan a mano como
+  añadir). Quitar quita la que se ve. La ciudad única de antes (`weather.place`) se pasa a la
+  lista en el `init`, **guardándola a mano**: ahí no salta el `didSet` y se perdía. Cada 20 minutos y al abrir el
+  desplegable. Colores de la interfaz (el cielo fijo del Golden Gate no le cuadraba a Bruno).
 - **Calendario** (`CalendarPopover`): el mes de lunes a domingo, fin de semana en rojo, flechas y
   rueda para pasar de mes. No lee el calendario del iPhone (permiso en la pantalla del teléfono).
 - **`PhoneNotice`**: aviso en el monitor cuando hay que mirar el iPhone (selectores, Atajos); se
