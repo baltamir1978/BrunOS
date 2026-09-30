@@ -46,13 +46,24 @@ final class PhotosPane: UIView, Pane {
     private var selected: Int?
     private var hovered: Int?
     private var hoveringControls = false
-    private var scrollOffset: CGFloat = 0
+    private var scrollOffset: CGFloat = 0 {
+        didSet { if scrollOffset != oldValue { placeContent() } }
+    }
     private var lastClick: (time: Date, index: Int)?
 
     /// La foto o el vídeo abierto, como índice en `media`. `nil` es la rejilla.
     private var viewerIndex: Int?
     private var isSlideshow = false
     private var slideTimer: Timer?
+
+    // La rejilla se desplaza sin repintarse: va en una vista propia, más alta
+    // que lo que se ve, y la rueda sólo la mueve. Como en Ficheros (punto 4 de
+    // la 0.2.0, A2; ver `FilesPane.placeContent`).
+    private let contentClip = UIView()
+    private let content = PhotosContentView()
+    private var bufferOrigin: CGFloat = 0
+    /// Lo que se está pintando, en coordenadas del panel.
+    private var drawRange: CGRect = .zero
 
     // Cabecera.
     private var backFrame: CGRect = .zero
@@ -86,6 +97,14 @@ final class PhotosPane: UIView, Pane {
         layer.borderColor = Tokens.Color.border.desktopCGColor
         clipsToBounds = true
         contentMode = .redraw
+
+        contentClip.clipsToBounds = true
+        contentClip.isUserInteractionEnabled = false
+        addSubview(contentClip)
+        content.pane = self
+        content.backgroundColor = Tokens.Color.panel
+        content.isUserInteractionEnabled = false
+        contentClip.addSubview(content)
 
         viewer.isHidden = true
         addSubview(viewer)
@@ -297,8 +316,8 @@ final class PhotosPane: UIView, Pane {
 
     private func scroll(by delta: CGFloat) {
         let maxOffset = max(0, contentHeight - gridArea.height)
+        // Sólo se mueve la rejilla (`placeContent`, desde el `didSet`).
         scrollOffset = min(max(0, scrollOffset - delta), maxOffset)
-        setNeedsDisplay()
     }
 
     private func scrollToSelection() {
@@ -354,7 +373,11 @@ final class PhotosPane: UIView, Pane {
             // Si ya no se ve (se ha desplazado la rejilla), se deja para
             // cuando vuelva a dibujarse.
             let index = mediaIndex[item.path].map { folders.count + $0 }
-            guard let index, tileFrame(index).intersects(gridArea.insetBy(dx: 0, dy: -300)) else {
+            // Lo pintado va un 30 % más allá de lo que se ve (`placeContent`):
+            // lo que caiga ahí también se pide, o al llegar con la rueda
+            // seguiría el icono.
+            let reach = max(300, gridArea.height * 0.3 + 20)
+            guard let index, tileFrame(index).intersects(gridArea.insetBy(dx: 0, dy: -reach)) else {
                 pendingThumbnails.remove(item.path)
                 continue
             }
@@ -536,8 +559,61 @@ final class PhotosPane: UIView, Pane {
     override func layoutSubviews() {
         super.layoutSubviews()
         viewer.frame = gridArea
+        contentClip.frame = gridArea
         recomputeHeader()
+        placeContent()
         setNeedsDisplay()
+    }
+
+    /// Coloca la rejilla según el desplazamiento, y la repinta si lo que se ve
+    /// se sale de lo pintado o ha cambiado el tamaño.
+    private func placeContent() {
+        let viewport = contentClip.bounds.size
+        let margin = max(150, viewport.height * 0.3)
+        let bufferHeight = viewport.height + 2 * margin
+        let inside = scrollOffset >= bufferOrigin && scrollOffset + viewport.height <= bufferOrigin + bufferHeight
+        let resized = content.bounds.width != viewport.width || content.bounds.height != bufferHeight
+        if !inside || resized {
+            bufferOrigin = scrollOffset - margin
+            content.setNeedsDisplay()
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        // A píxel entero: la capa va con filtro `.nearest` (ver
+        // `applyContentsScale`), y medio píxel de más la haría temblar.
+        let scale = max(content.layer.contentsScale, 1)
+        let y = ((bufferOrigin - scrollOffset) * scale).rounded() / scale
+        content.frame = CGRect(x: 0, y: y, width: viewport.width, height: bufferHeight)
+        CATransaction.commit()
+    }
+
+    private var contentOrigin: CGPoint {
+        CGPoint(x: contentClip.frame.minX + content.frame.minX, y: contentClip.frame.minY + content.frame.minY)
+    }
+
+    /// Repintar el panel es repintar la cabecera (aquí) y la rejilla. La rueda
+    /// y el hover no pasan por aquí.
+    override func setNeedsDisplay() {
+        super.setNeedsDisplay()
+        content.setNeedsDisplay()
+    }
+
+    /// Sólo esos cuadros, al cambiar el hover o la selección.
+    private func invalidateTiles(_ indices: [Int?]) {
+        let origin = contentOrigin
+        for index in indices.compactMap({ $0 }) where index < tileCount {
+            content.setNeedsDisplay(tileFrame(index).insetBy(dx: -3, dy: -3).offsetBy(dx: -origin.x, dy: -origin.y))
+        }
+    }
+
+    /// Lo llama `PhotosContentView.draw`: la rejilla, con las coordenadas del
+    /// panel que usan los clics.
+    fileprivate func drawContent(in context: CGContext, dirty: CGRect) {
+        guard viewerIndex == nil else { return }
+        let origin = contentOrigin
+        drawRange = dirty.offsetBy(dx: origin.x, dy: origin.y)
+        context.translateBy(x: -origin.x, y: -origin.y)
+        drawGrid(in: context)
     }
 
     private func recomputeHeader() {
@@ -606,8 +682,7 @@ final class PhotosPane: UIView, Pane {
         drawSymbol(isSlideshow ? "pause.rectangle" : "play.rectangle.on.rectangle", in: slideshowFrame,
                    color: isSlideshow ? Tokens.Color.accent : Tokens.Color.text, size: 13)
 
-        guard viewerIndex == nil else { return }
-        drawGrid(in: context)
+        // La rejilla la dibuja `content` (ver `drawContent`).
     }
 
     private static let truncating: NSParagraphStyle = {
@@ -637,11 +712,10 @@ final class PhotosPane: UIView, Pane {
             return
         }
 
-        context.saveGState()
-        context.clip(to: area)
+        // Lo que se sale por arriba lo recorta `contentClip`.
         for index in 0..<tileCount {
             let frame = tileFrame(index)
-            guard frame.intersects(area), let item = item(at: index) else { continue }
+            guard frame.intersects(drawRange), let item = item(at: index) else { continue }
             let shape = UIBezierPath(roundedRect: frame, cornerRadius: 6)
 
             if item.isDirectory {
@@ -691,7 +765,6 @@ final class PhotosPane: UIView, Pane {
                 context.strokePath()
             }
         }
-        context.restoreGState()
     }
 
     private static func aspectFill(_ size: CGSize, in frame: CGRect) -> CGRect {
@@ -734,10 +807,14 @@ final class PhotosPane: UIView, Pane {
         case .moved:
             let inControls = WindowControls.groupContains(location, x: Self.controlsX, midY: Self.controlsMidY)
             let hit = viewerIndex == nil ? tile(at: location) : nil
-            if inControls != hoveringControls || hit != hovered {
+            if inControls != hoveringControls {
                 hoveringControls = inControls
+                super.setNeedsDisplay()
+            }
+            if hit != hovered {
+                let previous = hovered
                 hovered = hit
-                setNeedsDisplay()
+                invalidateTiles([previous, hit])
             }
             if viewerIndex != nil {
                 viewer.hover(at: convert(location, to: viewer))
@@ -777,8 +854,9 @@ final class PhotosPane: UIView, Pane {
             let now = Date()
             let isDouble = lastClick.map { $0.index == index && now.timeIntervalSince($0.time) < 0.5 } ?? false
             lastClick = (now, index)
+            let previous = selected
             selected = index
-            setNeedsDisplay()
+            invalidateTiles([previous, index])
             if isDouble {
                 lastClick = nil
                 open(tile: index)
@@ -1279,5 +1357,17 @@ final class PlayerBar: UIView {
             .withTintColor(.white, renderingMode: .alwaysOriginal)
         else { return }
         image.draw(at: CGPoint(x: frame.midX - image.size.width / 2, y: frame.midY - image.size.height / 2))
+    }
+}
+
+/// La rejilla de `PhotosPane`, más alta que lo que se ve: se desplaza
+/// moviéndose, sin repintarse (ver `PhotosPane.placeContent`).
+@MainActor
+private final class PhotosContentView: UIView {
+    weak var pane: PhotosPane?
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+        pane?.drawContent(in: context, dirty: rect)
     }
 }

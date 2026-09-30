@@ -50,6 +50,7 @@ final class DesktopViewController: UIViewController {
 
         services.desktopViewController = self
         services.weather.start()
+        services.pointer.onFrame = { [weak self] in self?.flushQueuedMove() }
 
         NotificationCenter.default.addObserver(
             self,
@@ -1367,7 +1368,38 @@ final class DesktopViewController: UIViewController {
     /// Antes de mirar los paneles se mira si el cursor está sobre un divisor:
     /// los huecos entre paneles no pertenecen a nadie y son la zona de arrastre
     /// para redimensionar.
+    ///
+    /// **Los movimientos se juntan: uno por fotograma.** `GCMouse` puede dar
+    /// más eventos que fotogramas (un ratón de 500 o 1000 Hz), y cada uno
+    /// pasaba entero por aquí: hit-test, forma del cursor, dock y el hover del
+    /// navegador, que es JavaScript. El cursor ya se pintaba una vez por
+    /// fotograma. Clics y rueda van al momento, pero antes se entrega el
+    /// movimiento pendiente, para que caigan donde está el cursor y un arrastre
+    /// no pierda su último tramo (punto 4 de la 0.2.0).
     func deliverPointer(_ kind: PointerEvent.Kind, modifiers: UIKeyModifierFlags) {
+        if case .moved = kind, services.pointer.isFramePumpRunning {
+            queuedMoveModifiers = modifiers
+            guard !moveQueued else { return }
+            moveQueued = true
+            services.pointer.requestFrame()
+            return
+        }
+        flushQueuedMove()
+        processPointer(kind, modifiers: modifiers)
+    }
+
+    private var moveQueued = false
+    private var queuedMoveModifiers: UIKeyModifierFlags = []
+
+    /// Entrega el movimiento que esté esperando. Lo llama el `CADisplayLink`
+    /// del cursor en cada fotograma, y `deliverPointer` antes de un clic.
+    func flushQueuedMove() {
+        guard moveQueued else { return }
+        moveQueued = false
+        processPointer(.moved, modifiers: queuedMoveModifiers)
+    }
+
+    private func processPointer(_ kind: PointerEvent.Kind, modifiers: UIKeyModifierFlags) {
         // El puntero no sabe qué teclas hay pulsadas: se miran en el teclado.
         let modifiers = modifiers.union(KeyboardRouter.heldModifiers)
         let position = services.pointer.position

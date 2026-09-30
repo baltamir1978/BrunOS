@@ -364,7 +364,23 @@ final class PointerController {
         pendingPosition = position
     }
 
+    /// Se llama al principio de cada fotograma con el refresco en marcha. El
+    /// escritorio entrega ahí el movimiento del ratón que tenga pendiente:
+    /// uno por fotograma, no uno por evento (ver `deliverPointer`).
+    var onFrame: (() -> Void)?
+
+    /// Si hay refresco del monitor al que atar los movimientos. Sin él (sin
+    /// monitor), el escritorio los entrega al momento.
+    var isFramePumpRunning: Bool { displayLink != nil }
+
+    /// Que el próximo fotograma llegue aunque el cursor no se haya movido.
+    func requestFrame() {
+        idleFrames = 0
+        if displayLink?.isPaused == true { displayLink?.isPaused = false }
+    }
+
     @objc private func step() {
+        onFrame?()
         guard let pending = pendingPosition else {
             idleFrames += 1
             if idleFrames > 30 { displayLink?.isPaused = true }

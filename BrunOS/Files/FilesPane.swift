@@ -35,7 +35,27 @@ final class FilesPane: UIView, Pane {
     /// siempre `selectedIndex`.
     private var selection: Set<Int> = []
     private var hoveredIndex: Int?
-    private var scrollOffset: CGFloat = 0
+    private var scrollOffset: CGFloat = 0 {
+        didSet { if scrollOffset != oldValue { placeContent() } }
+    }
+
+    // MARK: Contenido que se desplaza sin repintarse
+
+    /// La lista o la rejilla van en una vista propia (`FilesContentView`), más
+    /// alta que lo que se ve: la rueda sólo la mueve, y eso lo hace la GPU.
+    /// Antes cada paso de rueda y cada cambio de hover repintaban el panel
+    /// entero en la CPU, a la densidad del monitor (punto 4 de la 0.2.0, A2).
+    /// Se repinta al salirse de lo pintado, y el hover y la selección sólo lo
+    /// que cambia.
+    private let contentClip = UIView()
+    private let content = FilesContentView()
+    /// Lo que va encima de la lista: dónde se soltaría y la copia en curso.
+    private let overlay = FilesOverlayView()
+    /// Desde qué desplazamiento está pintado `content`.
+    private var bufferOrigin: CGFloat = 0
+    /// Lo que se está pintando, en coordenadas del panel: sólo se dibuja lo
+    /// que cae dentro.
+    private var drawRange: CGRect = .zero
     private var status: String?
     private var sort: Sort = .name
     private var mode = ViewMode.current {
@@ -179,6 +199,20 @@ final class FilesPane: UIView, Pane {
         clipsToBounds = true
         contentMode = .redraw
 
+        contentClip.clipsToBounds = true
+        contentClip.isUserInteractionEnabled = false
+        addSubview(contentClip)
+        content.pane = self
+        content.backgroundColor = Tokens.Color.panel
+        content.isUserInteractionEnabled = false
+        contentClip.addSubview(content)
+        overlay.pane = self
+        overlay.backgroundColor = .clear
+        overlay.isOpaque = false
+        overlay.isUserInteractionEnabled = false
+        overlay.isHidden = true
+        addSubview(overlay)
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(viewModeChanged),
@@ -238,6 +272,7 @@ final class FilesPane: UIView, Pane {
                 self?.items = []
                 self?.allItems = []
                 self?.selectOnly(nil)
+                self?.scrollOffset = 0
                 self?.status = error.localizedDescription
                 self?.setNeedsDisplay()
             }
@@ -290,8 +325,80 @@ final class FilesPane: UIView, Pane {
             x: Self.sidebarWidth, y: bounds.height - FindBar.height,
             width: bounds.width - Self.sidebarWidth, height: FindBar.height
         )
+        contentClip.frame = CGRect(
+            x: Self.sidebarWidth, y: Self.headerHeight,
+            width: max(0, bounds.width - Self.sidebarWidth), height: max(0, bounds.height - Self.headerHeight)
+        )
+        overlay.frame = bounds
         recomputeFrames()
+        placeContent()
         setNeedsDisplay()
+    }
+
+    /// Coloca la vista del contenido según el desplazamiento. Si lo que se ve
+    /// se sale de lo pintado, o ha cambiado el tamaño, la vuelve a pintar
+    /// centrada en lo que se ve.
+    private func placeContent() {
+        let viewport = contentClip.bounds.size
+        // Un margen de un 30 % arriba y abajo: la rueda da varios pasos sin
+        // repintar, y al redimensionar no se pinta mucho más que antes.
+        let margin = max(150, viewport.height * 0.3)
+        let bufferHeight = viewport.height + 2 * margin
+        let inside = scrollOffset >= bufferOrigin && scrollOffset + viewport.height <= bufferOrigin + bufferHeight
+        let resized = content.bounds.width != viewport.width || content.bounds.height != bufferHeight
+        if !inside || resized {
+            bufferOrigin = scrollOffset - margin
+            content.setNeedsDisplay()
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        // A píxel entero: la capa va con filtro `.nearest` (ver
+        // `applyContentsScale`), y medio píxel de más la haría temblar.
+        let scale = max(content.layer.contentsScale, 1)
+        let y = ((bufferOrigin - scrollOffset) * scale).rounded() / scale
+        content.frame = CGRect(x: 0, y: y, width: viewport.width, height: bufferHeight)
+        CATransaction.commit()
+    }
+
+    /// Dónde está la vista del contenido, en coordenadas del panel.
+    private var contentOrigin: CGPoint {
+        CGPoint(x: contentClip.frame.minX + content.frame.minX, y: contentClip.frame.minY + content.frame.minY)
+    }
+
+    /// Repintar el panel es repintarlo todo: barra lateral y cabecera (aquí),
+    /// la lista y lo de encima. La rueda y el hover no pasan por aquí.
+    override func setNeedsDisplay() {
+        super.setNeedsDisplay()
+        content.setNeedsDisplay()
+        refreshOverlay()
+    }
+
+    /// Sólo lo que ocupan esos elementos, al cambiar el hover o la selección.
+    private func invalidateItems(_ indices: [Int?]) {
+        let origin = contentOrigin
+        for index in indices.compactMap({ $0 }) where rowFrames.indices.contains(index) {
+            content.setNeedsDisplay(rowFrames[index].insetBy(dx: -2, dy: -2).offsetBy(dx: -origin.x, dy: -origin.y))
+        }
+    }
+
+    private func refreshOverlay() {
+        overlay.isHidden = dropHighlight == nil && copyProgress == nil
+        if !overlay.isHidden { overlay.setNeedsDisplay() }
+    }
+
+    /// Lo llama `FilesContentView.draw`: la lista, trasladada para que se
+    /// dibuje con las mismas coordenadas del panel que usan los clics.
+    fileprivate func drawContent(in context: CGContext, dirty: CGRect) {
+        let origin = contentOrigin
+        drawRange = dirty.offsetBy(dx: origin.x, dy: origin.y)
+        context.translateBy(x: -origin.x, y: -origin.y)
+        drawRows(in: context)
+    }
+
+    /// Lo llama `FilesOverlayView.draw`, que ocupa el panel entero.
+    fileprivate func drawOverlay(in context: CGContext) {
+        drawDropHighlight(in: context)
+        drawCopyProgress(in: context)
     }
 
     // MARK: - Filtrar
@@ -418,13 +525,12 @@ final class FilesPane: UIView, Pane {
 
     // MARK: - Dibujo
 
+    /// Aquí, la barra lateral y la cabecera. La lista la dibuja `content` y
+    /// lo de encima `overlay` (ver `drawContent` y `drawOverlay`).
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
         drawSidebar(in: context)
         drawHeader(in: context)
-        drawRows(in: context)
-        drawDropHighlight(in: context)
-        drawCopyProgress(in: context)
     }
 
     private func drawSidebar(in context: CGContext) {
@@ -577,9 +683,9 @@ final class FilesPane: UIView, Pane {
         for (index, item) in items.enumerated() {
             guard index < rowFrames.count else { break }
             let frame = rowFrames[index]
-            // Sólo se dibuja lo que se ve: una carpeta con mil ficheros no
+            // Sólo se dibuja lo que se pinta: una carpeta con mil ficheros no
             // tiene por qué costar mil dibujados.
-            guard frame.maxY > Self.headerHeight, frame.minY < bounds.height else { continue }
+            guard frame.intersects(drawRange) else { continue }
 
             if selection.contains(index) {
                 context.setFillColor(Tokens.Color.accent.withAlphaComponent(0.22).desktopCGColor)
@@ -632,20 +738,12 @@ final class FilesPane: UIView, Pane {
         paragraph.alignment = .center
         paragraph.lineBreakMode = .byTruncatingMiddle
 
-        // Lo de debajo de la cabecera se recorta: al hacer scroll, una casilla
-        // a medias no puede pintarse encima de los rótulos de ordenar.
-        context.saveGState()
-        context.clip(to: CGRect(
-            x: Self.sidebarWidth, y: Self.headerHeight,
-            width: bounds.width - Self.sidebarWidth,
-            height: bounds.height - Self.headerHeight
-        ))
-        defer { context.restoreGState() }
-
+        // Una casilla a medias bajo la cabecera no la tapa: la recorta
+        // `contentClip`.
         for (index, item) in items.enumerated() {
             guard index < rowFrames.count else { break }
             let frame = rowFrames[index]
-            guard frame.maxY > Self.headerHeight, frame.minY < bounds.height else { continue }
+            guard frame.intersects(drawRange) else { continue }
 
             let iconFrame = CGRect(
                 x: frame.midX - side / 2, y: frame.minY + 6,
@@ -817,12 +915,13 @@ final class FilesPane: UIView, Pane {
             let inControls = WindowControls.groupContains(event.location, x: Self.controlsX, midY: Self.controlsMidY)
             if inControls != hoveringControls {
                 hoveringControls = inControls
-                setNeedsDisplay()
+                super.setNeedsDisplay()
             }
             let index = itemIndex(at: event.location)
             if hoveredIndex != index {
+                let previous = hoveredIndex
                 hoveredIndex = index
-                setNeedsDisplay()
+                invalidateItems([previous, index])
             }
 
         case .down:
@@ -850,6 +949,7 @@ final class FilesPane: UIView, Pane {
                 return
             }
             if let index = itemIndex(at: event.location) {
+                let before = selection
                 // Doble clic: dos clics sobre el mismo elemento, seguidos y sin
                 // apenas mover el ratón. El margen de tiempo es algo más
                 // generoso que el de macOS porque los clics pasan por
@@ -887,7 +987,7 @@ final class FilesPane: UIView, Pane {
                     press = (index, event.location)
                     pendingSingleSelect = index
                 }
-                setNeedsDisplay()
+                invalidateItems(before.symmetricDifference(selection).map { Optional($0) } + [index])
                 AppServices.shared.desktop.notifyTitleChange()
             } else if upFrame.contains(event.location) {
                 goUp()
@@ -1222,7 +1322,7 @@ final class FilesPane: UIView, Pane {
             do {
                 try await self.services.files.paste(into: self.path, of: self.provider) { [weak self] progress in
                     self?.copyProgress = progress
-                    self?.setNeedsDisplay()
+                    self?.refreshOverlay()
                 }
                 self.finishPaste()
                 self.reload()
@@ -1372,9 +1472,10 @@ final class FilesPane: UIView, Pane {
         let total = contentHeight
         let visible = bounds.height - Self.headerHeight
         guard total > visible else { return }
+        // Sólo se mueve la vista del contenido (`placeContent`, desde el
+        // `didSet`); los marcos, para los clics.
         scrollOffset = min(max(scrollOffset + amount, 0), total - visible)
-        setNeedsLayout()
-        setNeedsDisplay()
+        recomputeFrames()
     }
 
     func handleKey(_ event: KeyEvent) {
@@ -1491,7 +1592,7 @@ final class FilesPane: UIView, Pane {
     func highlightDrop(_ target: DropTarget?) {
         guard target != dropHighlight else { return }
         dropHighlight = target
-        setNeedsDisplay()
+        refreshOverlay()
     }
 
     /// Suelta aquí algo arrastrado desde este panel o desde otro.
@@ -1537,7 +1638,7 @@ final class FilesPane: UIView, Pane {
                     moving, from: source, to: target, into: directory, move: move
                 ) { [weak self] progress in
                     self?.copyProgress = progress
-                    self?.setNeedsDisplay()
+                    self?.refreshOverlay()
                 }
                 self.finishPaste()
                 self.reload()
@@ -1724,7 +1825,7 @@ final class FilesPane: UIView, Pane {
                     var progress = progress
                     progress.label = label
                     self?.copyProgress = progress
-                    self?.setNeedsDisplay()
+                    self?.refreshOverlay()
                 }
                 self.finishPaste()
                 self.reload()
@@ -1806,5 +1907,30 @@ final class FilesPane: UIView, Pane {
     /// Vuelve a leer la carpeta. La usa el escritorio tras borrar o renombrar.
     func refresh() {
         reload()
+    }
+}
+
+/// La lista o la rejilla de `FilesPane`. Es más alta que lo que se ve y se
+/// desplaza moviéndose, sin repintarse (ver `FilesPane.placeContent`). Dibuja
+/// el panel, con sus coordenadas.
+@MainActor
+private final class FilesContentView: UIView {
+    weak var pane: FilesPane?
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+        pane?.drawContent(in: context, dirty: rect)
+    }
+}
+
+/// Lo que va encima de la lista de `FilesPane`: dónde caería lo que se
+/// arrastra y la copia en curso. Escondida si no hay nada de eso.
+@MainActor
+private final class FilesOverlayView: UIView {
+    weak var pane: FilesPane?
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+        pane?.drawOverlay(in: context)
     }
 }

@@ -239,3 +239,16 @@ comprimir (`NSFileCoordinator` con `.forUploading`) mete un solo fichero dentro 
 - **Comprobado en macOS**: el ZIP que hace lo valida `unzip -t` e idéntico al descomprimir; uno de
   `ditto` (lo que usa el Finder) sale idéntico, 20 MB incluidos; uno con `../malo.txt` no escribe
   fuera.
+
+## La lista se desplaza sin repintarse (30-sep-2026, sin compilar)
+
+Antes `FilesPane.draw` pintaba panel, cabecera y lista enteros con cada paso de rueda y cada
+cambio de hover. Ahora la lista va en `FilesContentView`, dentro de `contentClip` (el área bajo la
+cabecera), un 30 % más alta que lo que se ve por arriba y por abajo: la rueda sólo la mueve
+(`placeContent`, desde el `didSet` de `scrollOffset`), y se repinta al salirse de lo pintado. El
+hover y la selección repintan sólo lo suyo (`invalidateItems`). Se dibuja con las coordenadas del
+panel (`drawContent` traslada el contexto; `drawRange` dice qué cae dentro), así que `rowFrames`,
+los clics y el dibujo siguen hablando lo mismo. El resalte de soltar y la copia en curso van en
+`FilesOverlayView`, escondida si no hay nada. **`setNeedsDisplay()` del panel está sobrescrito**
+para repintar las tres vistas: las llamadas de siempre siguen valiendo; los caminos calientes
+usan `super.setNeedsDisplay()` o `invalidateItems`. Fotos hace lo mismo (`PhotosContentView`).

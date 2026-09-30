@@ -49,10 +49,11 @@ porqué y cómo funciona cada cosa.
 
 Menú contextual, diálogos (`PromptWindow`, `presentConfirm`, que acepta `isDestructive: false`),
 formulario de máquinas y servidores (`FormWindow`), historial, lanzador, vista previa, Exposé,
-tiempo, calendario y aviso del iPhone. **Una modal nueva tiene que entrar en todas las listas a
-mano**: la del puntero (`deliverPointer`), la del cursor, `performOverModal`, `deliverKey`, el
-reajuste de marcos de `layoutCanvas` y el orden de `arrangeFloating`. (Está propuesto juntarlas:
-ver «Plan de optimización» en la raíz.)
+tiempo y calendario. **Todas conforman `ModalWindow` y están en `openModals`**, la única lista,
+ordenada de la de más arriba a la de más abajo: la usan el puntero, el teclado, el cursor,
+`performOverModal`, los marcos de `layoutCanvas` y el apilamiento de `arrangeFloating`. **Una
+modal nueva**: su propiedad, conformar `ModalWindow` y añadirla a `openModals` en su sitio. El
+aviso del iPhone (`PhoneNotice`) no es modal: no se queda el ratón, sólo va encima de todo.
 
 - Los atajos con Cmd se ejecutan en `perform(_:)` antes de que la tecla llegue a nadie. Con una
   modal abierta, Cmd+V pegaba en el terminal de detrás (y un salto de línea ahí es una orden que
@@ -159,6 +160,13 @@ registro de sucesos (`EventLog`). Sólo mide con esa página abierta.
   (pasó con `WallpaperStore.apply`, que además decodificaba el HEIC en cada clic; ahora cachea la
   imagen y la última capa pintada).
 - El cursor pausa su `CADisplayLink` tras medio segundo quieto (no entre fotogramas: daba tirones).
+- **Los movimientos del ratón se entregan uno por fotograma** (`deliverPointer` los junta y
+  `PointerController.onFrame` los suelta); clics y rueda, al momento, tras el pendiente.
+- **Arrastrar o redimensionar una flotante no maqueta el escritorio**: `placeFloatingWindows`
+  mueve esa ventana y su sombra, y la maquetación completa llega al soltar.
+- `DesktopViewController` tiene dos extensiones: `+Snap.swift` (encajar) y `+TopBar.swift`
+  (Tailscale, tiempo, calendario, avisos del iPhone). Las propiedades con estado viven en el
+  principal, porque una extensión no puede guardarlas.
 
 ## Fondo de escritorio
 

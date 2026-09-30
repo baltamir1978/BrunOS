@@ -24,8 +24,8 @@ iPhone con el monitor y la dio por buena. Su historia, build a build, está en `
    propio, PPTX/Keynote/Excel con WebKit, convertir a PDF por SSH con LibreOffice, usar
    Keynote/PowerPoint del iPhone) y no quiso ninguna. No volver a proponerlo.
 3. **Exportar favoritos** al mismo HTML con el que se importan. *Escrito.*
-4. **Velocidad y memoria**: *revisado el código y propuesto* (ver «Plan de optimización»),
-   **esperando a que Bruno elija** qué se hace. Proponer antes de hacer: decide él.
+4. **Velocidad y memoria**: revisado y propuesto (ver «Plan de optimización»). Bruno eligió
+   **todos los A y C**: *escritos*. Los B (memoria) y D (dependencias), sin elegir.
 5. **Ratón con `GCMouse` más natural**: aceleración, curva y rueda, sin cambiar la fuente.
    *Sin empezar.*
 6. **El tiempo con varias ciudades**, alternando desde la barra. *Escrito.*
@@ -49,6 +49,16 @@ primero en el Mac: `./Tools/build.sh` y cero warnings. Quitar cada cosa de aquí
 - **Exportar favoritos**: ver `BrunOS/Browser/CLAUDE.md`.
 - **El tiempo con varias ciudades**: ver `BrunOS/Desktop/CLAUDE.md` («La barra superior»). La
   ciudad única de antes (`weather.place`) se recoge al arrancar.
+- **Optimización A y C** (ver «Plan de optimización»). Qué mirar al probar:
+  - **A1**: arrastrar y redimensionar ventanas, también hasta tapar el dock (entonces sí maqueta
+    entero) y al soltar en un borde para encajar.
+  - **A2**: en Ficheros y Fotos, la rueda, el hover, la selección, el arrastre sobre una carpeta
+    (su resalte va en `overlay`), la barra de progreso de una copia y las miniaturas al bajar.
+    Si algo sale desplazado o a trozos, lo primero es `placeContent` y `contentOrigin`.
+  - **A3**: que el cursor, el hover y los arrastres vayan igual de suaves, y que un clic caiga
+    donde está el cursor.
+  - **C1**: todas las modales (menú, diálogos, historial, lanzador, vista previa, Exposé, tiempo,
+    calendario) siguen recibiendo ratón y teclado; Exposé ya no queda debajo de la barra.
 
 ### Ideas aparcadas
 
@@ -204,10 +214,32 @@ versión, mirar de qué fork tira la nueva en su `Package.swift`.**
 
 ---
 
-## Plan de optimización (punto 4, 30-sep-2026): propuesto, sin hacer
+## Plan de optimización (punto 4, 30-sep-2026)
 
 Revisión del código, sin medir aún en el iPhone (para eso, Ajustes › Rendimiento). Ordenado por lo
-que se nota en el uso diario. **Bruno elige qué se hace.**
+que se nota en el uso diario. **Bruno eligió todos los A y C, ya escritos (sin compilar)**; B y D
+siguen propuestos.
+
+Cómo quedó lo escrito:
+
+- **A1**: `placeFloatingWindows` coloca sólo las ventanas que se arrastran y sus sombras; si el
+  dock tiene que esconderse o asomar, o alguna no está en el lienzo, maqueta entero. Al soltar,
+  el `notifyChange()` de siempre. `TopBar.update` y `Dock.update` no tocan nada si no ha cambiado
+  (`statusKey`, `lastState`, `setText`).
+- **A2**: en Ficheros y Fotos la lista va en una vista propia (`FilesContentView`,
+  `PhotosContentView`) dentro de `contentClip`, un 30 % más alta por arriba y por abajo que lo
+  que se ve: la rueda sólo la mueve (`placeContent`), y se repinta al salirse de lo pintado. Hover
+  y selección repintan sólo esos elementos (`invalidateItems`, `invalidateTiles`). Dibuja con las
+  coordenadas del panel (`drawContent` traslada el contexto) y sólo lo que cae en `drawRange`.
+  `setNeedsDisplay()` del panel está sobrescrito para repintarlo todo, así que las llamadas de
+  siempre siguen valiendo. En Ficheros, el resalte de soltar y la copia van en `overlay`.
+- **A3**: `deliverPointer` junta los movimientos y los entrega una vez por fotograma desde el
+  `CADisplayLink` del cursor (`PointerController.onFrame`); antes de un clic o de la rueda se
+  entrega el pendiente (`flushQueuedMove`).
+- **A4**: índice de fotos por ruta (`mediaIndex`), `DateFormatter` del calendario cacheado.
+- **C1**: `ModalWindow` y `openModals`, la única lista de modales. Encajar y la barra superior,
+  en `DesktopViewController+Snap.swift` y `+TopBar.swift` (el estado sigue en el principal).
+- **C2**: fuera `PlaceholderPane` y el contador de bloqueados; `PaneKind` en su fichero.
 
 ### A. Respuesta de la interfaz
 
