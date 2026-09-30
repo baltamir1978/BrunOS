@@ -34,7 +34,12 @@ final class PhotosPane: UIView, Pane {
 
     /// Primero las subcarpetas, luego las fotos y los vídeos.
     private var folders: [FileItem] = []
-    private var media: [FileItem] = []
+    private var media: [FileItem] = [] {
+        didSet { mediaIndex = Dictionary(media.enumerated().map { ($1.path, $0) }, uniquingKeysWith: { first, _ in first }) }
+    }
+    /// La posición de cada foto por su ruta: buscarla en la lista para cada
+    /// miniatura era cuadrático con miles de fotos.
+    private var mediaIndex: [String: Int] = [:]
     private var status: String?
     private var isLoading = false
 
@@ -348,7 +353,7 @@ final class PhotosPane: UIView, Pane {
         while runningThumbnails < Self.maxRunningThumbnails, let item = queuedThumbnails.popLast() {
             // Si ya no se ve (se ha desplazado la rejilla), se deja para
             // cuando vuelva a dibujarse.
-            let index = media.firstIndex(of: item).map { folders.count + $0 }
+            let index = mediaIndex[item.path].map { folders.count + $0 }
             guard let index, tileFrame(index).intersects(gridArea.insetBy(dx: 0, dy: -300)) else {
                 pendingThumbnails.remove(item.path)
                 continue

@@ -1,8 +1,8 @@
 import UIKit
 
 /// Barra superior del escritorio: 34 pt lógicos de izquierda a derecha con
-/// marca, título del panel con foco, resolución, anuncios
-/// bloqueados, batería y hora.
+/// marca, título del panel con foco, Tailscale, el tiempo, resolución,
+/// batería y hora.
 ///
 /// **No recibe eventos del sistema**, porque nada en la pantalla externa los
 /// recibe. Pero sí responde al ratón: el escritorio le pregunta por geometría
@@ -18,7 +18,6 @@ final class TopBar: UIView {
     private let tailscaleLabel = UILabel()
     /// El tiempo: icono y temperatura, como en la barra de macOS.
     private let weatherLabel = UILabel()
-    private let blockedLabel = UILabel()
     private let batteryLabel = UILabel()
     private let clockLabel = UILabel()
 
@@ -86,20 +85,19 @@ final class TopBar: UIView {
 
         brandLabel.attributedText = Self.brandText(size: 15)
 
-        for label in [titleLabel, resolutionLabel, blockedLabel, batteryLabel, clockLabel] {
+        for label in [titleLabel, resolutionLabel, batteryLabel, clockLabel] {
             label.font = Tokens.mono(12)
             label.textColor = Tokens.Color.textSecondary
         }
         titleLabel.textColor = Tokens.Color.text
         titleLabel.font = Tokens.sans(13, weight: .medium)
         titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        blockedLabel.textColor = Tokens.Color.accentAlt
 
         let spacerLeft = UIView()
         let spacerRight = UIView()
         let stack = UIStackView(arrangedSubviews: [
             brandLabel, spacerLeft, titleLabel, spacerRight,
-            tailscaleLabel, weatherLabel, resolutionLabel, blockedLabel, batteryLabel, clockLabel,
+            tailscaleLabel, weatherLabel, resolutionLabel, batteryLabel, clockLabel,
         ])
         stack.axis = .horizontal
         stack.alignment = .center
@@ -205,9 +203,22 @@ final class TopBar: UIView {
         return image
     }
 
+    /// Lo último que se rotuló en Tailscale y el tiempo. `update` corre en
+    /// cada maquetación del escritorio, y rehacer las etiquetas con imágenes
+    /// obliga a volver a maquetar la barra aunque no haya cambiado nada.
+    private var statusKey = ""
+
     private func updateStatus() {
         let tailscale = AppServices.shared.tailscale
         let waiting = tailscale.lastToggle == .waiting
+        let weather = AppServices.shared.weather
+        let weatherKey = weather.forecast.map {
+            "\($0.code)|\($0.isDay)|\(WeatherService.degrees($0.temperature))|\(weather.places.count > 1 ? weather.place?.name ?? "" : "")"
+        } ?? "none|\(weather.place == nil)"
+        let key = "\(tailscale.isLikelyUp)|\(waiting)|\(DesktopTheme.style.rawValue)|\(weatherKey)"
+        guard key != statusKey else { return }
+        statusKey = key
+
         let logo = NSMutableAttributedString()
         logo.append(NSAttributedString(attachment: Self.tailscaleLogo(connected: tailscale.isLikelyUp)))
         if waiting {
@@ -217,7 +228,6 @@ final class TopBar: UIView {
         }
         tailscaleLabel.attributedText = logo
 
-        let weather = AppServices.shared.weather
         if let forecast = weather.forecast {
             // Con varias ciudades, también cuál: si no, 21° no dice de dónde.
             let degrees = WeatherService.degrees(forecast.temperature)
@@ -262,28 +272,27 @@ final class TopBar: UIView {
 
     // MARK: - Contenido
 
-    func update(desktop: DesktopModel, profile: DisplayProfile?, blockedCount: Int?) {
+    func update(desktop: DesktopModel, profile: DisplayProfile?) {
         // Sin ventanas no se rotula nada: «Sin paneles» no decía nada útil.
-        titleLabel.text = desktop.active.focusedPane?.title ?? ""
-        resolutionLabel.text = profile?.summary ?? "sin pantalla"
-
-        if let blockedCount {
-            blockedLabel.text = "\(blockedCount) bloqueados"
-            blockedLabel.isHidden = false
-        } else {
-            blockedLabel.isHidden = true
-        }
+        setText(titleLabel, desktop.active.focusedPane?.title ?? "")
+        setText(resolutionLabel, profile?.summary ?? "sin pantalla")
 
         updateBattery()
         updateClock()
         updateStatus()
     }
 
+    /// Sólo si cambia: esto corre en cada maquetación del escritorio, y una
+    /// etiqueta que cambia de texto vuelve a maquetar la barra.
+    private func setText(_ label: UILabel, _ text: String) {
+        if label.text != text { label.text = text }
+    }
+
     private func updateBattery() {
         let level = UIDevice.current.batteryLevel
         // Devuelve -1 cuando el sistema todavía no lo sabe, y rotular "-100 %"
         // quedaría ridículo.
-        batteryLabel.text = level < 0 ? "—" : "\(Int(level * 100)) %"
+        setText(batteryLabel, level < 0 ? "—" : "\(Int(level * 100)) %")
     }
 
     private func startClock() {
@@ -296,6 +305,6 @@ final class TopBar: UIView {
     }
 
     private func updateClock() {
-        clockLabel.text = Date().formatted(date: .omitted, time: .shortened)
+        setText(clockLabel, Date().formatted(date: .omitted, time: .shortened))
     }
 }

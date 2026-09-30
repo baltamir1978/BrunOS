@@ -74,11 +74,16 @@ final class CalendarPopover: UIView {
 
     // MARK: - Dibujo
 
-    private func draw(in context: CGContext) {
+    /// Uno para siempre: crear un `DateFormatter` en cada dibujado es caro.
+    private static let monthFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "es_ES")
         formatter.dateFormat = "LLLL yyyy"
-        let title = formatter.string(from: month).capitalizedFirst
+        return formatter
+    }()
+
+    private func draw(in context: CGContext) {
+        let title = Self.monthFormatter.string(from: month).capitalizedFirst
         (title as NSString).draw(at: CGPoint(x: 16, y: 14), withAttributes: [
             .font: Tokens.sans(15, weight: .semibold), .foregroundColor: Tokens.Color.text,
         ])

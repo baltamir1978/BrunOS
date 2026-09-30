@@ -115,6 +115,12 @@ final class Dock: UIView {
         }
 
         let frontmost = desktop.active.focusedPane.flatMap(PaneKind.of)
+        // Esto corre en cada maquetación del escritorio: si nada ha cambiado
+        // (qué está abierto, cuál delante, el modo), no se toca nada.
+        let state = kinds.map { "\($0.rawValue)|\(desktop.active.hasAny(of: $0))|\($0 == frontmost)" }
+            + ["\(DesktopTheme.style.rawValue)"]
+        guard state != lastState else { return }
+        lastState = state
         for (kind, item) in zip(kinds, items) {
             item.update(
                 kind: kind,
@@ -125,6 +131,8 @@ final class Dock: UIView {
         settingsItem?.updateAsSettings()
         setNeedsLayout()
     }
+
+    private var lastState: [String] = []
 
     /// Todos los iconos en orden, el de ajustes el último.
     private var allItems: [DockItem] {

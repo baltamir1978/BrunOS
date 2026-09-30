@@ -12,16 +12,16 @@ import WebKit
 @MainActor
 final class DesktopViewController: UIViewController {
 
-    private let services = AppServices.shared
+    let services = AppServices.shared
     private let topBar = TopBar()
-    private let dock = Dock()
+    let dock = Dock()
     /// Capa del fondo, detrás de todo.
     private let wallpaperLayer = CALayer()
     /// Lienzo en coordenadas lógicas. Todo lo demás cuelga de aquí.
-    private let canvas = UIView()
+    let canvas = UIView()
 
     /// Tamaño del escritorio en puntos lógicos, incluida la barra.
-    private var logicalSize: CGSize = .zero
+    var logicalSize: CGSize = .zero
 
     /// Divisor que se está arrastrando ahora mismo, si lo hay.
     private var activeDivider: (pane: PaneID, axis: LayoutContainer.Axis)?
@@ -199,7 +199,7 @@ final class DesktopViewController: UIViewController {
     /// pintó antes de entrar en el lienzo se quedaba con su primer dibujado, a
     /// baja densidad, hasta que algo la obligara a repintarse. La barra del
     /// terminal, que casi nunca cambia, salía borrosa por eso.
-    private func applyContentsScale(to view: UIView) {
+    func applyContentsScale(to view: UIView) {
         // Dentro de un `WKWebView` no hay nada nuestro: WebKit decide su
         // densidad (y la página ya va a 1:1, ver `BrowserTab.place`). Además,
         // su árbol de capas es enorme y esto se recorre en cada maquetación.
@@ -248,7 +248,7 @@ final class DesktopViewController: UIViewController {
         applyContentsScale(to: view)
     }
 
-    private func applyContentsScale(to layer: CALayer) {
+    func applyContentsScale(to layer: CALayer) {
         layer.contentsScale = contentsScale
         for sublayer in layer.sublayers ?? [] {
             applyContentsScale(to: sublayer)
@@ -258,7 +258,7 @@ final class DesktopViewController: UIViewController {
     /// Un marco llevado a píxeles enteros del monitor. A 1,5×, un punto lógico
     /// son 1,5 píxeles: una ventana en x = 7 empezaba en el píxel 10,5 y todo
     /// su contenido se volvía a muestrear.
-    private func pixelAligned(_ rect: CGRect) -> CGRect {
+    func pixelAligned(_ rect: CGRect) -> CGRect {
         let scale = max(contentsScale, 1)
         let minX = (rect.minX * scale).rounded() / scale
         let minY = (rect.minY * scale).rounded() / scale
@@ -287,14 +287,9 @@ final class DesktopViewController: UIViewController {
             height: Tokens.Metric.topBarHeight
         )
 
-        hostEditor?.frame = CGRect(origin: .zero, size: logicalSize)
-        quickLook?.frame = CGRect(origin: .zero, size: logicalSize)
-        prompt?.frame = CGRect(origin: .zero, size: logicalSize)
-        launcher?.frame = CGRect(origin: .zero, size: logicalSize)
-        historyWindow?.frame = CGRect(origin: .zero, size: logicalSize)
-        overview?.frame = CGRect(origin: .zero, size: logicalSize)
-        weatherPopover?.frame = CGRect(origin: .zero, size: logicalSize)
-        calendarPopover?.frame = CGRect(origin: .zero, size: logicalSize)
+        for modal in openModals {
+            modal.frame = CGRect(origin: .zero, size: logicalSize)
+        }
 
         // Una ventana que ocupa el sitio del dock (una encajada llega hasta
         // abajo) lo esconde, como la pantalla completa: asoma al llevar el
@@ -344,8 +339,7 @@ final class DesktopViewController: UIViewController {
 
         topBar.update(
             desktop: services.desktop,
-            profile: services.externalDisplay.currentProfile,
-            blockedCount: nil
+            profile: services.externalDisplay.currentProfile
         )
 
         // Los paneles y las etiquetas que acaban de aparecer nacen con la
@@ -372,8 +366,7 @@ final class DesktopViewController: UIViewController {
         scheduleSessionSave()
         topBar.update(
             desktop: services.desktop,
-            profile: services.externalDisplay.currentProfile,
-            blockedCount: nil
+            profile: services.externalDisplay.currentProfile
         )
         // Lo que cambia de título a veces trae vistas nuevas (una pestaña de
         // terminal), que nacen con la densidad de la pantalla. Se les pone la
@@ -1050,8 +1043,7 @@ final class DesktopViewController: UIViewController {
     ///
     /// Devuelve `nil` si no hay ninguna modal.
     private func performOverModal(_ command: DesktopCommand) -> Bool? {
-        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, overview, weatherPopover, calendarPopover]
-        guard modals.contains(where: { $0 != nil }) else { return nil }
+        guard !openModals.isEmpty else { return nil }
 
         switch command {
         case .paste:
@@ -1288,12 +1280,6 @@ final class DesktopViewController: UIViewController {
         }
     }
 
-    /// El lanzador se lleva el teclado mientras está abierto.
-    func launcherHandlesKey(_ event: KeyEvent) -> Bool {
-        guard let launcher else { return false }
-        return launcher.handleKey(event)
-    }
-
     /// Dónde está cada panel del escritorio: los del mosaico y los que
     /// flotan.
     private func currentFrames() -> [PaneID: CGRect] {
@@ -1353,7 +1339,7 @@ final class DesktopViewController: UIViewController {
     }
 
     /// Dónde se reparten los paneles: entre la barra y el dock.
-    private var tileArea: CGRect {
+    var tileArea: CGRect {
         let gap = Tokens.Metric.tileGap
         if services.desktop.isFullScreen {
             return CGRect(origin: .zero, size: logicalSize).insetBy(dx: gap / 2, dy: gap / 2)
@@ -1395,17 +1381,13 @@ final class DesktopViewController: UIViewController {
         if case .moved = kind, let overview, overview.style == .switcher, !modifiers.contains(.command) {
             endWindowSwitch()
         }
-        if let overview, overview.handlePointer(kind, at: position) { return }
-
-        // Lo modal manda, y la vista previa va por encima de todo.
-        if let contextMenu, contextMenu.handlePointer(kind, at: position) { return }
-        if let weatherPopover, weatherPopover.handlePointer(kind, at: position) { return }
-        if let calendarPopover, calendarPopover.handlePointer(kind, at: position) { return }
-        if let prompt, prompt.handlePointer(kind, at: position) { return }
-        if let quickLook, quickLook.handlePointer(kind, at: position) { return }
-        if let hostEditor, hostEditor.handlePointer(kind, at: position) { return }
-        if let historyWindow, historyWindow.handlePointer(kind, at: position, modifiers: modifiers) { return }
-        if let launcher, launcher.handlePointer(kind, at: position) { return }
+        // Lo modal manda, de la de más arriba a la de más abajo. El
+        // historial quiere los modificadores, por Cmd+clic.
+        for modal in openModals {
+            let consumed = (modal as? HistoryWindow)?.handlePointer(kind, at: position, modifiers: modifiers)
+                ?? modal.handlePointer(kind, at: position)
+            if consumed { return }
+        }
 
         if fileDrag != nil, handleFileDrag(kind, at: position) { return }
 
@@ -1522,13 +1504,10 @@ final class DesktopViewController: UIViewController {
         // por encima de todo, incluidas las barras.
         canvas.bringSubviewToFront(topBar)
         canvas.bringSubviewToFront(dock)
-        let modals: [UIView?] = [
-            launcher, historyWindow, hostEditor, quickLook, weatherPopover, calendarPopover, prompt, contextMenu,
-            phoneNotice,
-        ]
-        for modal in modals.compactMap({ $0 }) {
+        for modal in openModals.reversed() {
             canvas.bringSubviewToFront(modal)
         }
+        if let phoneNotice { canvas.bringSubviewToFront(phoneNotice) }
     }
 
     /// La ventana flotante de más delante que hay en un punto.
@@ -1688,7 +1667,7 @@ final class DesktopViewController: UIViewController {
                 workspace.setFloatingFrame(id, clampWindow(CGRect(origin: origin, size: frame.size)))
                 lastBarClick = nil
                 updateSnapPreview(snapTarget(at: position), below: workspace.pane(id)?.view)
-                layoutWithoutAnimation()
+                placeFloatingWindows([id])
 
             case .resizing(let id, let edges, let start, let frame):
                 let dx = position.x - start.x
@@ -1733,7 +1712,7 @@ final class DesktopViewController: UIViewController {
                 for (other, follower) in moved {
                     workspace.setFloatingFrame(other, follower)
                 }
-                layoutWithoutAnimation()
+                placeFloatingWindows([id] + moved.map(\.0))
             }
             return true
 
@@ -1776,8 +1755,7 @@ final class DesktopViewController: UIViewController {
         if let divider = activeDivider { return Self.shape(for: divider.axis) }
         guard windowDrag == nil, fileDrag == nil else { return .arrow }
 
-        let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu, overview, weatherPopover, calendarPopover]
-        guard modals.allSatisfy({ $0 == nil }) else { return .arrow }
+        guard openModals.isEmpty else { return .arrow }
 
         // Sólo en el borde: por dentro de una flotante manda lo que pida el
         // panel (la mano del navegador), y las ventanas flotan por defecto.
@@ -1847,6 +1825,41 @@ final class DesktopViewController: UIViewController {
         return result
     }
 
+    /// El camino rápido del arrastre: sólo el marco de las ventanas que se
+    /// mueven y el de sus sombras.
+    ///
+    /// Antes cada movimiento del ratón hacía `layoutCanvas()` entero: recorría
+    /// todo el lienzo con `applyContentsScale`, volvía a apilar las flotantes
+    /// y rehacía la barra y el dock (punto 4 de la 0.2.0). Al soltar, el
+    /// `notifyChange()` del final hace la maquetación completa, que pone la
+    /// densidad a lo que haya aparecido al cambiar de tamaño.
+    private func placeFloatingWindows(_ ids: [PaneID]) {
+        let workspace = services.desktop.active
+        // Si cambia algo más que esas ventanas (el dock se esconde o asoma al
+        // pisar su sitio), o alguna no está en el lienzo, la de siempre.
+        let dockShouldHide = services.desktop.isFullScreen || dockIsCovered()
+        let placeable = ids.allSatisfy { workspace.pane($0)?.view.superview === canvas && workspace.floating[$0] != nil }
+        guard dockShouldHide == dockAutoHidden, placeable else {
+            layoutWithoutAnimation()
+            return
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for id in ids {
+            guard let pane = workspace.pane(id), let frame = workspace.floating[id] else { continue }
+            let aligned = pixelAligned(frame)
+            pane.view.frame = aligned
+            if let shadow = floatingShadows[id], shadow.frame != aligned {
+                shadow.frame = aligned
+                shadow.layer.shadowPath = UIBezierPath(
+                    roundedRect: shadow.bounds,
+                    cornerRadius: Tokens.Metric.paneCornerRadius
+                ).cgPath
+            }
+        }
+        CATransaction.commit()
+    }
+
     private func layoutWithoutAnimation() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -1908,173 +1921,35 @@ final class DesktopViewController: UIViewController {
         ))
     }
 
-    // MARK: - Encajar ventanas
+    // MARK: - Encajar ventanas (estado; el código, en DesktopViewController+Snap.swift)
 
-    /// Adónde va una ventana soltada en un borde, como en macOS y Windows:
-    /// a media pantalla en los lados, a un cuarto en las esquinas y a toda
-    /// arriba. Bruno pidió mitades y cuartos (24-sep-2026).
-    private enum Snap {
-        case left, right, full
-        case topLeft, topRight, bottomLeft, bottomRight
-    }
-
-    private var snapPreview: UIView?
-
-    /// El cursor no sale del escritorio, así que «en el borde» es tocarlo.
-    ///
-    /// Las esquinas son generosas (120 puntos a lo largo del borde): acertar
-    /// el píxel exacto de una esquina con un ratón es imposible. Eran 80, y
-    /// con el ratón que no llegaba al 6 % de arriba del monitor (unos 86
-    /// puntos), las esquinas de arriba eran inalcanzables.
-    private func snapTarget(at position: CGPoint) -> Snap? {
-        let edge: CGFloat = 3
-        let corner: CGFloat = 120
-        let atLeft = position.x <= edge
-        let atRight = position.x >= logicalSize.width - 1 - edge
-        let atTop = position.y <= edge
-        let atBottom = position.y >= logicalSize.height - 1 - edge
-        let nearTop = position.y <= corner
-        let nearBottom = position.y >= logicalSize.height - corner
-        let nearLeft = position.x <= corner
-        let nearRight = position.x >= logicalSize.width - corner
-
-        if (atLeft && nearTop) || (atTop && nearLeft) { return .topLeft }
-        if (atRight && nearTop) || (atTop && nearRight) { return .topRight }
-        if (atLeft && nearBottom) || (atBottom && nearLeft) { return .bottomLeft }
-        if (atRight && nearBottom) || (atBottom && nearRight) { return .bottomRight }
-        if atLeft { return .left }
-        if atRight { return .right }
-        if atTop { return .full }
-        return nil
-    }
-
-    private func snapFrame(_ snap: Snap) -> CGRect {
-        // Hasta abajo del todo: el dock se aparta (ver `dockIsCovered`).
-        var area = tileArea
-        area.size.height = logicalSize.height - Tokens.Metric.tileGap / 2 - area.minY
-        let gap = Tokens.Metric.tileGap
-        let half = (area.width - gap) / 2
-        let halfHeight = (area.height - gap) / 2
-        let left = area.minX
-        let right = area.maxX - half
-        let top = area.minY
-        let bottom = area.maxY - halfHeight
-        return switch snap {
-        case .left: CGRect(x: left, y: top, width: half, height: area.height)
-        case .right: CGRect(x: right, y: top, width: half, height: area.height)
-        case .full: area
-        case .topLeft: CGRect(x: left, y: top, width: half, height: halfHeight)
-        case .topRight: CGRect(x: right, y: top, width: half, height: halfHeight)
-        case .bottomLeft: CGRect(x: left, y: bottom, width: half, height: halfHeight)
-        case .bottomRight: CGRect(x: right, y: bottom, width: half, height: halfHeight)
-        }
-    }
-
-    /// Al encajar una ventana, las que ya estaban encajadas donde cae le
-    /// hacen sitio, como en Windows: con dos mitades, soltar una tercera en
-    /// una esquina deja la de esa mitad en el cuarto que queda (Bruno,
-    /// 24-sep-2026). Una a pantalla entera pasa a la otra mitad. Sólo se tocan
-    /// las que están exactamente encajadas; las colocadas a mano se respetan.
-    private func makeRoom(for snap: Snap, placed id: PaneID) {
-        let workspace = services.desktop.active
-        let area = snapFrame(.full)
-        /// Dónde está encajada una ventana, **con tolerancia**: la primera
-        /// versión exigía el marco exacto, y en cuanto se redimensionaba una
-        /// mitad junto a la otra, o venía de una sesión con el hueco de antes,
-        /// ya no la reconocía y no hacía sitio (Bruno, 24-sep-2026). Cuenta
-        /// como mitad la que está pegada a ese lado, ocupa casi todo el alto y
-        /// no llega a tres cuartos del ancho; como entera, la que ocupa casi
-        /// todo.
-        func snapped(_ frame: CGRect) -> Snap? {
-            let edge: CGFloat = 24
-            let tall = frame.height >= area.height * 0.85
-            let wide = frame.width >= area.width * 0.85
-            if tall, wide { return .full }
-            guard tall, frame.width <= area.width * 0.75 else { return nil }
-            if abs(frame.minX - area.minX) <= edge { return .left }
-            if abs(frame.maxX - area.maxX) <= edge { return .right }
-            return nil
-        }
-        for (other, frame) in workspace.floating where other != id {
-            guard let current = snapped(frame) else { continue }
-            let next: Snap? = switch (snap, current) {
-            case (.topLeft, .left): .bottomLeft
-            case (.bottomLeft, .left): .topLeft
-            case (.topRight, .right): .bottomRight
-            case (.bottomRight, .right): .topRight
-            case (.left, .full): .right
-            case (.right, .full): .left
-            default: nil
-            }
-            guard let next else { continue }
-            if zoomRestore[other] == nil { zoomRestore[other] = frame }
-            workspace.setFloatingFrame(other, snapFrame(next))
-        }
-    }
-
-    /// El hueco donde va a quedar, detrás de la ventana que se arrastra.
-    private func updateSnapPreview(_ snap: Snap?, below window: UIView?) {
-        guard let snap else {
-            if let preview = snapPreview {
-                snapPreview = nil
-                UIView.animate(withDuration: 0.12, animations: { preview.alpha = 0 }) { _ in
-                    preview.removeFromSuperview()
-                }
-            }
-            return
-        }
-        let frame = snapFrame(snap)
-        if let preview = snapPreview {
-            guard preview.frame != frame else { return }
-            UIView.animate(withDuration: 0.15) { preview.frame = frame }
-            return
-        }
-        let preview = UIView(frame: frame.insetBy(dx: frame.width * 0.05, dy: frame.height * 0.05))
-        preview.backgroundColor = Tokens.Color.accent.withAlphaComponent(0.14)
-        preview.layer.cornerRadius = Tokens.Metric.paneCornerRadius
-        preview.layer.borderWidth = 1.5
-        preview.setThemedBorder(Tokens.Color.accent.withAlphaComponent(0.6))
-        preview.isUserInteractionEnabled = false
-        preview.alpha = 0
-        if let window, window.superview === canvas {
-            canvas.insertSubview(preview, belowSubview: window)
-        } else {
-            canvas.addSubview(preview)
-        }
-        snapPreview = preview
-        UIView.animate(withDuration: 0.15) {
-            preview.alpha = 1
-            preview.frame = frame
-        }
-    }
-
+    var snapPreview: UIView?
     /// Dónde estaba cada flotante antes de maximizarla, para devolverla.
-    private var zoomRestore: [PaneID: CGRect] = [:]
-
-    /// Maximizar una flotante: ocupa el área del mosaico, o la pantalla entera
-    /// con `fullScreen`. Si ya lo estaba, vuelve a su tamaño.
-    private func toggleZoom(_ id: PaneID, fullScreen: Bool) {
-        let workspace = services.desktop.active
-        guard let frame = workspace.floating[id] else { return }
-        if let previous = zoomRestore[id] {
-            zoomRestore[id] = nil
-            workspace.setFloatingFrame(id, previous)
-        } else {
-            zoomRestore[id] = frame
-            workspace.setFloatingFrame(id, fullScreen ? CGRect(origin: .zero, size: logicalSize) : tileArea)
-        }
-    }
+    var zoomRestore: [PaneID: CGRect] = [:]
 
     // MARK: - Cambiar de ventana y Exposé
 
     /// Exposé o el conmutador, cuando están abiertos. Ver `WindowOverview`.
     private var overview: WindowOverview?
 
+    /// Las ventanas modales abiertas, **de la de más arriba a la de más
+    /// abajo**. Es la única lista: la usan el puntero, el teclado, el cursor,
+    /// los atajos (`performOverModal`), los marcos y el apilamiento. Antes cada
+    /// ventana se apuntaba a mano en seis sitios, y Exposé, por ejemplo, se
+    /// quedaba debajo de la barra al maquetar. **Una modal nueva**: su
+    /// propiedad, conformar `ModalWindow` y añadirla aquí, en su sitio.
+    private var openModals: [any ModalWindow] {
+        let all: [(any ModalWindow)?] = [
+            overview, contextMenu, prompt, calendarPopover, weatherPopover,
+            quickLook, hostEditor, historyWindow, launcher,
+        ]
+        return all.compactMap { $0 }
+    }
+
     /// Si hay otra ventana modal delante: entonces ni el conmutador ni
     /// Exposé se abren, que taparían algo a medio hacer.
     private var hasOtherModal: Bool {
-        let modals: [UIView?] = [contextMenu, prompt, quickLook, hostEditor, historyWindow, launcher, weatherPopover, calendarPopover]
-        return modals.contains { $0 != nil }
+        openModals.contains { !($0 is WindowOverview) }
     }
 
     /// Todas las ventanas, por orden de uso: la que tiene el foco, la de
@@ -2291,7 +2166,7 @@ final class DesktopViewController: UIViewController {
     private var dockAutoHidden = false
 
     /// Si alguna ventana pisa el sitio de la barra del dock.
-    private func dockIsCovered() -> Bool {
+    func dockIsCovered() -> Bool {
         let width = max(dock.barWidth, 200)
         let bar = CGRect(
             x: (logicalSize.width - width) / 2,
@@ -2384,186 +2259,14 @@ final class DesktopViewController: UIViewController {
         return true
     }
 
-    // MARK: - Tailscale y el tiempo
+    // MARK: - Barra superior (estado; el código, en DesktopViewController+TopBar.swift)
 
-    /// El menú de Tailscale: el estado, conectar o desconectar por Atajos y
-    /// cómo preparar el atajo la primera vez.
-    private func tailscaleMenu() -> [ContextMenu.Entry] {
-        let tailscale = services.tailscale
-        tailscale.refresh()
-        let up = tailscale.isLikelyUp
-        var entries = [
-            ContextMenu.Entry(
-                title: up ? "Tailscale conectado" : "Tailscale desconectado",
-                symbol: up ? "checkmark.circle.fill" : "xmark.circle",
-                isEnabled: false
-            ) {},
-            ContextMenu.Entry(title: up ? "Desconectar" : "Conectar", symbol: "power") {
-                tailscale.toggle(on: !up)
-            },
-        ]
-        if tailscale.lastToggle == .missingShortcut {
-            entries.append(ContextMenu.Entry(
-                title: "Falta el atajo «\(TailscaleMonitor.shortcutName)»",
-                symbol: "exclamationmark.triangle",
-                isEnabled: false
-            ) {})
-        }
-        entries.append(ContextMenu.Entry(title: "Cómo crear el atajo…", symbol: "questionmark.circle") {
-            [weak self] in self?.explainTailscaleShortcut()
-        })
-        return entries
-    }
-
-    /// La explicación está con la de AssistiveTouch, en Ajustes › Atajos.
-    private func explainTailscaleShortcut() {
-        presentSettings(.global, page: SettingsPages.shortcutsPageIndex)
-    }
-
-    private var weatherPopover: WeatherPopover?
-    private var calendarPopover: CalendarPopover?
-
-    /// El calendario del mes, colgando de la hora.
-    private func presentCalendar(anchor: CGPoint) {
-        dismissCalendar()
-        let popover = CalendarPopover(anchor: anchor, in: CGRect(origin: .zero, size: logicalSize))
-        popover.onDismiss = { [weak self] in self?.dismissCalendar() }
-        canvas.addSubview(popover)
-        applyContentsScale(to: popover)
-        calendarPopover = popover
-        applyContentsScale(to: popover)
-    }
-
-    private func dismissCalendar() {
-        calendarPopover?.removeFromSuperview()
-        calendarPopover = nil
-    }
-
-    private func presentWeather(anchor: CGPoint) {
-        dismissWeather()
-        let popover = WeatherPopover(anchor: anchor, in: CGRect(origin: .zero, size: logicalSize))
-        popover.onDismiss = { [weak self] in self?.dismissWeather() }
-        popover.onAddPlace = { [weak self] in
-            self?.dismissWeather()
-            self?.askWeatherPlace(anchor: anchor)
-        }
-        canvas.addSubview(popover)
-        applyContentsScale(to: popover)
-        weatherPopover = popover
-        applyContentsScale(to: popover)
-        services.weather.refresh()
-    }
-
-    // MARK: - Mira el iPhone
-
-    private var phoneNotice: PhoneNotice?
-    private var phoneNoticeTask: Task<Void, Never>?
-
-    /// Avisa en el monitor de que hay que mirar la pantalla del iPhone. Ver
-    /// `PhoneNotice`.
-    func showPhoneNotice(_ text: String) {
-        let notice = phoneNotice ?? PhoneNotice()
-        notice.text = text
-        let size = notice.fittingSize(maxWidth: min(560, logicalSize.width - 40))
-        let top = services.desktop.isFullScreen ? 12 : Tokens.Metric.topBarHeight + 12
-        notice.frame = pixelAligned(CGRect(
-            x: (logicalSize.width - size.width) / 2, y: top, width: size.width, height: size.height
-        ))
-        if phoneNotice == nil {
-            notice.alpha = 0
-            canvas.addSubview(notice)
-            applyContentsScale(to: notice)
-            phoneNotice = notice
-            UIView.animate(withDuration: 0.2) { notice.alpha = 1 }
-        }
-        canvas.bringSubviewToFront(notice)
-
-        phoneNoticeTask?.cancel()
-        phoneNoticeTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(7))
-            guard !Task.isCancelled, let self, let notice = self.phoneNotice else { return }
-            self.phoneNotice = nil
-            UIView.animate(withDuration: 0.3, animations: { notice.alpha = 0 }) { _ in
-                notice.removeFromSuperview()
-            }
-        }
-    }
-
-    @objc private func folderPickerRequested() {
-        showPhoneNotice("Elige la carpeta en la pantalla del iPhone")
-    }
-
-    @objc private func bookmarksPickerRequested() {
-        showPhoneNotice("Elige el fichero de favoritos en la pantalla del iPhone")
-    }
-
-    private func dismissWeather() {
-        weatherPopover?.removeFromSuperview()
-        weatherPopover = nil
-    }
-
-    /// Las ciudades del tiempo, con la que se ve marcada, y añadir otra.
-    private func weatherMenu(anchor: CGPoint) -> [ContextMenu.Entry] {
-        let weather = services.weather
-        var entries = weather.places.enumerated().map { (index, place) -> ContextMenu.Entry in
-            let degrees = weather.forecast(for: place).map { " · \(WeatherService.degrees($0.temperature))" } ?? ""
-            return ContextMenu.Entry(
-                title: place.name + degrees,
-                symbol: index == weather.selectedIndex ? "checkmark" : "mappin.and.ellipse"
-            ) { weather.select(index) }
-        }
-        entries.append(ContextMenu.Entry(
-            title: weather.places.isEmpty ? "Elegir ciudad…" : "Añadir ciudad…",
-            symbol: "plus",
-            isEnabled: weather.places.count < WeatherService.maxPlaces
-        ) { [weak self] in self?.askWeatherPlace(anchor: anchor) })
-        return entries
-    }
-
-    /// Una ciudad por golpe de rueda: sin la pausa, un solo giro se saltaba
-    /// varias.
-    private func cycleWeatherPlace(delta: CGVector) {
-        guard abs(delta.dy) > 20, Date().timeIntervalSince(lastWeatherCycle) > 0.35 else { return }
-        lastWeatherCycle = Date()
-        services.weather.cycle(by: delta.dy > 0 ? -1 : 1)
-    }
-
-    private var lastWeatherCycle = Date.distantPast
-
-    /// Pide una ciudad por nombre y, si hay varias con ese nombre, deja elegir.
-    /// Se añade a las que hubiera.
-    private func askWeatherPlace(anchor: CGPoint) {
-        presentPrompt(title: "Añadir una ciudad al tiempo", value: "") { [weak self] name in
-            guard self != nil, let name = name?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return }
-            Task { [weak self] in
-                let places = (try? await WeatherService.search(name)) ?? []
-                guard let self else { return }
-                switch places.count {
-                case 0:
-                    self.presentConfirm(
-                        title: "No encuentro «\(name)»",
-                        message: "Prueba con otro nombre, o con el de la ciudad más cercana.",
-                        destructive: "Vale",
-                        isDestructive: false
-                    ) { _ in }
-                case 1:
-                    self.services.weather.add(places[0])
-                    self.presentWeather(anchor: anchor)
-                default:
-                    let entries = places.map { place in
-                        ContextMenu.Entry(
-                            title: place.detail.isEmpty ? place.name : "\(place.name) · \(place.detail)",
-                            symbol: "mappin.and.ellipse"
-                        ) { [weak self] in
-                            self?.services.weather.add(place)
-                            self?.presentWeather(anchor: anchor)
-                        }
-                    }
-                    self.presentContextMenu(entries, at: CGPoint(x: anchor.x - 100, y: anchor.y))
-                }
-            }
-        }
-    }
+    var weatherPopover: WeatherPopover?
+    var calendarPopover: CalendarPopover?
+    var phoneNotice: PhoneNotice?
+    var phoneNoticeTask: Task<Void, Never>?
+    /// Cuándo pasó la rueda de ciudad por última vez (`cycleWeatherPlace`).
+    var lastWeatherCycle = Date.distantPast
 
     // MARK: - Divisores
 
@@ -2649,15 +2352,9 @@ final class DesktopViewController: UIViewController {
 
     /// Entrega una tecla al panel con foco.
     func deliverKey(_ event: KeyEvent) {
-        if let overview, overview.handleKey(event) { return }
-        if let contextMenu, contextMenu.handleKey(event) { return }
-        if let weatherPopover, weatherPopover.handleKey(event) { return }
-        if let calendarPopover, calendarPopover.handleKey(event) { return }
-        if let prompt, prompt.handleKey(event) { return }
-        if let quickLook, quickLook.handleKey(event) { return }
-        if let hostEditor, hostEditor.handleKey(event) { return }
-        if let historyWindow, historyWindow.handleKey(event) { return }
-        if launcherHandlesKey(event) { return }
+        for modal in openModals {
+            if modal.handleKey(event) { return }
+        }
         services.desktop.active.focusedPane?.handleKey(event)
     }
 

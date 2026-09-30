@@ -413,7 +413,7 @@ final class HistoryWindow: UIView {
 
     // MARK: - Ratón
 
-    func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint, modifiers: UIKeyModifierFlags = []) -> Bool {
+    func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint, modifiers: UIKeyModifierFlags) -> Bool {
         guard card.frame.contains(point) else {
             if case .down = kind { onDismiss?() }
             return true
