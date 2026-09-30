@@ -248,6 +248,12 @@ final class NotesPane: UIView, Pane {
         guard let context = UIGraphicsGetCurrentContext() else { return }
         recomputeFrames()
 
+        // Cabecera del editor, del crema del texto: sin esto asomaba el fondo
+        // del panel, blanco en modo claro.
+        context.setFillColor(Tokens.Color.background.desktopCGColor)
+        context.fill(CGRect(x: Self.sidebarWidth, y: 0,
+                            width: bounds.width - Self.sidebarWidth, height: Self.headerHeight))
+
         // Barra lateral.
         context.setFillColor(Tokens.Color.panelElevated.desktopCGColor)
         context.fill(CGRect(x: 0, y: 0, width: Self.sidebarWidth, height: bounds.height))

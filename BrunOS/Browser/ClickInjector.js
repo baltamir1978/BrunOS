@@ -179,7 +179,7 @@ function hover(x, y) {
 
     target.dispatchEvent(new PointerEvent('pointermove', makePointerInit(base)));
     target.dispatchEvent(new MouseEvent('mousemove', base));
-    return { cursor: cursorFor(target) };
+    return { cursor: cursorFor(target, x, y) };
 }
 
 /// La forma del cursor sobre un elemento: `pointer` (la mano), `text` (la I)
@@ -187,8 +187,9 @@ function hover(x, y) {
 ///
 /// Manda el `cursor` del CSS, que se hereda, así que el del propio elemento
 /// ya trae el de sus antepasados. Con `auto`, lo que haría un navegador: la
-/// mano en un enlace y la I en un campo donde se escribe.
-function cursorFor(element) {
+/// mano en un enlace, y la I en un campo donde se escribe o encima de texto
+/// que se puede seleccionar.
+function cursorFor(element, x, y) {
     let css = 'auto';
     try { css = window.getComputedStyle(element).cursor || 'auto'; } catch (error) {}
     if (css === 'pointer') return 'pointer';
@@ -207,7 +208,30 @@ function cursorFor(element) {
         }
         node = node.parentElement || (node.getRootNode() || {}).host;
     }
-    return 'default';
+    return overText(element, x, y) ? 'text' : 'default';
+}
+
+/// Si en ese punto hay letras de verdad, no el hueco de al lado:
+/// `caretRangeFromPoint` se va al carácter más cercano aunque esté lejos, así
+/// que se comprueba que el punto cae dentro del rectángulo de ese carácter.
+function overText(element, x, y) {
+    try {
+        if (window.getComputedStyle(element).userSelect === 'none') return false;
+        const caret = document.caretRangeFromPoint(x, y);
+        if (!caret || caret.startContainer.nodeType !== 3) return false;
+        const text = caret.startContainer;
+        const offset = caret.startOffset;
+        const range = document.createRange();
+        for (const start of [offset - 1, offset]) {
+            if (start < 0 || start >= text.length) continue;
+            if (/\s/.test(text.data[start])) continue;
+            range.setStart(text, start);
+            range.setEnd(text, start + 1);
+            const rect = range.getBoundingClientRect();
+            if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return true;
+        }
+    } catch (error) {}
+    return false;
 }
 
 function leaveHovered(base) {

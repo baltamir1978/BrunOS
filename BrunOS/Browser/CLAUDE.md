@@ -449,3 +449,23 @@ campo donde se escribe. Llega a Swift por el `completion` de `send`, **también 
 iframes** (lo devuelve el marco que atiende al final). `BrowserTab.hoverCursor` lo guarda y
 `onCursorChange` pide al escritorio que vuelva a mirar, porque la respuesta llega después del
 movimiento. Fuera del contenido de la página (barra, sugerencias, favoritos), la flecha.
+
+**No salía en la 2609291957** (Bruno, 30-sep): con la ventana flotante, el escritorio miraba
+primero el borde de redimensionar y, por dentro de la ventana, devolvía la flecha sin preguntar
+al panel. Arreglado en `DesktopViewController.cursorShape(at:)`. La I sale además sobre texto que
+se puede seleccionar (`overText`: `caretRangeFromPoint` y el rectángulo del carácter, porque
+aquél se va al más cercano aunque esté lejos).
+
+## La página de inicio: el ancho en números (30-sep-2026)
+
+Bruno veía una franja blanca a la derecha. **WebKit toma `width=device-width` como el ancho de la
+vista en puntos sin descontar el `pageZoom`**: medido en el simulador de iOS 27, con la vista a
+278 puntos, el `html` mide 278 px CSS con zoom 1,5 (la página se corta) y con 0,75 (sobra hueco y
+asoma el blanco de la vista). Volver a poner el zoom tras cargar no lo arregla, e
+`initial-scale=1` con un ancho numérico tampoco. **Lo que funciona: `width=<hueco / zoom>` sin
+`initial-scale`**, que `BrowserTab.fitStartPage()` vuelve a poner al cambiar el hueco o el zoom.
+
+Sólo en la página de inicio. Las webs de verdad no se tocan: a anchos de escritorio tienen su
+propia lógica (Wikipedia en un panel estrecho se va a 1120 px y encoge) y reescribirles el
+viewport las pasaba a su versión de móvil. Si algún día se ve el mismo hueco en una web oscura,
+el origen es éste.

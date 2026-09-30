@@ -59,11 +59,15 @@ final class BrowserTab: NSObject {
         didSet {
             webView.pageZoom = pageZoom * displayFactor
             BrowserZoom.remember(pageZoom)
+            fitStartPage()
         }
     }
 
     /// Cuánto estira el lienzo del escritorio, que la vista deshace.
     private var displayFactor: CGFloat = 1
+
+    /// El ancho del hueco en puntos del escritorio, para la página de inicio.
+    private var logicalWidth: CGFloat = 0
 
     /// Coloca la página en su hueco **sin que el lienzo la estire**.
     ///
@@ -84,6 +88,10 @@ final class BrowserTab: NSObject {
         if displayFactor != factor {
             displayFactor = factor
             webView.pageZoom = pageZoom * factor
+        }
+        if logicalWidth != rect.width {
+            logicalWidth = rect.width
+            fitStartPage()
         }
     }
 
@@ -352,32 +360,44 @@ final class BrowserTab: NSObject {
     /// Página de inicio.
     ///
     /// Una en blanco no dice ni dónde estás ni qué puedes hacer. Ésta enseña la
-    /// marca y los atajos, que es lo que hace falta recordar al principio.
+    /// marca, los favoritos y **la ayuda de toda la app** (lo pidió Bruno el
+    /// 30-sep-2026): los atajos de cada una y lo que se hace con el ratón.
+    ///
+    /// **El ancho va en números, no `device-width`.** WebKit toma
+    /// `device-width` como el ancho de la vista en puntos **sin descontar el
+    /// `pageZoom`**, y la vista mide el hueco × el factor del lienzo (ver
+    /// `place(in:factor:)`). Con el zoom por debajo del factor, la página
+    /// quedaba más estrecha que el panel y asomaba el blanco de la vista a la
+    /// derecha; por encima, se cortaba. Medido en el simulador de iOS 27: con
+    /// `width=<hueco / zoom>` y sin `initial-scale` llena el panel con
+    /// cualquier zoom. `fitStartPage()` lo vuelve a poner al cambiar el hueco o
+    /// el zoom. Las webs de verdad no se tocan: a anchos de escritorio tienen
+    /// su propia lógica (el mínimo de 980 px) y pisarles el viewport las
+    /// rompe.
     func loadStartPage() {
         let html = """
             <!DOCTYPE html><html><head><meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <meta name="viewport" id="brunos-start" content="\(startPageViewport)">
             <style>
               /* Los mismos colores que Tokens, en claro y en oscuro: la
                  página sigue el modo del escritorio como cualquier web. */
               :root { color-scheme: light dark;
-                      --bg: #F6F4F0; --text: #16191D; --muted: #5C636D; --accent: #A96B06; }
+                      --bg: #F6F4F0; --text: #16191D; --muted: #5C636D; --accent: #A96B06;
+                      --card: rgba(22, 25, 29, 0.045); --line: rgba(22, 25, 29, 0.09); }
               @media (prefers-color-scheme: dark) {
-                :root { --bg: #0B0D10; --text: #E6E3DC; --muted: #9AA1AB; --accent: #E8A33D; }
+                :root { --bg: #0B0D10; --text: #E6E3DC; --muted: #9AA1AB; --accent: #E8A33D;
+                        --card: rgba(230, 227, 220, 0.05); --line: rgba(230, 227, 220, 0.1); }
               }
+              html { height: 100%; background: var(--bg); }
               body {
-                margin: 0; height: 100vh; display: flex; flex-direction: column;
-                align-items: center; justify-content: center; gap: 28px;
+                margin: 0; min-height: 100%; box-sizing: border-box; padding: 56px 32px 48px;
+                display: flex; flex-direction: column; align-items: center; gap: 28px;
                 background: var(--bg); color: var(--muted);
                 font-family: -apple-system, system-ui, sans-serif;
               }
               h1 { margin: 0; font-family: ui-monospace, monospace; font-size: 42px;
                    font-weight: 800; color: var(--text); letter-spacing: -1px; }
               h1 span { color: var(--accent); }
-              table { border-collapse: collapse; font-size: 13px; }
-              td { padding: 5px 14px; }
-              td:first-child { text-align: right; color: var(--text);
-                               font-family: ui-monospace, monospace; }
               .favorites { display: flex; flex-wrap: wrap; justify-content: center;
                            gap: 10px; max-width: 720px; }
               .favorites a { display: flex; align-items: center; gap: 8px;
@@ -390,20 +410,132 @@ final class BrowserTab: NSObject {
               .favorites .letter { display: flex; align-items: center; justify-content: center;
                              color: #fff; font-size: 9px; font-weight: 700; }
               .favorites span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+              .help { width: 100%; max-width: 1180px; display: grid; gap: 14px;
+                      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+              section { background: var(--card); border: 1px solid var(--line);
+                        border-radius: 12px; padding: 14px 16px 12px; }
+              h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--text);
+                   letter-spacing: 0.2px; }
+              h2 span { color: var(--accent); font-family: ui-monospace, monospace;
+                        font-weight: 500; margin-left: 6px; }
+              dl { margin: 0; display: grid; grid-template-columns: auto 1fr;
+                   column-gap: 14px; row-gap: 5px; font-size: 12.5px; line-height: 1.35; }
+              dt { color: var(--text); font-family: ui-monospace, monospace; font-size: 11.5px;
+                   max-width: 11em; text-align: right; padding-top: 1px; }
+              dd { margin: 0; }
+              .note { font-size: 11.5px; max-width: 640px; text-align: center; line-height: 1.5; }
             </style></head><body>
               <h1>brunOS<span>_</span></h1>
               \(Self.favoritesHTML())
-              <table>
-                <tr><td>Cmd+L</td><td>escribir una dirección</td></tr>
-                <tr><td>Cmd+T</td><td>pestaña nueva</td></tr>
-                <tr><td>Cmd+W</td><td>cerrar la pestaña</td></tr>
-                <tr><td>Cmd+R</td><td>recargar</td></tr>
-                <tr><td>Cmd + / −</td><td>zoom</td></tr>
-                <tr><td>clic derecho</td><td>abrir en pestaña nueva, descargar, copiar</td></tr>
-              </table>
+              <div class="help">\(Self.helpHTML())</div>
+              <p class="note">Los ajustes de todo el escritorio están en la rueda del dock; los de
+              cada app, en la rueda de su barra. Allí mismo se explica cada opción.</p>
             </body></html>
             """
         webView.loadHTMLString(html, baseURL: nil)
+    }
+
+    /// Ancho de la página de inicio en píxeles CSS: el hueco entre el zoom.
+    private var startPageViewport: String {
+        let zoom = max(pageZoom, 0.1)
+        guard logicalWidth > 0 else { return "width=device-width" }
+        return "width=\(Int((logicalWidth / zoom).rounded()))"
+    }
+
+    /// Vuelve a ajustar el ancho de la página de inicio, si es la que se ve.
+    private func fitStartPage() {
+        let script = """
+            (function () {
+                const meta = document.getElementById('brunos-start');
+                if (meta) meta.content = '\(startPageViewport)';
+            })();
+            """
+        webView.evaluateJavaScript(script, in: nil, in: .page) { _ in }
+    }
+
+    /// La ayuda de la página de inicio: una tarjeta por app.
+    ///
+    /// Los atajos salen de lo que hace el código (`Shortcuts` y cada panel).
+    /// **Si se añade o cambia un atajo, cambiarlo también aquí.**
+    private static func helpHTML() -> String {
+        let sections: [(String, String?, [(String, String)])] = [
+            ("Escritorio y ventanas", nil, [
+                ("Cmd+1 … 5", "abrir Navegador, Terminal, Ficheros, Notas o Fotos"),
+                ("Cmd+N", "otra ventana de la app que está delante"),
+                ("Cmd+P", "lanzador: máquinas, ubicaciones, favoritos, historial y acciones"),
+                ("Cmd+E", "todas las ventanas a la vista (Exposé)"),
+                ("Cmd+º", "cambiar de ventana; con Mayús, hacia atrás"),
+                ("Ctrl+Cmd+F", "pantalla completa: el dock y la barra asoman en los bordes"),
+                ("Cmd+Intro", "maximizar o restaurar"),
+                ("Cmd+Mayús+Espacio", "flotar o volver al mosaico"),
+                ("Cmd+Opción+flechas", "mover el foco a la ventana de al lado"),
+                ("Cmd+Mayús+flechas", "mover la ventana en el mosaico"),
+                ("arrastrar la barra", "mover; soltar en un borde la encaja a media pantalla, "
+                    + "en una esquina a un cuarto y arriba entera"),
+                ("doble clic en la barra", "flotar o volver al mosaico"),
+                ("bolitas", "rojo cierra, amarillo al dock, verde maximiza"),
+                ("clic derecho en el dock", "nueva ventana o ir a una abierta"),
+            ]),
+            ("Navegador", "Cmd+1", [
+                ("Cmd+L", "escribir una dirección o buscar"),
+                ("Cmd+T · Cmd+W", "pestaña nueva · cerrarla"),
+                ("Cmd+Mayús+T", "reabrir la última cerrada"),
+                ("Cmd+R", "recargar"),
+                ("Cmd+F", "buscar en la página; Intro al siguiente"),
+                ("Cmd + · − · 0", "zoom"),
+                ("Cmd+D", "añadir a favoritos"),
+                ("Cmd+Mayús+R", "modo lectura"),
+                ("Cmd+Y", "historial"),
+                ("Ctrl+Cmd+M", "silenciar la pestaña"),
+                ("Cmd+clic", "abrir el enlace en otra pestaña"),
+                ("clic derecho", "abrir en pestaña nueva, descargar, copiar"),
+            ]),
+            ("Terminal", "Cmd+2", [
+                ("Cmd+T · Cmd+W", "sesión nueva · cerrarla"),
+                ("Cmd+C · Cmd+V", "copiar la selección · pegar"),
+                ("Cmd+F", "buscar, también en el historial"),
+                ("Cmd+clic", "abrir una dirección en el navegador"),
+                ("Intro", "volver a conectar si se cortó"),
+            ]),
+            ("Ficheros", "Cmd+3", [
+                ("clic · doble clic", "seleccionar · abrir"),
+                ("Espacio", "vista previa"),
+                ("Retroceso", "subir un nivel"),
+                ("Cmd+clic · Mayús+clic", "sumar a la selección · coger un tramo"),
+                ("Cmd+A", "seleccionar todo"),
+                ("Cmd+C · X · V", "copiar, cortar y pegar"),
+                ("Cmd+⌫", "borrar"),
+                ("Cmd+F", "filtrar la carpeta por nombre"),
+                ("arrastrar", "mover entre carpetas, ubicaciones y ventanas"),
+                ("clic derecho", "comprimir, descomprimir, usar como fondo…"),
+            ]),
+            ("Notas", "Cmd+4", [
+                ("Cmd+B · I · U", "negrita, cursiva y subrayado"),
+                ("Cmd+K", "poner un enlace"),
+                ("Cmd+flechas", "principio o final de la línea y del texto"),
+                ("Cmd+⌫", "borrar hasta el principio de la línea"),
+                ("doble clic", "seleccionar una palabra"),
+                ("portapapeles", "lo que se copia en el iPhone se ofrece para guardarlo"),
+            ]),
+            ("Fotos", "Cmd+5", [
+                ("Intro · Retroceso", "abrir · subir"),
+                ("← →", "foto anterior o siguiente"),
+                ("Espacio", "pausar el vídeo"),
+                ("Mayús+← →", "10 segundos atrás o adelante"),
+                ("M", "silenciar"),
+                ("Esc", "volver"),
+            ]),
+            ("El iPhone", nil, [
+                ("con monitor", "queda en negro de mando: trackpad y teclado"),
+                ("sin monitor", "ajustes, máquinas y pruebas"),
+                ("Cmd+C · Cmd+V", "comparten el portapapeles con el iPhone"),
+            ]),
+        ]
+        return sections.map { title, key, rows in
+            let badge = key.map { "<span>\(escape($0))</span>" } ?? ""
+            let items = rows.map { "<dt>\(escape($0.0))</dt><dd>\(escape($0.1))</dd>" }.joined()
+            return "<section><h2>\(escape(title))\(badge)</h2><dl>\(items)</dl></section>"
+        }.joined()
     }
 
     /// Los favoritos, como la rejilla de la página de inicio de Safari.

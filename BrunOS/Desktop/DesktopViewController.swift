@@ -1753,8 +1753,11 @@ final class DesktopViewController: UIViewController {
         let modals: [UIView?] = [launcher, historyWindow, hostEditor, quickLook, prompt, contextMenu, overview, weatherPopover, calendarPopover]
         guard modals.allSatisfy({ $0 == nil }) else { return .arrow }
 
+        // Sólo en el borde: por dentro de una flotante manda lo que pida el
+        // panel (la mano del navegador), y las ventanas flotan por defecto.
         if let (_, frame) = floatingWindow(at: position, margin: Self.resizeMargin) {
-            return Self.shape(for: resizeEdges(at: position, frame: frame))
+            let edges = resizeEdges(at: position, frame: frame)
+            if !edges.isEmpty { return Self.shape(for: edges) }
         }
         if let divider = divider(at: position, frames: tiledFrames()) {
             return Self.shape(for: divider.axis)

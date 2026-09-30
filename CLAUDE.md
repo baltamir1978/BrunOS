@@ -172,6 +172,20 @@ warnings** y se subió a TestFlight. Falta probarlo en el iPhone.
 - **El dock ya no se corta por la derecha**: `baseWidth` contaba un hueco del separador de menos
   y la barra acababa 10 puntos antes que el icono de Ajustes.
 
+## Visto por Bruno en la 2609291957 (30-sep-2026), arreglado sin subir
+
+- **Los botones de formato de Notas funcionan.** La cabecera del editor salía blanca: no se
+  pintaba y asomaba el fondo del panel (`panel`, blanco en claro). Ahora va del crema del texto.
+- **El cursor no cambiaba en el navegador.** Con una ventana flotante (lo de por defecto),
+  `cursorShape(at:)` del escritorio devolvía la flecha de «no hay borde que redimensionar» antes
+  de preguntar al panel. Ahora sólo manda el borde si hay borde. Además, la I sale también
+  encima de texto seleccionable, no sólo en los campos (`overText` en `ClickInjector.js`).
+- **Franja blanca a la derecha de la página de inicio**: WebKit toma `device-width` sin
+  descontar el `pageZoom` (reproducido y medido en el simulador). Ahora la página lleva el ancho
+  en números (ver `BrunOS/Browser/CLAUDE.md`). Y trae la **ayuda de toda la app**, que pidió
+  Bruno: una tarjeta por app con sus atajos. Si cambia un atajo, cambiarlo también en
+  `BrowserTab.helpHTML()`.
+
 ## Pendiente de probar (en la 2609291957)
 
 - **El cursor en el navegador**: la mano sobre enlaces (que apunte con la punta del índice) y la I
