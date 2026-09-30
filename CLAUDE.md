@@ -49,13 +49,14 @@ estado e indicador de inicio escondidos, gestos de los bordes aplazados, «Mostr
 menú» de AssistiveTouch apagado). **El bloqueo del puntero, iOS no lo acepta en iPhone**: se
 quitó el interruptor.
 
+### Visto bien por Bruno en la 2609301604 (30-sep-2026)
+
+La transparencia al 100 % sin material (`materialAlpha`). **También por AirPlay**: el escritorio
+sale igual en una pantalla por AirPlay que por cable.
+
 ### Pendiente de probar (0.2.0)
 
-**Subido en la 2609301604** (30-sep-2026). Quitar cada cosa de aquí al confirmarla.
-
-- **El 100 % de transparencia seguía bastante opaco** (Bruno): el material del sistema lleva su
-  propio velo. Ahora, hasta el 72 % (la «Media» de siempre) igual que antes; de ahí al 100 % se
-  desvanecen el tinte y el desenfoque (`materialAlpha`), y al 100 % no queda nada.
+Nada. Quitar cada cosa de aquí al confirmarla.
 
 ### Ideas aparcadas
 
