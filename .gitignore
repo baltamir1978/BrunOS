@@ -25,9 +25,10 @@ build/
 *.dSYM
 
 # --- Swift Package Manager ---
+# Package.resolved SÍ se versiona: fija las versiones exactas de las
+# dependencias (ver Tools/pinned-packages.sh).
 .build/
 .swiftpm/
-Package.resolved
 
 # --- macOS ---
 .DS_Store

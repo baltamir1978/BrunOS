@@ -133,3 +133,10 @@ paneles mueven el contenido al revés que el evento (`scrollOffset - delta.dy`);
 hacía al derecho, tanto el historial (`scrollDown(lines:)`) como la rueda que se manda a tmux y
 vim (64/65 de xterm). Ahora usa `-delta.dy` en los dos. **Regla: un panel nuevo, con el mismo
 convenio**, para que el ajuste de dirección valga igual en todos.
+
+## Historial de cada pestaña (30-sep-2026, sin compilar)
+
+`TerminalTheme.scrollback`: 5.000 líneas por defecto (antes 10.000 fijas), a elegir en Terminal ›
+Apariencia › Historial entre 2.000, 5.000 y 10.000. SwiftTerm guarda cada celda con sus atributos,
+y con muchas columnas 10.000 líneas llenas son decenas de MB por pestaña. Vale para las pestañas
+nuevas: las abiertas se quedan con el suyo.

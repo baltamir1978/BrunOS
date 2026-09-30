@@ -63,7 +63,15 @@ final class FilesPane: UIView, Pane {
     }
     /// Miniaturas de las imágenes, por ruta. Sólo en local: por SFTP habría que
     /// descargar cada foto entera para enseñar un sello de 84 puntos.
-    private var thumbnails: [String: UIImage] = [:]
+    ///
+    /// En un `NSCache` con límite, como Fotos: suelta las que haga falta si
+    /// aprieta la memoria. Antes era un diccionario sin tope, que sólo se
+    /// vaciaba al cambiar de carpeta (punto 4 de la 0.2.0, B4).
+    private let thumbnails: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 40 * 1024 * 1024
+        return cache
+    }()
     private var pendingThumbnails: Set<String> = []
     /// El último clic, para reconocer el doble clic.
     private var lastClick: (index: Int, time: Date, location: CGPoint)?
@@ -260,7 +268,7 @@ final class FilesPane: UIView, Pane {
                 self.items = self.filtered(self.allItems)
                 let wanted = self.pendingSelection
                 self.pendingSelection = nil
-                self.thumbnails = [:]
+                self.thumbnails.removeAllObjects()
                 self.pendingThumbnails = []
                 self.selectOnly(wanted.flatMap { name in self.items.firstIndex { $0.name == name } }
                     ?? (self.items.isEmpty ? nil : 0))
@@ -816,7 +824,7 @@ final class FilesPane: UIView, Pane {
     /// en cuanto hay unas cuantas en la carpeta.
     private func thumbnail(for item: FileItem) -> UIImage? {
         guard item.kind == .image, provider is LocalProvider else { return nil }
-        if let image = thumbnails[item.path] { return image }
+        if let image = thumbnails.object(forKey: item.path as NSString) { return image }
         guard !pendingThumbnails.contains(item.path) else { return nil }
         pendingThumbnails.insert(item.path)
 
@@ -826,7 +834,10 @@ final class FilesPane: UIView, Pane {
             let image = await UIImage(contentsOfFile: path)?
                 .byPreparingThumbnail(ofSize: CGSize(width: side, height: side))
             guard let self, let image, self.pendingThumbnails.contains(path) else { return }
-            self.thumbnails[path] = image
+            let cost = Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+            self.thumbnails.setObject(image, forKey: path as NSString, cost: cost)
+            // Fuera de pendientes: si la caché la suelta, se vuelve a pedir.
+            self.pendingThumbnails.remove(path)
             self.scheduleThumbnailRedraw()
         }
         return nil

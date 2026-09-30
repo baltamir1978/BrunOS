@@ -9,6 +9,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+source Tools/pinned-packages.sh
 
 DESTINATION="${1:-generic/platform=iOS Simulator}"
 
@@ -22,9 +23,14 @@ fi
 
 echo "==> xcodegen"
 xcodegen generate
+use_pinned_packages
 
 echo "==> xcodebuild ($DESTINATION)"
+# La forma rara de pasar la lista es por el bash 3.2 de macOS: con `set -u`,
+# una lista vacía a secas da «unbound variable».
 xcodebuild -scheme BrunOS \
   -destination "$DESTINATION" \
   -skipPackagePluginValidation \
+  ${PACKAGE_FLAGS[@]+"${PACKAGE_FLAGS[@]}"} \
   build
+save_pinned_packages

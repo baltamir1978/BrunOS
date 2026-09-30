@@ -37,6 +37,18 @@ enum TerminalTheme {
         }
     }
 
+    /// Líneas que guarda cada pestaña para volver atrás. SwiftTerm guarda cada
+    /// celda con sus atributos, y con muchas columnas 10.000 líneas llenas son
+    /// decenas de MB por pestaña: por defecto, 5.000 (punto 4 de la 0.2.0,
+    /// B3). Vale para las pestañas que se abran después.
+    static var scrollback: Int {
+        get {
+            let stored = UserDefaults.standard.integer(forKey: "terminal.scrollback")
+            return stored > 0 ? stored : 5_000
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "terminal.scrollback") }
+    }
+
     /// En el terminal, `.system` quiere decir «como el escritorio».
     static var style: UIUserInterfaceStyle {
         switch appearance {

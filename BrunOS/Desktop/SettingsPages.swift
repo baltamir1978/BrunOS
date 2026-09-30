@@ -853,6 +853,7 @@ enum SettingsPages {
         SettingsPage(title: "Apariencia", symbol: "paintbrush.fill", tint: orange) {
             let appearances = DesktopAppearance.allCases
             let sizes: [CGFloat] = [11, 12, 13, 14, 15, 16, 18]
+            let scrollbacks = [2_000, 5_000, 10_000]
             return [
                 SettingsGroup(
                     footer: "Por defecto sigue al escritorio, como Terminal en macOS.",
@@ -865,6 +866,18 @@ enum SettingsPages {
                             sizes.map { "\(Int($0))" },
                             selected: sizes.firstIndex(of: TerminalTheme.fontSize) ?? 2
                         ) { TerminalTheme.fontSize = sizes[$0] }),
+                    ]
+                ),
+                SettingsGroup(
+                    "Historial",
+                    footer: "Las líneas que guarda cada pestaña para volver atrás con la rueda. Más líneas, "
+                        + "más memoria: con 10.000 y muchas columnas, decenas de MB por pestaña. Vale para "
+                        + "las pestañas que se abran después.",
+                    rows: [
+                        SettingsRow("Líneas", .choice(
+                            ["2.000", "5.000", "10.000"],
+                            selected: scrollbacks.firstIndex(of: TerminalTheme.scrollback) ?? 1
+                        ) { TerminalTheme.scrollback = scrollbacks[$0] }),
                     ]
                 ),
             ]

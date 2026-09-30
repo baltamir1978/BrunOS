@@ -47,9 +47,9 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         self.session = SSHSession(host: host)
 
         var options = TerminalOptions.default
-        // 10.000 líneas de scrollback, como pedía el diseño. El valor de serie
-        // de SwiftTerm son 500, que para una compilación larga es nada.
-        options.scrollback = 10_000
+        // Lo elegido en Apariencia, 5.000 por defecto. El valor de serie de
+        // SwiftTerm son 500, que para una compilación larga es nada.
+        options.scrollback = TerminalTheme.scrollback
         options.termName = "xterm-256color"
 
         self.terminalView = TerminalView(frame: .zero, font: Tokens.mono(TerminalTheme.fontSize), options: options)

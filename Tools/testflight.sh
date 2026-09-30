@@ -101,6 +101,8 @@ fi
 
 say "xcodegen"
 xcodegen generate
+source Tools/pinned-packages.sh
+use_pinned_packages
 
 say "Archivando"
 xcodebuild archive \
@@ -109,6 +111,7 @@ xcodebuild archive \
   -destination "generic/platform=iOS" \
   -archivePath "$ARCHIVE" \
   -skipPackagePluginValidation \
+  ${PACKAGE_FLAGS[@]+"${PACKAGE_FLAGS[@]}"} \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   "${AUTH[@]}"
 

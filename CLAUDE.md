@@ -25,7 +25,7 @@ iPhone con el monitor y la dio por buena. Su historia, build a build, está en `
    Keynote/PowerPoint del iPhone) y no quiso ninguna. No volver a proponerlo.
 3. **Exportar favoritos** al mismo HTML con el que se importan. *Escrito.*
 4. **Velocidad y memoria**: revisado y propuesto (ver «Plan de optimización»). Bruno eligió
-   **todos los A y C**: *escritos*. Los B (memoria) y D (dependencias), sin elegir.
+   **todos los A y C, y B3, B4 y D1**: *escritos*. B1 y B2, sin elegir.
 5. **Ratón con `GCMouse` más natural**: aceleración, curva y rueda, sin cambiar la fuente.
    *Sin empezar.*
 6. **El tiempo con varias ciudades**, alternando desde la barra. *Escrito.*
@@ -59,6 +59,14 @@ primero en el Mac: `./Tools/build.sh` y cero warnings. Quitar cada cosa de aquí
     donde está el cursor.
   - **C1**: todas las modales (menú, diálogos, historial, lanzador, vista previa, Exposé, tiempo,
     calendario) siguen recibiendo ratón y teclado; Exposé ya no queda debajo de la barra.
+  - **B3**: Terminal › Apariencia › Historial (2.000, 5.000 o 10.000 líneas; 5.000 por
+    defecto, antes 10.000 fijas), para las pestañas nuevas.
+  - **B4**: las miniaturas de Ficheros, en `NSCache` de 40 MB; si suelta una, se vuelve a pedir.
+  - **D1**: **la primera compilación en el Mac deja `Package.resolved` en la raíz** (copiado
+    del que ya tenía el proyecto): revisar las versiones y subirlo. Desde entonces `build.sh` y
+    `testflight.sh` compilan sólo con esas versiones (`-disableAutomaticPackageResolution`).
+    Si `xcodebuild` protesta por la resolución, es que `project.yml` pide algo que no está en
+    `Package.resolved`.
 
 ### Ideas aparcadas
 
@@ -197,8 +205,10 @@ Lo de cada parte vive junto a su código y se carga sólo al trabajar allí:
 Citadel** (0.3.x): la cadena más corta y con un responsable identificable. **Antes de subir de
 versión, mirar de qué fork tira la nueva en su `Package.swift`.**
 
-**Ojo: `Package.resolved` está en `.gitignore`**, así que cada Mac resuelve lo último que permite
-`project.yml`. Ver «Plan de optimización», propuesta D1.
+**`Package.resolved` se versiona** (desde el 30-sep-2026, propuesta D1) y fija las versiones
+exactas: `Tools/pinned-packages.sh` lo copia dentro del `.xcodeproj` y compila sin resolver por su
+cuenta. Para subir una dependencia a propósito: borrarlo, compilar con `build.sh` (lo vuelve a
+crear), revisar el diff y subirlo.
 
 ## Estructura
 
@@ -217,8 +227,8 @@ versión, mirar de qué fork tira la nueva en su `Package.swift`.**
 ## Plan de optimización (punto 4, 30-sep-2026)
 
 Revisión del código, sin medir aún en el iPhone (para eso, Ajustes › Rendimiento). Ordenado por lo
-que se nota en el uso diario. **Bruno eligió todos los A y C, ya escritos (sin compilar)**; B y D
-siguen propuestos.
+que se nota en el uso diario. **Bruno eligió todos los A y C, y B3, B4 y D1: escritos, sin
+compilar.** B1 y B2 siguen propuestos.
 
 Cómo quedó lo escrito:
 
@@ -240,6 +250,10 @@ Cómo quedó lo escrito:
 - **C1**: `ModalWindow` y `openModals`, la única lista de modales. Encajar y la barra superior,
   en `DesktopViewController+Snap.swift` y `+TopBar.swift` (el estado sigue en el principal).
 - **C2**: fuera `PlaceholderPane` y el contador de bloqueados; `PaneKind` en su fichero.
+- **B3**: `TerminalTheme.scrollback`, 5.000 por defecto, en Terminal › Apariencia › Historial.
+- **B4**: `FilesPane.thumbnails` es un `NSCache` de 40 MB; al guardarla, la ruta sale de
+  pendientes para poder pedirla otra vez si se suelta.
+- **D1**: `Package.resolved` versionado y `Tools/pinned-packages.sh` (ver «Cadena de suministro»).
 
 ### A. Respuesta de la interfaz
 
