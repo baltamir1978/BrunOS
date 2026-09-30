@@ -23,16 +23,16 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | | Estado |
 | --- | --- |
 | **Pantalla externa** a resolución nativa, con escalas de 1× a 3× (de cuarto en cuarto entre 1× y 2,5×), overscan y perfiles por monitor | ✅ |
-| **Ratón y teclado** Bluetooth, cursor propio que no se atasca en los bordes (con la mano sobre los enlaces y la I en los campos de texto del navegador), atajos | ✅ la mano, sin rodaje |
+| **Ratón y teclado** Bluetooth, cursor propio que no se atasca en los bordes (con la mano sobre los enlaces y la I sobre el texto del navegador), atajos | ✅ la mano, sin rodaje |
 | **Escritorio** con ventanas flotantes o en mosaico estilo i3, todas las apps a la vez, dock con varias ventanas por app, encajar en mitades y cuartos, pantalla completa, Exposé (Cmd+E) y cambio de ventana con Cmd+º | ✅ |
 | **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él; el fondo se elige en el monitor o en el iPhone, también una foto de la fototeca | ✅ la foto, sin rodaje |
 | **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
 | **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios con las listas de uBlock Origin, avisos de cookies fuera, descargas e iframes pulsables (reCAPTCHA, pagos, logins) | ✅ |
-| **Favoritos** con barra propia, iconos de cada sitio, sugerencias al escribir, modo lectura e historial (Cmd+Y y botón en la barra) | ✅ |
+| **Favoritos** con barra propia, iconos de cada sitio, importados de Safari, Chrome o Firefox, sugerencias al escribir, modo lectura e historial (Cmd+Y y botón en la barra); página de inicio propia o con la ayuda de toda la app | ✅ importar e inicio, sin rodaje |
 | **Descargar vídeos** de la página, también por trozos (HLS) y los incrustados de otra web (RedGifs en Reddit), con progreso; pantalla completa de vídeo (YouTube, Plex) y guardar la página como PDF | ✅ |
-| **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa con zoom (PDF, imágenes y vídeo, también por SFTP/SMB mientras llega), selección múltiple, comprimir y descomprimir ZIP, copiar carpetas por trozos con progreso y arrastrar entre ventanas | ✅ ZIP sin rodaje |
+| **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa con zoom (PDF, imágenes y vídeo, también por SFTP/SMB mientras llega), selección múltiple, comprimir y descomprimir ZIP (uno de un solo fichero sale tal cual), copiar carpetas por trozos con progreso y arrastrar entre ventanas | ✅ |
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | ✅ |
-| **Notas** en RTF (una por fichero, visibles en Archivos), con negrita, cursiva, subrayado y enlaces (atajos y botones en la cabecera), e historial del portapapeles (Cmd+4) | ✅ el formato, sin rodaje |
+| **Notas** en RTF (una por fichero, visibles en Archivos), con negrita, cursiva, subrayado y enlaces (atajos y botones en la cabecera), e historial del portapapeles (Cmd+4) | ✅ |
 | **Fotos**: las fotos y los vídeos de una carpeta de cualquier ubicación, en rejilla, con visor con zoom, reproductor y pase de diapositivas (Cmd+5) | ✅ |
 | **Barra superior** con Tailscale (estado cada 10 s y conectar por Atajos), el tiempo en un desplegable (Open-Meteo) y un calendario del mes al pulsar la hora | ✅ |
 
