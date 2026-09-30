@@ -268,6 +268,17 @@ final class DesktopViewController: UIViewController {
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
+    /// Las tarjetas de lo que se abre encima (tiempo, calendario, menú), a
+    /// píxel entero. Se colocan centradas bajo lo pulsado o donde está el
+    /// cursor, y a 1,5× eso cae a medio píxel: con el filtro `.nearest` las
+    /// letras salían dentadas y con los espacios desiguales (Bruno, 30-sep-2026,
+    /// en el desplegable del tiempo).
+    func pixelAlignCards(in view: UIView) {
+        for case let card as CardView in view.subviews {
+            card.frame = pixelAligned(card.frame)
+        }
+    }
+
     /// Evita que una maquetación dispare otra.
     ///
     /// Varias cosas de dentro avisan de que han cambiado —el dock, el fondo, el
@@ -866,6 +877,7 @@ final class DesktopViewController: UIViewController {
         // Lo que se abre encima llega después de maquetar: sin esto nacía con
         // la densidad de la pantalla y se veía borroso (Bruno, 30-sep-2026).
         applyContentsScale(to: menu)
+        pixelAlignCards(in: menu)
         contextMenu = menu
     }
 
@@ -1388,6 +1400,9 @@ final class DesktopViewController: UIViewController {
         processPointer(kind, modifiers: modifiers)
     }
 
+    /// Ajustes, si se pulsó dentro y aún no se ha soltado (ver `processPointer`).
+    private var settingsCapture: PaneID?
+
     private var moveQueued = false
     private var queuedMoveModifiers: UIKeyModifierFlags = []
 
@@ -1445,9 +1460,32 @@ final class DesktopViewController: UIViewController {
         if videoFullScreen == nil, floatingWindow(at: position) == nil,
            handleDivider(kind, at: position, frames: tiledFrames()) { return }
 
+        // Ajustes se queda con el ratón mientras el botón sigue pulsado: un
+        // deslizador arrastrado fuera de la ventana tiene que seguir al cursor
+        // hasta soltar, como en macOS.
+        if let captured = settingsCapture {
+            switch kind {
+            case .moved, .up:
+                if case .up = kind { settingsCapture = nil }
+                if let frame = frames[captured], let pane = services.desktop.active.pane(captured) {
+                    pane.handlePointer(PointerEvent(
+                        kind: kind,
+                        location: CGPoint(x: position.x - frame.minX, y: position.y - frame.minY),
+                        modifiers: modifiers
+                    ))
+                    return
+                }
+            default:
+                settingsCapture = nil
+            }
+        }
+
         guard let hit = paneHit(at: position, frames: frames) else { return }
 
         let workspace = services.desktop.active
+        if case .down(let button) = kind, button == .left, workspace.pane(hit.key) is SettingsPane {
+            settingsCapture = hit.key
+        }
 
         if case .down(let button) = kind, button == .right {
             let local = CGPoint(x: position.x - hit.value.minX, y: position.y - hit.value.minY)

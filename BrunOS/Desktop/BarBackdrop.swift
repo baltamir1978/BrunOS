@@ -1,41 +1,18 @@
 import UIKit
 
-/// Cuánto se transparentan el dock y la barra superior. Se elige en
-/// Ajustes › General, cada uno por su lado (Bruno, 30-sep-2026).
-enum BarTranslucency: Int, CaseIterable, Sendable {
-    case opaque
-    case low
-    case medium
-    case high
-
-    var label: String {
-        switch self {
-        case .opaque: "Opaca"
-        case .low: "Poca"
-        case .medium: "Media"
-        case .high: "Mucha"
-        }
-    }
-
+/// Cuánto se transparentan el dock y la barra superior: de 0 (opaca) a 1 (lo
+/// máximo). Se elige en Ajustes › General con un deslizador, cada uno por su
+/// lado (Bruno, 30-sep-2026; antes eran cuatro niveles fijos).
+enum BarTransparency {
     /// Cuánto tapa el tinte del color de los paneles, encima del desenfoque.
-    /// `medium` es el dock de siempre (24-sep-2026).
-    var tintAlpha: CGFloat {
-        switch self {
-        case .opaque: 1
-        case .low: 0.7
-        case .medium: 0.35
-        case .high: 0.1
-        }
+    /// A 0,72 es el dock de siempre (24-sep-2026).
+    static func tintAlpha(_ amount: Double) -> CGFloat {
+        1 - 0.9 * CGFloat(min(max(amount, 0), 1))
     }
 
-    /// El desenfoque de lo de detrás. Opaca no lleva: no se vería.
-    var blurStyle: UIBlurEffect.Style? {
-        switch self {
-        case .opaque: nil
-        case .low, .medium: .systemThinMaterial
-        case .high: .systemUltraThinMaterial
-        }
-    }
+    /// Los cuatro niveles de antes (Opaca, Poca, Media, Mucha), para recoger lo
+    /// que hubiera guardado: dan el mismo tinte que daban.
+    static let legacyLevels: [Double] = [0, 1.0 / 3, 0.65 / 0.9, 1]
 }
 
 /// El fondo del dock y de la barra superior: desenfoque del sistema y, encima,
@@ -66,12 +43,15 @@ final class BarBackdrop: UIView {
         fatalError("BrunOS no usa storyboards")
     }
 
-    func apply(_ level: BarTranslucency) {
-        blur.effect = level.blurStyle.map { UIBlurEffect(style: $0) }
-        blur.isHidden = level.blurStyle == nil
+    func apply(_ amount: Double) {
+        // Un solo material para todo el recorrido: cambiarlo a mitad se veía
+        // como un salto al mover el deslizador. Opaca no lleva: no se vería.
+        let opaque = amount <= 0.001
+        if !opaque, blur.effect == nil { blur.effect = UIBlurEffect(style: .systemThinMaterial) }
+        blur.isHidden = opaque
         // Un color dinámico con otra opacidad sigue siendo dinámico: cambia
         // solo con el modo, sin pasar por `applyTheme`.
-        tint.backgroundColor = fill.withAlphaComponent(level.tintAlpha)
+        tint.backgroundColor = fill.withAlphaComponent(BarTransparency.tintAlpha(amount))
     }
 
     override func layoutSubviews() {

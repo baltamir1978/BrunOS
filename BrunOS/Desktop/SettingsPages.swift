@@ -41,7 +41,6 @@ enum SettingsPages {
     private static var general: SettingsPage {
         SettingsPage(title: "General", symbol: "switch.2", tint: gray) {
             let appearances = DesktopAppearance.allCases
-            let levels = BarTranslucency.allCases
             return [
                 SettingsGroup(
                     "Apariencia",
@@ -56,16 +55,15 @@ enum SettingsPages {
                 ),
                 SettingsGroup(
                     "Transparencia",
-                    footer: "Cuánto se ve el fondo, desenfocado, detrás del dock y de la barra superior.",
+                    footer: "Cuánto se ve el fondo, desenfocado, detrás del dock y de la barra superior. "
+                        + "A 0 % son opacos.",
                     rows: [
-                        SettingsRow("Dock", .choice(
-                            levels.map(\.label),
-                            selected: DesktopPreferences.dockTranslucency.rawValue
-                        ) { DesktopPreferences.dockTranslucency = levels[$0] }),
-                        SettingsRow("Barra superior", .choice(
-                            levels.map(\.label),
-                            selected: DesktopPreferences.topBarTranslucency.rawValue
-                        ) { DesktopPreferences.topBarTranslucency = levels[$0] }),
+                        SettingsRow("Dock", .slider(DesktopPreferences.dockTransparency) {
+                            DesktopPreferences.dockTransparency = $0
+                        }),
+                        SettingsRow("Barra superior", .slider(DesktopPreferences.topBarTransparency) {
+                            DesktopPreferences.topBarTransparency = $0
+                        }),
                     ]
                 ),
                 SettingsGroup(

@@ -31,46 +31,31 @@ iPhone con el monitor y la dio por buena. Su historia, build a build, está en `
 6. **El tiempo con varias ciudades**, alternando desde la barra. *Escrito.*
 7. **Transparencia del dock y de la barra superior**, en Ajustes. *Escrito.*
 
+### Visto bien por Bruno en la 2609301421 (30-sep-2026)
+
+Supr en todos los paneles, exportar favoritos, el tiempo con varias ciudades (salvo el texto,
+abajo), la barra sin ventanas y toda la optimización (A1–A3, B3, B4, C1). D1: `Package.resolved`
+en el repositorio (Citadel 0.11.1, `swift-nio-ssh` 0.3.5 de Joannis, SwiftTerm 1.20.0, AMSMB2
+4.0.3); `build.sh` y `testflight.sh` compilan sólo con esas versiones
+(`-disableAutomaticPackageResolution`). Si `xcodebuild` protesta por la resolución, es que
+`project.yml` pide algo que no está en `Package.resolved`.
+
 ### Pendiente de probar (0.2.0)
 
-Escrito en la nube (rama `claude/trusting-feynman-65cc7l`, PR #4) y fusionado en `main` el
-30-sep-2026: **compila a la primera, sin errores ni warnings**. Visto en el simulador con el
-escritorio montado en la pantalla del iPhone (arnés provisional, no versionado): las cinco apps,
-dock, barra, Exposé, Ajustes › Transparencia, el tiempo con dos ciudades y su menú. **Subida en la 2609301421** (30-sep-2026), sin probar
-en el iPhone. Quitar cada cosa de aquí al confirmarla.
+Lo que Bruno pidió al probar la 2609301421. Compila sin warnings y se vio en el simulador a
+1,5× (escritorio montado en la pantalla del iPhone con un arnés provisional, no versionado).
+**Sin subir.** Quitar cada cosa de aquí al confirmarla.
 
-- La barra superior sin ventanas no rotula nada (antes, «Sin paneles»).
-- **Supr**: en la barra de direcciones y en Buscar **escribía un carácter invisible** (el
-  `U+F728` de `key.characters`; ahora `typedText`), y con toda la dirección seleccionada la borra.
-  En Ficheros **borra lo seleccionado** (pregunta antes; Cmd+⌫ sigue valiendo), en el historial
-  quita la entrada marcada, y en el terminal va con modificadores de xterm (`ESC[3;5~` con
-  Ctrl). Terminal, página web y Notas ya lo manejaban. Los campos propios escriben siempre al
-  final, así que ahí Supr no hace nada. **Si en el terminal o en Notas no va, es que la tecla no
-  llega al `KeyboardRouter`.**
-- **Transparencia**: Ajustes › General › Transparencia, dock y barra por separado (Opaca, Poca,
-  Media, Mucha), con `BarBackdrop`. Por defecto como estaban: dock en Media, barra Opaca.
-- **Exportar favoritos**: ver `BrunOS/Browser/CLAUDE.md`.
-- **El tiempo con varias ciudades**: ver `BrunOS/Desktop/CLAUDE.md` («La barra superior»). La
-  ciudad única de antes (`weather.place`) se recoge al arrancar. Quitar, también desde el menú
-  del botón derecho.
-- **Optimización A y C** (ver «Plan de optimización»). Qué mirar al probar:
-  - **A1**: arrastrar y redimensionar ventanas, también hasta tapar el dock (entonces sí maqueta
-    entero) y al soltar en un borde para encajar.
-  - **A2**: en Ficheros y Fotos, la rueda, el hover, la selección, el arrastre sobre una carpeta
-    (su resalte va en `overlay`), la barra de progreso de una copia y las miniaturas al bajar.
-    Si algo sale desplazado o a trozos, lo primero es `placeContent` y `contentOrigin`.
-  - **A3**: que el cursor, el hover y los arrastres vayan igual de suaves, y que un clic caiga
-    donde está el cursor.
-  - **C1**: todas las modales (menú, diálogos, historial, lanzador, vista previa, Exposé, tiempo,
-    calendario) siguen recibiendo ratón y teclado; Exposé ya no queda debajo de la barra.
-  - **B3**: Terminal › Apariencia › Historial (2.000, 5.000 o 10.000 líneas; 5.000 por
-    defecto, antes 10.000 fijas), para las pestañas nuevas.
-  - **B4**: las miniaturas de Ficheros, en `NSCache` de 40 MB; si suelta una, se vuelve a pedir.
-  - **D1**: `Package.resolved` ya está en la raíz y en el repositorio (30-sep; revisado:
-    Citadel 0.11.1, `swift-nio-ssh` 0.3.5 de Joannis, SwiftTerm 1.20.0, AMSMB2 4.0.3). Desde entonces `build.sh` y
-    `testflight.sh` compilan sólo con esas versiones (`-disableAutomaticPackageResolution`).
-    Si `xcodebuild` protesta por la resolución, es que `project.yml` pide algo que no está en
-    `Package.resolved`.
+- **Transparencia con deslizador** (Bruno lo pidió): de 0 a 100 %, dock y barra por separado
+  (`SettingsRow.Control.slider`). Lo guardado con los cuatro niveles de antes se recoge. Ajustes
+  se queda con el ratón mientras el botón sigue pulsado (`settingsCapture`), así que el
+  deslizador sigue al cursor aunque se salga de la ventana.
+- **La línea blanca bajo la barra** con mucha transparencia: el separador se transparenta ahora
+  con la barra.
+- **El texto del tiempo se veía fatal**: a 1,5× el desplegable y las etiquetas de la barra caían
+  a medio píxel y, con el filtro `.nearest`, las letras salían dentadas. Ahora van a píxel
+  entero (`pixelAlignCards`, también el calendario y el menú; `PixelSnappingStackView` en la
+  barra).
 
 ### Ideas aparcadas
 

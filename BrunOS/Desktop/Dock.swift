@@ -98,7 +98,7 @@ final class Dock: UIView {
     }
 
     func applyTranslucency() {
-        backdrop.apply(DesktopPreferences.dockTranslucency)
+        backdrop.apply(DesktopPreferences.dockTransparency)
     }
 
     // MARK: - Contenido

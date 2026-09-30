@@ -50,8 +50,8 @@ extension DesktopViewController {
         popover.onDismiss = { [weak self] in self?.dismissCalendar() }
         canvas.addSubview(popover)
         applyContentsScale(to: popover)
+        pixelAlignCards(in: popover)
         calendarPopover = popover
-        applyContentsScale(to: popover)
     }
 
     func dismissCalendar() {
@@ -70,6 +70,7 @@ extension DesktopViewController {
         canvas.addSubview(popover)
         weatherPopover = popover
         applyContentsScale(to: popover)
+        pixelAlignCards(in: popover)
         services.weather.refresh()
     }
 

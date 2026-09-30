@@ -44,6 +44,10 @@ struct SettingsRow {
         /// Varias opciones: segmentado si caben, flechas si no.
         case choice([String], selected: Int, (Int) -> Void)
         case buttons([SettingsButton])
+        /// Un valor de 0 a 1 que se arrastra. Pocos: con un cursor propio,
+        /// arrastrar es menos cómodo que pulsar, pero Bruno lo prefiere para la
+        /// transparencia (30-sep-2026). También vale un clic en la barra.
+        case slider(Double, (Double) -> Void)
         /// El selector de fondos, con miniaturas. Ocupa la fila entera.
         case wallpapers
     }
@@ -115,8 +119,12 @@ final class SettingsWindow: UIView {
         var id: String
         var frame: CGRect
         var action: () -> Void
+        /// Un deslizador: recibe la x del cursor, en coordenadas de la tarjeta.
+        var drag: ((CGFloat) -> Void)? = nil
     }
     private var regions: [Region] = []
+    /// El deslizador que se está arrastrando, hasta soltar el botón.
+    private var activeDrag: ((CGFloat) -> Void)?
     private var hoveredID: String?
 
     private var observers: [NSObjectProtocol] = []
@@ -635,6 +643,51 @@ final class SettingsWindow: UIView {
             return renderChoice(options, selected: selected, change: change, id: id, row: row, right: right,
                                 context: context)
 
+        case .slider(let value, let change):
+            let width: CGFloat = 170
+            // El botón (18 pt) no se sale del recuadro en los extremos.
+            let track = CGRect(x: right - width - 9, y: row.midY - 2, width: width, height: 4)
+            let amount = CGFloat(min(max(value, 0), 1))
+            let knob = CGRect(x: track.minX + amount * track.width - 9, y: row.midY - 9, width: 18, height: 18)
+            let setFromX: (CGFloat) -> Void = { x in
+                let fraction = min(max((x - track.minX) / track.width, 0), 1)
+                change((Double(fraction) * 100).rounded() / 100)
+            }
+            // La zona sobra un poco por los lados: así se llega a 0 y a 100 %
+            // sin apuntar al píxel.
+            regions.append(Region(
+                id: id, frame: CGRect(x: track.minX - 12, y: row.minY, width: width + 24, height: row.height),
+                action: {}, drag: setFromX
+            ))
+            let label = "\(Int((amount * 100).rounded())) %"
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: Tokens.mono(12), .foregroundColor: Tokens.Color.textSecondary,
+            ]
+            let labelSize = (label as NSString).size(withAttributes: attributes)
+            let labelFrame = CGRect(x: track.minX - 14 - 40, y: row.midY - labelSize.height / 2,
+                                    width: 40, height: labelSize.height)
+            if let context {
+                context.setFillColor(Tokens.Color.textSecondary.withAlphaComponent(0.3).desktopCGColor)
+                context.addPath(UIBezierPath(roundedRect: track, cornerRadius: 2).cgPath)
+                context.fillPath()
+                var filled = track
+                filled.size.width = amount * track.width
+                context.setFillColor(Tokens.Color.accent.desktopCGColor)
+                context.addPath(UIBezierPath(roundedRect: filled, cornerRadius: 2).cgPath)
+                context.fillPath()
+                context.setShadow(offset: CGSize(width: 0, height: 1), blur: 2,
+                                  color: UIColor.black.withAlphaComponent(0.3).cgColor)
+                context.setFillColor(UIColor.white.cgColor)
+                context.fillEllipse(in: knob)
+                context.setShadow(offset: .zero, blur: 0, color: nil)
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.alignment = .right
+                (label as NSString).draw(in: labelFrame, withAttributes: attributes.merging(
+                    [.paragraphStyle: paragraph], uniquingKeysWith: { $1 }
+                ))
+            }
+            return labelFrame.minX
+
         case .buttons(let buttons):
             var x = right
             for (index, button) in buttons.enumerated().reversed() {
@@ -854,6 +907,19 @@ final class SettingsWindow: UIView {
     /// Devuelve `true` si consumió el evento: mientras está abierta, todo es
     /// suyo.
     func handlePointer(_ kind: PointerEvent.Kind, at point: CGPoint) -> Bool {
+        // Un deslizador cogido manda hasta soltar, aunque el cursor se salga.
+        if let drag = activeDrag {
+            switch kind {
+            case .moved:
+                drag(point.x - card.frame.minX)
+                refresh()
+            case .up:
+                activeDrag = nil
+            default:
+                break
+            }
+            return true
+        }
         guard card.frame.contains(point) else {
             if case .down = kind, !isEmbedded { onDismiss?() }
             return !isEmbedded
@@ -870,7 +936,12 @@ final class SettingsWindow: UIView {
                 card.setNeedsDisplay()
             }
         case .down(let button) where button == .left:
-            region?.action()
+            if let drag = region?.drag {
+                activeDrag = drag
+                drag(local.x)
+            } else {
+                region?.action()
+            }
             refresh()
         case .scroll(let delta):
             let area = contentRect

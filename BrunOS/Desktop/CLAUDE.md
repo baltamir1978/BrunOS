@@ -27,6 +27,11 @@ porqué y cómo funciona cada cosa.
   el dock, marcos a píxel entero (`pixelAligned`).
 - **Los bordes, a píxeles enteros**: uno de 1,5 pt a 1,5× son 2,25 píxeles y se veía como una
   línea doble en las esquinas. `applyContentsScale` los redondea; repetirlo da lo mismo.
+- **A 1,5×, un punto son 1,5 píxeles**: lo que cae en x = 301 empieza a medio píxel y, con
+  `.nearest`, las letras salen dentadas. Las tarjetas del tiempo, el calendario y el menú se
+  alinean con `pixelAlignCards` al abrirse; las etiquetas de la barra, con
+  `PixelSnappingStackView`. **Una modal nueva colocada a partir del cursor o de un centro, con
+  `pixelAlignCards`.**
 - **Lo que se añade al lienzo fuera de la maquetación** (menú, diálogos, historial, lanzador,
   Exposé, tiempo, calendario, vista previa…) nace con la densidad de la pantalla: por eso
   `applyContentsScale` justo después de añadirlo, o `matchCanvasDensity(_:)` para lo que llega
@@ -77,7 +82,8 @@ aviso del iPhone (`PhoneNotice`) no es modal: no se queda el ratón, sólo va en
   ventana; cerrada, la abre. Botón derecho: «Nueva ventana» y la lista de las abiertas. Cmd+N,
   nueva ventana de la app de delante.
 - **Transparencia, agrandamiento y rebote**: el fondo es `BarBackdrop` (desenfoque del sistema y
-  tinte), con la cantidad en Ajustes › General › Transparencia, igual que la barra superior. Los
+  tinte), con la cantidad en Ajustes › General › Transparencia (deslizador de 0 a 100 %, un
+  solo material para que no salte al moverlo), igual que la barra superior. Los
   iconos crecen hasta ×1,25 (sutil, Bruno no lo quería enorme) con caída en coseno² hasta 2 iconos
   a cada lado, **medida desde las posiciones sin agrandar** (si no, tiembla). Cada icono se dibuja
   una vez a tamaño máximo y sólo se escala. `Dock.contains(point:)` cuenta lo que sobresale.
@@ -113,7 +119,8 @@ aviso del iPhone (`PhoneNotice`) no es modal: no se queda el ratón, sólo va en
 
 Marca (abre el lanzador), título de la ventana con foco (nada si no hay ventanas), Tailscale, el
 tiempo, resolución (lleva a Ajustes › Pantalla), batería y hora (abre el calendario). Fondo
-`BarBackdrop`, opaco por defecto.
+`BarBackdrop`, opaco por defecto; su raya de abajo se transparenta con ella (sola, con mucha
+transparencia, se veía como una línea blanca).
 
 - **Tailscale**: logo de nueve puntos, la «T» encendida si `TailscaleMonitor` ve una `utun` con
   dirección de Tailscale (una deducción). Se mira al cambiar la red y cada 10 s. **iOS no deja que
@@ -138,7 +145,10 @@ tiempo, resolución (lleva a Ajustes › Pantalla), batería y hora (abre el cal
 Imitan Ajustes del Sistema: secciones a la izquierda, grupos con interruptores, segmentados y
 botones, descritos en `SettingsPages` y pedidos de nuevo tras cada cambio. La rueda del dock abre
 lo global (General, Pantalla, Ratón y teclado, Atajos, Acerca de, Rendimiento); cada panel tiene
-su rueda. Sin deslizadores: con un cursor propio, arrastrar es incómodo. `SettingsPages.
+su rueda. Casi sin deslizadores: con un cursor propio, arrastrar es menos cómodo que pulsar;
+el único es la transparencia, que Bruno pidió así (`.slider`). Mientras el botón está pulsado,
+Ajustes se queda con el ratón (`settingsCapture` en `processPointer`), para que un deslizador
+siga al cursor fuera de la ventana. `SettingsPages.
 shortcutsPageIndex` es la página de Atajos (AssistiveTouch y Tailscale).
 
 ## Lanzador (Cmd+P) y Buscar (Cmd+F)

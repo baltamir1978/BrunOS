@@ -68,8 +68,15 @@ final class TopBar: UIView {
     /// Opaca por defecto; cuánto se transparenta, en Ajustes › General.
     private let backdrop = BarBackdrop(fill: Tokens.Color.panel)
 
+    /// La raya de abajo. Se transparenta con la barra: con mucha
+    /// transparencia se quedaba sola, entera, y se veía como una línea blanca
+    /// sobre el fondo (Bruno, 30-sep-2026).
+    private let separator = UIView()
+
     func applyTranslucency() {
-        backdrop.apply(DesktopPreferences.topBarTranslucency)
+        let amount = DesktopPreferences.topBarTransparency
+        backdrop.apply(amount)
+        separator.alpha = BarTransparency.tintAlpha(amount)
     }
 
     override init(frame: CGRect) {
@@ -78,7 +85,6 @@ final class TopBar: UIView {
         addSubview(backdrop)
         applyTranslucency()
 
-        let separator = UIView()
         separator.backgroundColor = Tokens.Color.border
         separator.translatesAutoresizingMaskIntoConstraints = false
         addSubview(separator)
@@ -95,7 +101,7 @@ final class TopBar: UIView {
 
         let spacerLeft = UIView()
         let spacerRight = UIView()
-        let stack = UIStackView(arrangedSubviews: [
+        let stack = PixelSnappingStackView(arrangedSubviews: [
             brandLabel, spacerLeft, titleLabel, spacerRight,
             tailscaleLabel, weatherLabel, resolutionLabel, batteryLabel, clockLabel,
         ])
@@ -306,5 +312,30 @@ final class TopBar: UIView {
 
     private func updateClock() {
         setText(clockLabel, Date().formatted(date: .omitted, time: .shortened))
+    }
+}
+
+/// Una pila que deja lo que coloca a píxel entero del monitor. UIKit redondea
+/// a puntos de la pantalla externa, pero el lienzo va escalado: a 1,5× un
+/// punto son 1,5 píxeles, y una etiqueta en x = 301 empezaba en el píxel
+/// 451,5. Con el filtro `.nearest`, las letras salían dentadas (el tiempo de
+/// la barra, en cuanto llevó el nombre de la ciudad; Bruno, 30-sep-2026).
+///
+/// La densidad es la de su capa, que pone `applyContentsScale`.
+final class PixelSnappingStackView: UIStackView {
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let scale = max(layer.contentsScale, 1)
+        let origin = convert(CGPoint.zero, to: superview)
+        for view in arrangedSubviews {
+            let frame = view.frame
+            // Se redondea en coordenadas de la barra: la pila también puede
+            // empezar a medio píxel.
+            let x = ((origin.x + frame.minX) * scale).rounded() / scale - origin.x
+            let y = ((origin.y + frame.minY) * scale).rounded() / scale - origin.y
+            if x != frame.minX || y != frame.minY {
+                view.frame.origin = CGPoint(x: x, y: y)
+            }
+        }
     }
 }

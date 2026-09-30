@@ -197,24 +197,30 @@ enum DesktopPreferences {
     /// Avisa de que ha cambiado la transparencia del dock o de la barra.
     static let translucencyDidChange = Notification.Name("BrunOSTranslucencyDidChange")
 
-    /// Por defecto, como estaban: el dock a media transparencia y la barra
-    /// superior opaca.
-    static var dockTranslucency: BarTranslucency {
-        get { translucency(forKey: "desktop.dockTranslucency") ?? .medium }
-        set { setTranslucency(newValue, forKey: "desktop.dockTranslucency") }
+    /// De 0 (opaca) a 1. Por defecto, como estaban: el dock a media
+    /// transparencia y la barra superior opaca.
+    static var dockTransparency: Double {
+        get { transparency(forKey: "desktop.dockTransparency", legacyKey: "desktop.dockTranslucency") ?? BarTransparency.legacyLevels[2] }
+        set { setTransparency(newValue, forKey: "desktop.dockTransparency") }
     }
 
-    static var topBarTranslucency: BarTranslucency {
-        get { translucency(forKey: "desktop.topBarTranslucency") ?? .opaque }
-        set { setTranslucency(newValue, forKey: "desktop.topBarTranslucency") }
+    static var topBarTransparency: Double {
+        get { transparency(forKey: "desktop.topBarTransparency", legacyKey: "desktop.topBarTranslucency") ?? 0 }
+        set { setTransparency(newValue, forKey: "desktop.topBarTransparency") }
     }
 
-    private static func translucency(forKey key: String) -> BarTranslucency? {
-        (UserDefaults.standard.object(forKey: key) as? Int).flatMap(BarTranslucency.init(rawValue:))
+    /// Lo guardado; si no hay, el nivel de antes (Opaca, Poca, Media, Mucha).
+    private static func transparency(forKey key: String, legacyKey: String) -> Double? {
+        let defaults = UserDefaults.standard
+        if let value = defaults.object(forKey: key) as? Double { return value }
+        guard let level = defaults.object(forKey: legacyKey) as? Int,
+              BarTransparency.legacyLevels.indices.contains(level)
+        else { return nil }
+        return BarTransparency.legacyLevels[level]
     }
 
-    private static func setTranslucency(_ value: BarTranslucency, forKey key: String) {
-        UserDefaults.standard.set(value.rawValue, forKey: key)
+    private static func setTransparency(_ value: Double, forKey key: String) {
+        UserDefaults.standard.set(min(max(value, 0), 1), forKey: key)
         NotificationCenter.default.post(name: translucencyDidChange, object: nil)
     }
 }
