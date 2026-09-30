@@ -36,7 +36,7 @@ iPhone con el monitor y la dio por buena. Su historia, build a build, está en `
 Escrito en la nube (rama `claude/trusting-feynman-65cc7l`, PR #4) y fusionado en `main` el
 30-sep-2026: **compila a la primera, sin errores ni warnings**. Visto en el simulador con el
 escritorio montado en la pantalla del iPhone (arnés provisional, no versionado): las cinco apps,
-dock, barra, Exposé, Ajustes › Transparencia, el tiempo con dos ciudades y su menú. Sin probar
+dock, barra, Exposé, Ajustes › Transparencia, el tiempo con dos ciudades y su menú. **Subida en la 2609301421** (30-sep-2026), sin probar
 en el iPhone. Quitar cada cosa de aquí al confirmarla.
 
 - La barra superior sin ventanas no rotula nada (antes, «Sin paneles»).
