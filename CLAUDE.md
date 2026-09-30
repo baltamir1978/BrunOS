@@ -46,6 +46,8 @@ probó Bruno y dio todo por bueno: «está todo ok». **Ahora es la 0.2.0** (`MA
 4. **Optimizar velocidad y memoria** en toda la interfaz (medir y proponer antes de hacer).
 5. **Ratón con `GCMouse` más natural**: revisar aceleración, curva y rueda, sin cambiar la
    fuente (manda `GCMouse`).
+6. **El tiempo con varias ubicaciones.**
+7. **Transparencia de la barra superior y del dock**, a elegir en Ajustes.
 
 Hecho ya: la barra superior sin ventanas no rotula nada (antes, «Sin paneles»). Sin subir.
 
