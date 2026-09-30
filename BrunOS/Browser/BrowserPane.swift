@@ -1425,9 +1425,19 @@ final class BrowserPane: UIView, Pane {
                 } else if !addressDraft.isEmpty {
                     addressDraft.removeLast()
                 }
+            case .keyboardDeleteForward:
+                // El campo no tiene cursor propio: se escribe siempre al
+                // final, y Supr ahí no tiene nada delante. Sí se lleva la
+                // selección entera, como el retroceso.
+                if isAddressSelected {
+                    addressDraft = ""
+                    isAddressSelected = false
+                }
             default:
-                let characters = event.key.characters
-                guard !characters.isEmpty else { break }
+                // `typedText` y no `key.characters`: Supr, las flechas de los
+                // lados y las teclas de función traen caracteres invisibles
+                // del área privada de Unicode, y se colaban en la dirección.
+                guard let characters = event.typedText else { break }
                 if isAddressSelected {
                     addressDraft = characters
                     isAddressSelected = false

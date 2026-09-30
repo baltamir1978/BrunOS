@@ -493,7 +493,8 @@ final class HistoryWindow: UIView {
             move(by: 1)
         case .keyboardUpArrow:
             move(by: -1)
-        case .keyboardDeleteOrBackspace where command:
+        case .keyboardDeleteOrBackspace where command, .keyboardDeleteForward:
+            // Cmd+⌫ o Supr: fuera la entrada marcada, no el texto buscado.
             guard let selected, pages.indices.contains(selected) else { break }
             perform(.remove(pages[selected]), newTab: false)
         case .keyboardDeleteOrBackspace:

@@ -95,6 +95,12 @@ final class DesktopViewController: UIViewController {
             name: DesktopTheme.didChangeNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(translucencyChanged),
+            name: DesktopPreferences.translucencyDidChange,
+            object: nil
+        )
         // Una máquina recién añadida tiene que poder usarse sin reiniciar.
         NotificationCenter.default.addObserver(
             self,
@@ -349,6 +355,11 @@ final class DesktopViewController: UIViewController {
 
     @objc private func refreshLayout() {
         applyDisplayProfile()
+    }
+
+    @objc private func translucencyChanged() {
+        dock.applyTranslucency()
+        topBar.applyTranslucency()
     }
 
     @objc private func desktopChanged() {

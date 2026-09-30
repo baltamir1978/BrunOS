@@ -193,6 +193,30 @@ enum DesktopPreferences {
         get { UserDefaults.standard.object(forKey: "desktop.newPanesFloat") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "desktop.newPanesFloat") }
     }
+
+    /// Avisa de que ha cambiado la transparencia del dock o de la barra.
+    static let translucencyDidChange = Notification.Name("BrunOSTranslucencyDidChange")
+
+    /// Por defecto, como estaban: el dock a media transparencia y la barra
+    /// superior opaca.
+    static var dockTranslucency: BarTranslucency {
+        get { translucency(forKey: "desktop.dockTranslucency") ?? .medium }
+        set { setTranslucency(newValue, forKey: "desktop.dockTranslucency") }
+    }
+
+    static var topBarTranslucency: BarTranslucency {
+        get { translucency(forKey: "desktop.topBarTranslucency") ?? .opaque }
+        set { setTranslucency(newValue, forKey: "desktop.topBarTranslucency") }
+    }
+
+    private static func translucency(forKey key: String) -> BarTranslucency? {
+        (UserDefaults.standard.object(forKey: key) as? Int).flatMap(BarTranslucency.init(rawValue:))
+    }
+
+    private static func setTranslucency(_ value: BarTranslucency, forKey key: String) {
+        UserDefaults.standard.set(value.rawValue, forKey: key)
+        NotificationCenter.default.post(name: translucencyDidChange, object: nil)
+    }
 }
 
 /// Estado completo del escritorio.

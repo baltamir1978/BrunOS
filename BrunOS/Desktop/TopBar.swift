@@ -66,9 +66,18 @@ final class TopBar: UIView {
         }
     }
 
+    /// Opaca por defecto; cuánto se transparenta, en Ajustes › General.
+    private let backdrop = BarBackdrop(fill: Tokens.Color.panel)
+
+    func applyTranslucency() {
+        backdrop.apply(DesktopPreferences.topBarTranslucency)
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = Tokens.Color.panel
+        backdrop.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(backdrop)
+        applyTranslucency()
 
         let separator = UIView()
         separator.backgroundColor = Tokens.Color.border
@@ -104,6 +113,10 @@ final class TopBar: UIView {
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
             spacerLeft.widthAnchor.constraint(equalTo: spacerRight.widthAnchor),
+            backdrop.leadingAnchor.constraint(equalTo: leadingAnchor),
+            backdrop.trailingAnchor.constraint(equalTo: trailingAnchor),
+            backdrop.topAnchor.constraint(equalTo: topAnchor),
+            backdrop.bottomAnchor.constraint(equalTo: bottomAnchor),
             separator.leadingAnchor.constraint(equalTo: leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: bottomAnchor),

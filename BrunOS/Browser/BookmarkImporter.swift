@@ -91,3 +91,51 @@ enum BookmarkImporter {
         return result.replacingOccurrences(of: "&amp;", with: "&")
     }
 }
+
+/// Escribe los favoritos en el mismo HTML de Netscape que lee
+/// `BookmarkImporter`, el que importan Safari, Chrome y Firefox.
+///
+/// Van dentro de una carpeta «Barra de favoritos» marcada con
+/// `PERSONAL_TOOLBAR_FOLDER`: Chrome y Firefox la llevan a su barra; Safari lo
+/// deja todo en una carpeta de importados. `ADD_DATE` es cuándo se añadió.
+enum BookmarkExporter {
+
+    static func html(_ pages: [BrowserHistory.Page]) -> String {
+        let now = Int(Date().timeIntervalSince1970)
+        var lines = [
+            "<!DOCTYPE NETSCAPE-Bookmark-file-1>",
+            "<!-- This is an automatically generated file.",
+            "     It will be read and overwritten.",
+            "     DO NOT EDIT! -->",
+            "<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=UTF-8\">",
+            "<TITLE>Bookmarks</TITLE>",
+            "<H1>Bookmarks</H1>",
+            "<DL><p>",
+            "    <DT><H3 ADD_DATE=\"\(now)\" LAST_MODIFIED=\"\(now)\" PERSONAL_TOOLBAR_FOLDER=\"true\">Barra de favoritos</H3>",
+            "    <DL><p>",
+        ]
+        for page in pages {
+            let added = Int(page.visited.timeIntervalSince1970)
+            lines.append("        <DT><A HREF=\"\(escape(page.url))\" ADD_DATE=\"\(added)\">\(escape(page.title))</A>")
+        }
+        lines += ["    </DL><p>", "</DL><p>", ""]
+        return lines.joined(separator: "\n")
+    }
+
+    /// El nombre del fichero, con la fecha: dos exportaciones del mismo día
+    /// las numera `BrowserTab.uniqueDownloadURL`.
+    static func fileName(date: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return "Favoritos de BrunOS \(formatter.string(from: date)).html"
+    }
+
+    /// Las entidades que deshace `BookmarkImporter.decode`, `&` la primera.
+    private static func escape(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+}

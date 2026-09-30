@@ -28,7 +28,7 @@ Es un proyecto personal. No está en la App Store ni va a estarlo.
 | **Modo claro y oscuro**, siguiendo al iPhone o fijo, con fondos que cambian con él; el fondo se elige en el monitor o en el iPhone, también una foto de la fototeca | ✅ la foto, sin rodaje |
 | **Terminal SSH** por Tailscale, contraseña o clave ed25519, con tmux, búsqueda y `known_hosts` | ✅ |
 | **Navegador** con pestañas (fijar y silenciar), bloqueo de anuncios con las listas de uBlock Origin, avisos de cookies fuera, descargas e iframes pulsables (reCAPTCHA, pagos, logins) | ✅ |
-| **Favoritos** con barra propia, iconos de cada sitio, importados de Safari, Chrome o Firefox, sugerencias al escribir, modo lectura e historial (Cmd+Y y botón en la barra); página de inicio propia o con la ayuda de toda la app | ✅ importar e inicio, sin rodaje |
+| **Favoritos** con barra propia, iconos de cada sitio, importados de Safari, Chrome o Firefox y exportados al mismo HTML, sugerencias al escribir, modo lectura e historial (Cmd+Y y botón en la barra); página de inicio propia o con la ayuda de toda la app | ✅ importar e inicio, sin rodaje; exportar, sin probar |
 | **Descargar vídeos** de la página, también por trozos (HLS) y los incrustados de otra web (RedGifs en Reddit), con progreso; pantalla completa de vídeo (YouTube, Plex) y guardar la página como PDF | ✅ |
 | **Ficheros**: iPhone, iCloud, USB, SFTP y servidores SMB con cliente propio, con vistas, vista previa con zoom (PDF, imágenes y vídeo, también por SFTP/SMB mientras llega), selección múltiple, comprimir y descomprimir ZIP (uno de un solo fichero sale tal cual), copiar carpetas por trozos con progreso y arrastrar entre ventanas | ✅ |
 | **Lanzador** (Cmd+P) y **búsqueda** (Cmd+F) en todos los paneles | ✅ |
@@ -44,6 +44,7 @@ va a una concreta. Cmd+1 a 5 abren el navegador, el
 terminal, Ficheros, Notas y Fotos. **Cmd+º** (la tecla de debajo de Esc) cambia de ventana como Cmd+Tab, que iOS
 se reserva, y **Cmd+E** enseña todas las ventanas a la vez, como Exposé. Las ventanas se encajan en mitades o cuartos llevándolas a un borde, y al
 arrancar vuelven las de la última vez, con sus pestañas y sesiones (se puede apagar en Ajustes).
+La transparencia del dock y de la barra superior se elige en Ajustes › General.
 
 Cada panel lleva los tres botones de macOS: **rojo** cierra, **amarillo** lo manda al dock y
 **verde** lo pone a pantalla completa. Los ajustes globales están en la rueda del dock, y los de

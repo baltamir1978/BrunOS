@@ -483,3 +483,14 @@ Los dos en Ajustes del navegador, pedidos por Bruno.
   lectura de Safari** (carpeta `com.apple.ReadingList`), ignora lo que no sea http(s) y los
   repetidos; `BrowserHistory.importBookmarks` los añade al final. Probado con un fichero como el
   de Safari y otro como el de Chrome; sin probar con uno de verdad en el iPhone.
+
+## Exportar favoritos (30-sep-2026, sin compilar ni probar)
+
+Ajustes del navegador › Favoritos › «Exportar». `BookmarkExporter` (en `BookmarkImporter.swift`)
+escribe el mismo HTML de Netscape que se importa, con los favoritos dentro de una carpeta «Barra
+de favoritos» marcada `PERSONAL_TOOLBAR_FOLDER` (Chrome y Firefox la ponen en su barra; Safari
+lo mete en una carpeta de importados) y `ADD_DATE` de cuando se añadió cada uno. Va a **iPhone ›
+Descargas** con la fecha en el nombre (`uniqueDownloadURL` numera si se repite), **sin selector**:
+el del iPhone saldría en la pantalla en negro del modo mando. Al terminar ofrece «Mostrar en
+Ficheros»; desde allí o desde la app Archivos se lleva a iCloud Drive o al Mac. Lo que exporta
+lo vuelve a leer `BookmarkImporter` sin perder nada (el orden se conserva; repetidos, ninguno).

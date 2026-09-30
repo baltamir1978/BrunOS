@@ -41,6 +41,7 @@ enum SettingsPages {
     private static var general: SettingsPage {
         SettingsPage(title: "General", symbol: "switch.2", tint: gray) {
             let appearances = DesktopAppearance.allCases
+            let levels = BarTranslucency.allCases
             return [
                 SettingsGroup(
                     "Apariencia",
@@ -51,6 +52,20 @@ enum SettingsPages {
                             ["Como el iPhone", "Claro", "Oscuro"],
                             selected: appearances.firstIndex(of: DesktopTheme.appearance) ?? 0
                         ) { DesktopTheme.appearance = appearances[$0] }),
+                    ]
+                ),
+                SettingsGroup(
+                    "Transparencia",
+                    footer: "Cuánto se ve el fondo, desenfocado, detrás del dock y de la barra superior.",
+                    rows: [
+                        SettingsRow("Dock", .choice(
+                            levels.map(\.label),
+                            selected: DesktopPreferences.dockTranslucency.rawValue
+                        ) { DesktopPreferences.dockTranslucency = levels[$0] }),
+                        SettingsRow("Barra superior", .choice(
+                            levels.map(\.label),
+                            selected: DesktopPreferences.topBarTranslucency.rawValue
+                        ) { DesktopPreferences.topBarTranslucency = levels[$0] }),
                     ]
                 ),
                 SettingsGroup(
@@ -427,12 +442,18 @@ enum SettingsPages {
                 footer: "Safari: Archivo › Exportar › Favoritos. Chrome y Firefox: en su gestor de "
                     + "marcadores, Exportar. Guarda el fichero en iCloud Drive y elígelo en el iPhone. "
                     + "Las carpetas se aplanan, la lista de lectura de Safari se salta y no se repite "
-                    + "ninguno que ya esté.",
+                    + "ninguno que ya esté.\n"
+                    + "Al exportar, los favoritos van en una carpeta «Barra de favoritos», que Chrome y "
+                    + "Firefox ponen en su barra. El fichero se lleva a iCloud Drive o al Mac desde "
+                    + "Ficheros o desde la app Archivos.",
                 rows: [
                     SettingsRow("Importar de otro navegador", subtitle: "El fichero HTML de favoritos", .buttons([
                         SettingsButton("Elegir fichero…") {
                             NotificationCenter.default.post(name: .brunosPickBookmarks, object: nil)
                         },
+                    ])),
+                    SettingsRow("Exportar", subtitle: "El mismo HTML, en iPhone › Descargas", .buttons([
+                        SettingsButton("Exportar") { exportBookmarks() },
                     ])),
                 ]
             ))
@@ -633,6 +654,43 @@ enum SettingsPages {
                 rows: hideRows
             ))
             return groups
+        }
+    }
+
+    /// Escribe los favoritos en Descargas, sin selector: con el monitor, el
+    /// del iPhone saldría en una pantalla que está en negro. Luego ofrece
+    /// enseñar el fichero en Ficheros.
+    private static func exportBookmarks() {
+        let pages = services.history.bookmarks
+        guard !pages.isEmpty else {
+            desktop?.presentConfirm(
+                title: "No hay favoritos que exportar",
+                message: "Añade alguno con Cmd+D o impórtalos de otro navegador.",
+                destructive: "Entendido",
+                isDestructive: false
+            ) { _ in }
+            return
+        }
+        let url = BrowserTab.uniqueDownloadURL(named: BookmarkExporter.fileName())
+        do {
+            try Data(BookmarkExporter.html(pages).utf8).write(to: url, options: .atomic)
+        } catch {
+            desktop?.presentConfirm(
+                title: "No se pudo exportar",
+                message: error.localizedDescription,
+                destructive: "Entendido",
+                isDestructive: false
+            ) { _ in }
+            return
+        }
+        desktop?.presentConfirm(
+            title: pages.count == 1 ? "Exportado 1 favorito" : "Exportados \(pages.count) favoritos",
+            message: "En iPhone › Descargas, como «\(url.lastPathComponent)». También está en la app "
+                + "Archivos, en En mi iPhone › BrunOS.",
+            destructive: "Mostrar en Ficheros",
+            isDestructive: false
+        ) { show in
+            if show { desktop?.revealInFiles(url) }
         }
     }
 

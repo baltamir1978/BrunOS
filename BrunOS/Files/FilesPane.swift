@@ -1388,6 +1388,9 @@ final class FilesPane: UIView, Pane {
                 break
             case .keyboardReturnOrEnter where !items.isEmpty:
                 break
+            case .keyboardDeleteForward where !selection.isEmpty:
+                // Supr no hace nada en la barra de buscar: borra lo marcado.
+                break
             default:
                 findBar.handleKey(event)
                 return
@@ -1428,6 +1431,10 @@ final class FilesPane: UIView, Pane {
             }
         case .keyboardDeleteOrBackspace:
             goUp()
+        case .keyboardDeleteForward:
+            // Supr borra lo seleccionado, como en Windows y en Linux. En el
+            // Finder es Cmd+⌫, que también vale. Pregunta antes, igual.
+            confirmDelete(selectedItems)
         default:
             break
         }

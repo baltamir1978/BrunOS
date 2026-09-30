@@ -183,11 +183,13 @@ final class FindBar: UIView {
                 query.removeLast()
             }
             changed()
+        case .keyboardDeleteForward:
+            // Se escribe siempre al final: Supr no tiene nada delante.
+            return
         default:
-            let characters = event.key.characters
-            guard !characters.isEmpty, !event.key.modifierFlags.contains(.command),
-                  characters.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) })
-            else { return }
+            // `typedText` descarta los caracteres invisibles de Supr, las
+            // flechas y las teclas de función, que antes se escribían.
+            guard let characters = event.typedText else { return }
             query += characters
             changed()
         }

@@ -49,7 +49,22 @@ probó Bruno y dio todo por bueno: «está todo ok». **Ahora es la 0.2.0** (`MA
 6. **El tiempo con varias ubicaciones.**
 7. **Transparencia de la barra superior y del dock**, a elegir en Ajustes.
 
-Hecho ya: la barra superior sin ventanas no rotula nada (antes, «Sin paneles»). Sin subir.
+**Pendiente de probar (0.2.0)**, todo escrito en la nube sin compilar (30-sep-2026, rama
+`claude/trusting-feynman-65cc7l`):
+
+- La barra superior sin ventanas no rotula nada (antes, «Sin paneles»).
+- **Supr (punto 1)**. Terminal, página web y editor de Notas ya lo manejaban. Lo arreglado: en la
+  barra de direcciones y en Buscar **escribía un carácter invisible** (el `U+F728` de
+  `key.characters`; ahora `typedText`), con toda la dirección seleccionada la borra, en Ficheros
+  **borra lo seleccionado** (pregunta antes; como en Windows, además de Cmd+⌫), en el historial
+  quita la entrada marcada, y en el terminal va con modificadores al estilo xterm
+  (`ESC[3;5~` con Ctrl). Los campos propios escriben siempre al final, así que Supr no tiene nada
+  delante: ahí no hace nada, a propósito. **Si en el terminal o en Notas sigue sin ir, es que la
+  tecla no llega al `KeyboardRouter`**: mirar eso primero.
+- **Transparencia (punto 7)**: Ajustes › General › Transparencia, dock y barra por separado
+  (Opaca, Poca, Media, Mucha). `BarBackdrop` (desenfoque + tinte) es el fondo de los dos. Por
+  defecto, como estaban: dock en Media, barra Opaca.
+- **Exportar favoritos (punto 3)**: ver `BrunOS/Browser/CLAUDE.md`.
 
 La 2609300854 llevaba lo de «Escrito el 30-sep-2026»: cursor en ventanas flotantes, página de
 inicio sin franja y con la ayuda, cabecera de Notas, menú contextual nítido, ZIP de un fichero,

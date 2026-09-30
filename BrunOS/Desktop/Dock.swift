@@ -28,10 +28,8 @@ final class Dock: UIView {
     private let separator = UIView()
     private let background = UIView()
     /// **Transparencia de verdad**, como el Dock de macOS: lo de detrás se ve
-    /// desenfocado. Encima, un tinte suave del color de los paneles para que
-    /// los iconos no se pierdan sobre un fondo claro (Bruno, 24-sep-2026).
-    private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
-    private let tint = UIView()
+    /// desenfocado (Bruno, 24-sep-2026). Cuánta, en Ajustes › General.
+    private let backdrop = BarBackdrop(fill: Tokens.Color.panelElevated, cornerRadius: 16)
     /// El nombre de la app bajo el cursor, encima de su icono, como en macOS.
     private let tooltip = UILabel()
 
@@ -65,12 +63,8 @@ final class Dock: UIView {
         background.layer.shadowOffset = CGSize(width: 0, height: 4)
         addSubview(background)
 
-        blur.layer.cornerRadius = 16
-        blur.clipsToBounds = true
-        background.addSubview(blur)
-        tint.backgroundColor = Tokens.Color.panelElevated.withAlphaComponent(0.35)
-        tint.layer.cornerRadius = 16
-        background.addSubview(tint)
+        background.addSubview(backdrop)
+        applyTranslucency()
 
         separator.backgroundColor = Tokens.Color.border
         addSubview(separator)
@@ -101,6 +95,10 @@ final class Dock: UIView {
     /// Vuelve a pintar el borde, que es un `CGColor` y no cambia solo de modo.
     func applyTheme() {
         background.setThemedBorder(Tokens.Color.border.withAlphaComponent(0.6))
+    }
+
+    func applyTranslucency() {
+        backdrop.apply(DesktopPreferences.dockTranslucency)
     }
 
     // MARK: - Contenido
@@ -231,8 +229,7 @@ final class Dock: UIView {
         let width = baseWidth + extra
         let bar = CGRect(x: (bounds.width - width) / 2, y: 0, width: width, height: Self.height)
         background.frame = bar
-        blur.frame = background.bounds
-        tint.frame = background.bounds
+        backdrop.frame = background.bounds
 
         let bottom = Self.height - (Self.height - Self.itemSize) / 2
         var x = bar.minX + Self.padding

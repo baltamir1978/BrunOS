@@ -160,6 +160,18 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
     private static func bytes(for key: UIKey) -> ArraySlice<UInt8>? {
         let modifiers = key.modifierFlags
 
+        // Supr con modificadores, como xterm: `ESC [ 3 ; n ~`, con n = 1 +
+        // Mayús (1) + Option (2) + Ctrl (4), que es lo que esperan zsh, vim
+        // o emacs para asignarle algo. Antes, con Ctrl no salía nada.
+        if key.keyCode == .keyboardDeleteForward {
+            var code = 1
+            if modifiers.contains(.shift) { code += 1 }
+            if modifiers.contains(.alternate) { code += 2 }
+            if modifiers.contains(.control) { code += 4 }
+            let sequence = code == 1 ? "\u{1B}[3~" : "\u{1B}[3;\(code)~"
+            return ArraySlice(Array(sequence.utf8))
+        }
+
         if modifiers.contains(.control) {
             guard let scalar = key.charactersIgnoringModifiers.lowercased().unicodeScalars.first
             else { return nil }
@@ -187,7 +199,6 @@ final class TerminalTab: NSObject, @preconcurrency TerminalViewDelegate {
         case .keyboardEnd: [0x1B, 0x5B, 0x46]
         case .keyboardPageUp: [0x1B, 0x5B, 0x35, 0x7E]
         case .keyboardPageDown: [0x1B, 0x5B, 0x36, 0x7E]
-        case .keyboardDeleteForward: [0x1B, 0x5B, 0x33, 0x7E]
         default: nil
         }
 
