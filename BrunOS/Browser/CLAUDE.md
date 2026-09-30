@@ -170,7 +170,7 @@ qué hay bajo el cursor se metía también en el shadow root **interno** de un `
 ### Bloqueador: las listas de uBlock Origin, bajadas en el iPhone (24-sep-2026)
 
 Bruno pidió todas las listas que trae uBlock y que desaparecieran los **recuadros grises** donde
-iba un anuncio. **Escrito desde Linux; compila, y en el simulador compila las listas (169.903 reglas). Sin probar en el iPhone.**
+iba un anuncio. En el simulador compila las listas (169.903 reglas).
 
 - **`FilterList.catalog`**: el catálogo de uBlock (`assets/assets.json`), con sus direcciones y
   grupos. Encendidas de serie, las de uBlock (Anuncios, Privacidad, Malware, Arreglos, Arreglos
@@ -203,14 +203,12 @@ iba un anuncio. **Escrito desde Linux; compila, y en el simulador compila las li
 - **Lo que no entra**: scriptlets (`##+js`), procedurales (`:has-text`, `:upward`…), `$redirect`,
   `$removeparam`, `$csp`, expresiones regulares. uBlock hace más en páginas con antibloqueo.
 
-**Lo menos seguro sin compilar**: la primera compilación en el iPhone (unos 160.000 reglas en 4
-listas de WebKit; puede tardar), y si WebKit acepta todos los `resource-type` y `load-type` que
-salen. Si una lista no compila, el error sale en Ajustes con el `userInfo` en el log.
+La primera compilación en el iPhone tarda (unos 160.000 reglas en 4 listas de WebKit). Si una
+lista no compila, el error sale en Ajustes con el `userInfo` en el log.
 
 ### Avisos de cookies: «I Still Don't Care About Cookies» (24-sep-2026)
 
-Lo pidió Bruno, con un icono para apagarlo por sitio en la barra del navegador. **Sin compilar
-ni probar en el iPhone.**
+Lo pidió Bruno, con un icono para apagarlo por sitio en la barra del navegador.
 
 - **`CookieNoticeBlocker`** hace lo que `activateDomain`/`doTheMagic` de la extensión: en cada
   marco, `common.css`, `embedsHandler.js` y, si el sitio (o un padre, quitando `www.`) tiene regla
@@ -344,7 +342,6 @@ Cmd+Intro o el botón central en otra. Se borra una visita (el aspa sale al pasa
 Cmd+⌫), la última hora, hoy o todo; «Borrar todo» pide un segundo clic. También desde el lanzador.
 El icono de cada fila es el de la barra de favoritos, ahora en `FaviconStore.drawSiteIcon`.
 
-**Sin probar en el iPhone.**
 
 ### Pestañas
 
@@ -354,7 +351,7 @@ dirección**: mantener vivo un `WKWebView` por si acaso es justo lo que hace que
 
 ### Fijar y silenciar pestañas (24-sep-2026)
 
-Lo pidió Bruno, como en Safari. **Sin probar en el iPhone ni compilar** (se escribió desde Linux).
+Lo pidió Bruno, como en Safari.
 
 - **Fijadas**: van siempre delante, estrechas y sólo con el icono, sin aspa. Cmd+W no las cierra
   (sale un aviso), «Cerrar las demás» se las salta, y se recuerdan al arrancar
@@ -373,8 +370,8 @@ Lo pidió Bruno, como en Safari. **Sin probar en el iPhone ni compilar** (se esc
 
 ### Pantalla completa de vídeo: YouTube, Plex (24-sep-2026)
 
-Lo pidió Bruno. **Sin compilar ni probar en el iPhone**; el script, probado en Chromium (página
-y un iframe de otro origen, entrar, salir y salir desde fuera).
+Lo pidió Bruno. El script se probó también en Chromium (página y un iframe de otro origen,
+entrar, salir y salir desde fuera).
 
 - **La pantalla completa de WebKit no vale**: exige un gesto de verdad, y los clics y teclas de
   BrunOS son sintéticos (el botón de YouTube y su tecla F no hacían nada); y en iOS la presenta en
@@ -407,7 +404,7 @@ y un iframe de otro origen, entrar, salir y salir desde fuera).
 (hasta 6 niveles). Cada vídeo trae `page` (la dirección de la página donde se vio), y la descarga
 usa ésa como `Referer`: con la de Reddit, el CDN de RedGifs lo niega. **Comprobado en macOS** con
 un iframe en otro puerto: el punto llega bien descontado el margen y el borde, y el `Referer` es el
-del iframe. **Sin probar contra Reddit.**
+del iframe. Bruno lo dio por bueno en Reddit con la 0.1.0.
 
 ### YouTube a pantalla completa ponía la web entera (24-sep-2026, noche)
 
@@ -482,7 +479,7 @@ Los dos en Ajustes del navegador, pedidos por Bruno.
   monitor avisa con `PhoneNotice`. `BookmarkImporter` aplana las carpetas, **salta la lista de
   lectura de Safari** (carpeta `com.apple.ReadingList`), ignora lo que no sea http(s) y los
   repetidos; `BrowserHistory.importBookmarks` los añade al final. Probado con un fichero como el
-  de Safari y otro como el de Chrome; sin probar con uno de verdad en el iPhone.
+  de Safari y otro como el de Chrome.
 
 ## Exportar favoritos (30-sep-2026, sin compilar ni probar)
 

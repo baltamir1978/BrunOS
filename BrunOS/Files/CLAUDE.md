@@ -22,7 +22,7 @@ ubicaciones más lista) en lugar de los dos paneles de Total Commander.
 - **Un clic selecciona; doble clic abre** (22-sep-2026, lo pidió Bruno). Se reconoce en el panel:
   dos clics sobre el mismo elemento en menos de 0,5 s y sin moverse más de 6 puntos. El margen es
   más generoso que el de macOS porque los clics pasan por AssistiveTouch. Intro sigue abriendo, y
-  la flecha de la cabecera sube un nivel. **Sin probar en el iPhone**: si el doble clic falla, lo
+  la flecha de la cabecera sube un nivel. Si el doble clic fallara, lo
   primero es mirar cuánto tardan en llegar los dos clics.
 
 ### La vista previa NO usa QuickLook
@@ -77,8 +77,6 @@ incluido**: se lee de uno y se escribe en el otro (`FileService.transfer`).
 
 ### Cada ventana con su ubicación, selección múltiple y progreso por bytes (24-sep-2026)
 
-**Sin compilar ni probar** (escrito desde Linux, sin Xcode).
-
 - **Todas las ventanas de Ficheros compartían ubicación**: miraban `FileService.currentProvider`,
   que es global. Con dos ventanas, cambiar de ubicación en una cambiaba lo que listaba la otra, y
   arrastrar de una a otra copiaba al sitio equivocado. Ahora cada `FilesPane` lleva la suya por
@@ -125,7 +123,8 @@ el 23-sep aprobó AMSMB2.
   (swift-system para Linux, swift-atomics para los tests). LGPL 2.1, enlazada como librería
   dinámica. Fijada a la serie 4.0.
 
-**Sin probar contra un servidor de verdad.**
+No consta que se haya probado contra un servidor SMB de verdad: Bruno usaba el de la app
+Archivos.
 
 La vía de la app Archivos sigue valiendo para lo ya montado allí: se añade con «Otra carpeta».
 
@@ -165,7 +164,7 @@ sin contenido y `copyItem` no lo baja. `ExternalFolderProvider.coordinatedRead` 
 `download`, así que vale para la vista previa y para copiar, y para Google Drive u OneDrive
 añadidos desde Archivos. Bloquea el hilo mientras baja: sólo desde las funciones `async`.
 La vista previa dice «Bajando de iCloud… (tamaño)» mientras espera. **Sin progreso**: la lectura
-coordinada no lo da. **Sin probar en el iPhone.**
+coordinada no lo da.
 
 **Ver un vídeo sin bajarlo entero no se puede en iCloud** con API pública: la única forma de
 tener una dirección que AVFoundation pueda ir leyendo es `url(forPublishingUbiquitousItemAt:)`,
@@ -182,7 +181,7 @@ reproductor cancela un rango (al saltar), se corta su tarea.
 - **El asset sólo retiene al delegado débil**: `QuickLookView.streamer` lo guarda mientras se ve.
 - **Comprobado en macOS** con un origen falso que sirve trozos de un fichero local con 20 ms de
   retraso: un vídeo de 91 MB empieza a los 0,5 s (11 MB leídos), el salto al minuto 1:30 tarda
-  0,14 s y en total se leyeron 33 MB. **Sin probar contra un servidor de verdad ni en el iPhone.**
+  0,14 s y en total se leyeron 33 MB.
 - En SFTP cada trozo abre y cierra el fichero: más idas y vueltas, pero sin estado que se quede
   colgado. Si va lento en la red de verdad, lo primero es mantenerlo abierto.
 
@@ -210,7 +209,7 @@ PDFKit dibuja a la densidad de la pantalla. `applyContentsScale` no entra en un 
 rueda mueve su `UIScrollView` interno, las flechas y Av Pág cambian de página, Inicio y Fin van al
 principio y al final, y Cmd + / − / 0 hacen zoom (**llegan por `performOverModal`**: los atajos
 con Cmd no le llegan a la vista). La cabecera dice «Página 3 de 12». Un clic dentro ya no cierra;
-en un vídeo, pausa y sigue. **Sin probar en el iPhone.**
+en un vídeo, pausa y sigue.
 
 ### Control de zoom en los visores (24-sep-2026, noche)
 
@@ -218,8 +217,7 @@ en un vídeo, pausa y sigue. **Sin probar en el iPhone.**
 y moverse con la rueda por lo ampliado sin pasarse del borde), en `Desktop/ZoomControl.swift`.
 Los usan la vista previa de Ficheros (PDF, imagen y vídeo; el PDF con su propio zoom, que además
 se mueve a los lados) y el visor de Fotos. Cmd + / − / 0 hacen lo mismo: en la vista previa por
-`performOverModal`, en Fotos por `PhotosPane.zoomViewer`. Lo pidió Bruno. **Sin probar en el
-iPhone.**
+`performOverModal`, en Fotos por `PhotosPane.zoomViewer`. Lo pidió Bruno.
 
 ### ZIP (24-sep-2026, noche)
 
@@ -240,4 +238,4 @@ comprimir (`NSFileCoordinator` con `.forUploading`) mete un solo fichero dentro 
   el trabajo de fondo (`cancellable`, con `withTaskCancellationHandler`).
 - **Comprobado en macOS**: el ZIP que hace lo valida `unzip -t` e idéntico al descomprimir; uno de
   `ditto` (lo que usa el Finder) sale idéntico, 20 MB incluidos; uno con `../malo.txt` no escribe
-  fuera. **Sin probar en el iPhone.**
+  fuera.

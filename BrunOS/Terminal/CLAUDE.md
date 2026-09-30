@@ -5,7 +5,7 @@
 **Terminada y funcionando: Bruno confirmó el 22-sep-2026 que la conexión SSH conecta de verdad**
 contra una máquina suya. Era la mayor incógnita del proyecto y está despejada.
 
-Lo que sigue sin probarse de esta fase: tmux y vim con ratón, la selección con arrastre, el
+No consta que se haya probado: tmux y vim con ratón, la selección con arrastre, el
 `known_hosts` ante una clave que cambie, y la reconexión tras una caída real.
 
 Lo que hay:
@@ -91,7 +91,7 @@ Citadel usa `swift-crypto`, que en plataformas de Apple es CryptoKit por debajo:
 mismos y basta `import CryptoKit`.
 
 **Comprobado**: la línea pública que genera BrunOS la lee `ssh-keygen -l` y da la misma huella.
-**Sin probar**: la importación de una clave cifrada y la conexión contra un servidor real.
+No consta que se haya probado importar una clave cifrada.
 
 ### Terminal: lista de conexiones y tema propio
 
@@ -125,7 +125,6 @@ dónde va el scroll. Ahora:
 - El tamaño de celda sale de `getOptimalFrameSize()` (columnas × celda), no del ancho de la vista,
   que incluye el sobrante del borde.
 
-**Sin probar en el iPhone.**
 
 ### El scroll iba al revés que en el resto (24-sep-2026)
 

@@ -2,7 +2,7 @@
 
 La quinta app del dock (Cmd+5), pedida por Bruno el 24-sep-2026: **un visor de imágenes y un
 reproductor de vídeo basados en una carpeta**, con un icono parecido al de Fotos de macOS.
-**Escrita desde Linux; compila sin cambios en el Mac. Sin probar en el iPhone.**
+Probada con la 0.1.0.
 
 - **`PhotosPane`**: la rejilla de una carpeta de **cualquier ubicación de Ficheros** (iPhone,
   iCloud, USB, SFTP, SMB). Primero las subcarpetas, luego fotos y vídeos, por nombre. Doble clic o
@@ -25,6 +25,5 @@ reproductor de vídeo basados en una carpeta**, con un icono parecido al de Foto
 - **El icono** (`DockIcon.drawPhotos`) es una flor de ocho pétalos de colores en multiplicar,
   dibujada por código: el de Apple no se puede copiar. Se comprobó pintándolo igual en un canvas.
 
-**Lo menos seguro sin compilar**: la miniatura de vídeo por `MediaStreamer` (si
-`AVAssetImageGenerator` no tira del cargador propio, sale el icono de película) y que los
-controles del vídeo respondan en el monitor.
+Si una miniatura de vídeo sale como icono de película, es que `AVAssetImageGenerator` no ha
+tirado del cargador propio (`MediaStreamer`).
